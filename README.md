@@ -1,3 +1,3 @@
 # PotatoPC
 
-irm "https://dezfix.github.io/PotatoPC/" | iex
+irm "https://kutt.it/potatopc" | iex 
