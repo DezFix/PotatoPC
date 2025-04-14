@@ -35,10 +35,35 @@ function Disable-Telemetry {
 }
 
 function Manage-Startup {
-    Write-Host "`n[+] Список автозагрузки:" -ForegroundColor Yellow
-    Get-CimInstance -ClassName Win32_StartupCommand | 
-        Select-Object Name, Command, Location | 
-        Format-Table -AutoSize
+    $startupItems = Get-CimInstance -ClassName Win32_StartupCommand |
+        Select-Object Name, Command, Location
+
+    if ($startupItems.Count -eq 0) {
+        Write-Host "`n[!] Элементы автозагрузки не найдены." -ForegroundColor Red
+        Pause
+        return
+    }
+
+    Write-Host "`n[+] Найдено элементов автозагрузки: $($startupItems.Count)" -ForegroundColor Yellow
+
+    $i = 1
+    foreach ($item in $startupItems) {
+        Write-Host "$i. $($item.Name) [$($item.Location)]" -ForegroundColor Cyan
+        $i++
+    }
+
+    $selection = Read-Host "`nВведите номер элемента для отключения (или 0 для выхода)"
+    if ($selection -eq '0') { return }
+
+    $index = [int]$selection - 1
+    if ($index -ge 0 -and $index -lt $startupItems.Count) {
+        $selectedItem = $startupItems[$index]
+        $disableScript = "REG DELETE \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"$($selectedItem.Name)\" /f"
+        Invoke-Expression $disableScript
+        Write-Host "[+] Элемент $($selectedItem.Name) отключён." -ForegroundColor Green
+    } else {
+        Write-Host "[!] Неверный выбор." -ForegroundColor Red
+    }
     Pause
 }
 
