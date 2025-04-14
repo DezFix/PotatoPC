@@ -1,4 +1,4 @@
-﻿# ╔═══════════════════════════════════════╗
+# ╔═══════════════════════════════════════╗
 # ║          МЕНЮ НАСТРОЙКИ WINDOWS       ║
 # ╚═══════════════════════════════════════╝
 
@@ -30,12 +30,31 @@ function Run-Selection {
         [string]$selection
     )
     switch ($selection) {
-        '1' { Write-Host ">> Запуск оптимизации системы..." -ForegroundColor Yellow; Pause }
-        '2' { Write-Host ">> Запуск установки ПО..." -ForegroundColor Yellow; Pause }
-        '3' { Write-Host ">> Запуск настроек приватности..." -ForegroundColor Yellow; Pause }
-        '4' { Write-Host ">> Отключение телеметрии..." -ForegroundColor Yellow; Pause }
-        '5' { Write-Host ">> Выход. До встречи!" -ForegroundColor Green; exit }
-        Default { Write-Host ">> Неверный ввод. Попробуйте снова." -ForegroundColor Red; Pause }
+        '1' {
+            Write-Host ">> Запуск оптимизации системы..." -ForegroundColor Yellow
+            Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy Bypass", ".\clear.ps1"
+            exit
+        }
+        '2' {
+            Write-Host ">> В разработке..." -ForegroundColor DarkGray
+            Pause
+        }
+        '3' {
+            Write-Host ">> В разработке..." -ForegroundColor DarkGray
+            Pause
+        }
+        '4' {
+            Write-Host ">> В разработке..." -ForegroundColor DarkGray
+            Pause
+        }
+        '5' {
+            Write-Host ">> Выход. До встречи!" -ForegroundColor Green
+            exit
+        }
+        default {
+            Write-Host ">> Неверный ввод. Попробуйте снова." -ForegroundColor Red
+            Pause
+        }
     }
 }
 
