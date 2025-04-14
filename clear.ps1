@@ -20,7 +20,7 @@ function Clear-System {
     Remove-Item "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item "C:\Windows\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
     Clear-RecycleBin -Force -ErrorAction SilentlyContinue
-    Pause
+    Start-Sleep -Seconds 5
 }
 
 function Disable-Telemetry {
@@ -31,7 +31,7 @@ function Disable-Telemetry {
         Set-Service -Name $svc -StartupType Disabled
     }
     reg add "HKLM\Software\Policies\Microsoft\Windows\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f
-    Pause
+    Start-Sleep -Seconds 5
 }
 
 function Manage-Startup {
@@ -48,14 +48,14 @@ function Disable-Unused-Services {
     foreach ($svc in $svcList) {
         Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
     }
-    Pause
+    Start-Sleep -Seconds 5
 }
 
 function Optimize-Performance {
     Write-Host "`n[+] Включение режима высокой производительности..." -ForegroundColor Yellow
     powercfg -setactive SCHEME_MIN
     Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Value "0"
-    Pause
+    Start-Sleep -Seconds 5
 }
 
 function Remove-Bloatware {
@@ -96,7 +96,7 @@ function Remove-Bloatware {
     foreach ($app in $apps) {
         Get-AppxPackage -Name $app | Remove-AppxPackage -ErrorAction SilentlyContinue
     }
-    Pause
+    Start-Sleep -Seconds 5
 }
 
 $backToMain = $false
