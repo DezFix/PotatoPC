@@ -36,7 +36,7 @@ function Disable-Telemetry {
 
 function Manage-Startup {
     $startupItems = Get-CimInstance -ClassName Win32_StartupCommand |
-        Select-Object Name
+        Select-Object Name, Location
 
     if ($startupItems.Count -eq 0) {
         Write-Host "`n[!] Элементы автозагрузки не найдены." -ForegroundColor Red
@@ -138,7 +138,7 @@ while (-not $backToMain) {
         '4' { Disable-Unused-Services }
         '5' { Optimize-Performance }
         '6' { Remove-Bloatware }
-        '7' {          
+        '7' {
             Clear-System
             Disable-Telemetry
             Disable-Unused-Services
