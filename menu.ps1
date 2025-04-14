@@ -8,13 +8,13 @@ function Show-Menu {
     Write-Host " 2. Установка софта"
     Write-Host " 3. Настройки приватности"
     Write-Host " 4. Скоро..."
-    Write-Host " 5. Выйти"
+    Write-Host " 0. Выйти"
     Write-Host ""
 }
 
 function Read-Choice {
     param (
-        [string]$Prompt = "Выберите опцию (1-5): "
+        [string]$Prompt = "Выберите опцию (0-4): "
     )
     Write-Host ""
     $choice = Read-Host -Prompt $Prompt
@@ -42,7 +42,7 @@ function Run-Selection {
             Write-Host ">> В разработке..." -ForegroundColor DarkGray
             Pause
         }
-        '5' {
+        '0' {
             Write-Host ">> Выход. До встречи!" -ForegroundColor Green
             exit
         }
