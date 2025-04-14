@@ -75,7 +75,9 @@ function Remove-Bloatware {
     Pause
 }
 
-do {
+$backToMain = $false
+
+while (-not $backToMain) {
     Show-Menu
     $choice = Read-Host "Выберите опцию (0-7):"
     switch ($choice) {
@@ -94,8 +96,10 @@ do {
         }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
+            Start-Sleep -Seconds 1
             iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1")
+            $backToMain = $true
         }
         default { Write-Host "Неверный ввод. Попробуйте снова." -ForegroundColor Red; Pause }
     }
-} while ($true)
+}
