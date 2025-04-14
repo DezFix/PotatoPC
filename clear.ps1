@@ -4,9 +4,9 @@ function Show-Menu {
     Write-Host "     WICKED RAVEN SYSTEM CLEAR     " -ForegroundColor Magenta
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host " 1. Очистка системы"
-    Write-Host " 2. Отключение телеметрии Windows"
-    Write-Host " 3. Настройка автозагрузки"
+    Write-Host " 1. Настройка автозагрузки"
+    Write-Host " 2. Очистка системы"
+    Write-Host " 3. Отключение телеметрии Windows"
     Write-Host " 4. Отключение ненужных служб"
     Write-Host " 5. Повышение производительности"
     Write-Host " 6. Удаление встроенного ПО"
@@ -36,11 +36,11 @@ function Disable-Telemetry {
 
 function Manage-Startup {
     $startupItems = Get-CimInstance -ClassName Win32_StartupCommand |
-        Select-Object Name, Command, Location
+        Select-Object Name
 
     if ($startupItems.Count -eq 0) {
         Write-Host "`n[!] Элементы автозагрузки не найдены." -ForegroundColor Red
-        Pause
+        Start-Sleep -Seconds 5
         return
     }
 
@@ -52,19 +52,21 @@ function Manage-Startup {
         $i++
     }
 
-    $selection = Read-Host "`nВведите номер элемента для отключения (или 0 для выхода)"
+    $selection = Read-Host "`nВведите номера элементов для отключения (через запятую, 0 - выход)"
     if ($selection -eq '0') { return }
 
-    $index = [int]$selection - 1
-    if ($index -ge 0 -and $index -lt $startupItems.Count) {
-        $selectedItem = $startupItems[$index]
-        $disableScript = "REG DELETE \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"$($selectedItem.Name)\" /f"
-        Invoke-Expression $disableScript
-        Write-Host "[+] Элемент $($selectedItem.Name) отключён." -ForegroundColor Green
-    } else {
-        Write-Host "[!] Неверный выбор." -ForegroundColor Red
+    $indices = $selection -split ',' | ForEach-Object { ($_ -as [int]) - 1 }
+    foreach ($index in $indices) {
+        if ($index -ge 0 -and $index -lt $startupItems.Count) {
+            $selectedItem = $startupItems[$index]
+            $regPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+            Remove-ItemProperty -Path $regPath -Name $selectedItem.Name -ErrorAction SilentlyContinue
+            Write-Host "[+] Элемент $($selectedItem.Name) отключён." -ForegroundColor Green
+        } else {
+            Write-Host "[!] Неверный выбор: $($index + 1)" -ForegroundColor Red
+        }
     }
-    Pause
+    Start-Sleep -Seconds 5
 }
 
 function Disable-Unused-Services {
@@ -130,13 +132,14 @@ while (-not $backToMain) {
     Show-Menu
     $choice = Read-Host "Выберите опцию (0-7):"
     switch ($choice) {
-        '1' { Clear-System }
-        '2' { Disable-Telemetry }
-        '3' { Manage-Startup }
+        '1' { Manage-Startup }
+        '2' { Clear-System }
+        '3' { Disable-Telemetry }
         '4' { Disable-Unused-Services }
         '5' { Optimize-Performance }
         '6' { Remove-Bloatware }
         '7' {
+            Manage-Startup
             Clear-System
             Disable-Telemetry
             Disable-Unused-Services
@@ -149,6 +152,6 @@ while (-not $backToMain) {
             iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1")
             $backToMain = $true
         }
-        default { Write-Host "Неверный ввод. Попробуйте снова." -ForegroundColor Red; Pause }
+        default { Write-Host "Неверный ввод. Попробуйте снова." -ForegroundColor Red; Start-Sleep -Seconds 5 }
     }
 }
