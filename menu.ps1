@@ -32,8 +32,7 @@ function Run-Selection {
     switch ($selection) {
         '1' {
             Write-Host ">> Запуск оптимизации системы..." -ForegroundColor Yellow
-            Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy Bypass", ".\clear.ps1"
-            exit
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/clear.ps1")
         }
         '2' {
             Write-Host ">> В разработке..." -ForegroundColor DarkGray
