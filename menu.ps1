@@ -7,7 +7,7 @@ function Show-Menu {
     Write-Host " 1. Оптимизация системы"
     Write-Host " 2. Установка софта"
     Write-Host " 3. Настройки приватности"
-    Write-Host " 4. Отключить телеметрию"
+    Write-Host " 4. Скоро..."
     Write-Host " 5. Выйти"
     Write-Host ""
 }
