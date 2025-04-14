@@ -1,10 +1,8 @@
-Clear-Host
-
 function Show-Menu {
     Clear-Host
-    Write-Host "# ╔═══════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "# ║          МЕНЮ НАСТРОЙКИ WINDOWS       ║" -ForegroundColor Magenta
-    Write-Host "# ╚═══════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "===================================" -ForegroundColor Cyan
+    Write-Host "     WICKED RAVEN SYSTEM Clear     " -ForegroundColor Magenta
+    Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host " 1. Очистка системы"
     Write-Host " 2. Отключение телеметрии Windows"
