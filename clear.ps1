@@ -138,8 +138,7 @@ while (-not $backToMain) {
         '4' { Disable-Unused-Services }
         '5' { Optimize-Performance }
         '6' { Remove-Bloatware }
-        '7' {
-            Manage-Startup
+        '7' {          
             Clear-System
             Disable-Telemetry
             Disable-Unused-Services
