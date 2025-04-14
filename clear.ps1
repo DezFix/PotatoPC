@@ -1,4 +1,3 @@
-﻿# PC-Booster.ps1 - Комплексный оптимизатор системы
 Clear-Host
 
 function Show-Menu {
@@ -14,7 +13,7 @@ function Show-Menu {
     Write-Host " 5. Повышение производительности"
     Write-Host " 6. Удаление встроенного ПО"
     Write-Host " 7. Выполнить всё"
-    Write-Host " 0. Выход"
+    Write-Host " 0. Назад"
     Write-Host ""
 }
 
@@ -93,7 +92,10 @@ do {
             Optimize-Performance
             Remove-Bloatware
         }
-        '0' { Write-Host "Выход. До встречи!" -ForegroundColor Green; break }
+        '0' {
+            Write-Host "Возврат в главное меню..." -ForegroundColor Green
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1")
+        }
         default { Write-Host "Неверный ввод. Попробуйте снова." -ForegroundColor Red; Pause }
     }
 } while ($true)
