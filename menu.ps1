@@ -32,7 +32,7 @@ function Run-Selection {
         }
         '2' {
             Write-Host ">> Запуск оптимизации системы..." -ForegroundColor Yellow
-            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/clear.ps1")
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/install.ps1")
         }
         '3' {
             Write-Host ">> В разработке..." -ForegroundColor DarkGray
