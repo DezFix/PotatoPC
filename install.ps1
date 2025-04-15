@@ -4,22 +4,22 @@ function Show-InstallMenu {
     Write-Host "     WICKED RAVEN INSTALL SYSTEM    " -ForegroundColor Magenta
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host " 1. Установить по пресетам"
-    Write-Host " 2. Ручная установка приложений"
-    Write-Host " 0. Назад"
+    Write-Host " 1. РЈСЃС‚Р°РЅРѕРІРёС‚СЊ РїРѕ РїСЂРµСЃРµС‚Р°Рј"
+    Write-Host " 2. Р СѓС‡РЅР°СЏ СѓСЃС‚Р°РЅРѕРІРєР° РїСЂРёР»РѕР¶РµРЅРёР№"
+    Write-Host " 0. РќР°Р·Р°Рґ"
     Write-Host ""
 }
 
 function Check-Choco {
     if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
-        Write-Host "[!] Chocolatey не найден." -ForegroundColor Yellow
-        $install = Read-Host "Установить Chocolatey? (y/n)"
+        Write-Host "[!] Chocolatey РЅРµ РЅР°Р№РґРµРЅ." -ForegroundColor Yellow
+        $install = Read-Host "РЈСЃС‚Р°РЅРѕРІРёС‚СЊ Chocolatey? (y/n)"
         if ($install -eq 'y') {
             Set-ExecutionPolicy Bypass -Scope Process -Force
             [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
             iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
         } else {
-            Write-Host "[-] Chocolatey не будет установлен." -ForegroundColor DarkYellow
+            Write-Host "[-] Chocolatey РЅРµ Р±СѓРґРµС‚ СѓСЃС‚Р°РЅРѕРІР»РµРЅ." -ForegroundColor DarkYellow
             return $false
         }
     }
@@ -29,34 +29,34 @@ function Check-Choco {
 function Show-PresetMenu {
     Clear-Host
     Write-Host "===================================" -ForegroundColor Cyan
-    Write-Host "         УСТАНОВКА ПО ПРЕСЕТАМ      " -ForegroundColor Magenta
+    Write-Host "         РЈРЎРўРђРќРћР’РљРђ РџРћ РџР Р•РЎР•РўРђРњ      " -ForegroundColor Magenta
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host " 1. Стандартный набор"
-    Write-Host " 2. Геймерский набор"
-    Write-Host " 3. Все вместе"
-    Write-Host " 0. Назад"
+    Write-Host " 1. РЎС‚Р°РЅРґР°СЂС‚РЅС‹Р№ РЅР°Р±РѕСЂ"
+    Write-Host " 2. Р“РµР№РјРµСЂСЃРєРёР№ РЅР°Р±РѕСЂ"
+    Write-Host " 3. Р’СЃРµ РІРјРµСЃС‚Рµ"
+    Write-Host " 0. РќР°Р·Р°Рґ"
     Write-Host ""
 }
 
 function Ask-OpenOfficeInstall {
     $global:installOpenOffice = $false
-    $answer = Read-Host "[?] Установить OpenOffice? (y/n)"
+    $answer = Read-Host "[?] РЈСЃС‚Р°РЅРѕРІРёС‚СЊ OpenOffice? (y/n)"
     if ($answer -eq 'y') {
         $global:installOpenOffice = $true
     } else {
-        Write-Host "[-] OpenOffice пропущен." -ForegroundColor DarkYellow
+        Write-Host "[-] OpenOffice РїСЂРѕРїСѓС‰РµРЅ." -ForegroundColor DarkYellow
     }
 }
 
 function Show-LicenseAgreement($apps) {
-    Write-Host "Вы собираетесь установить следующие приложения:" -ForegroundColor Cyan
+    Write-Host "Р’С‹ СЃРѕР±РёСЂР°РµС‚РµСЃСЊ СѓСЃС‚Р°РЅРѕРІРёС‚СЊ СЃР»РµРґСѓСЋС‰РёРµ РїСЂРёР»РѕР¶РµРЅРёСЏ:" -ForegroundColor Cyan
     foreach ($app in $apps) {
         Write-Host "- $app" -ForegroundColor White
     }
-    $confirm = Read-Host "Продолжить установку? (y/n)"
+    $confirm = Read-Host "РџСЂРѕРґРѕР»Р¶РёС‚СЊ СѓСЃС‚Р°РЅРѕРІРєСѓ? (y/n)"
     if ($confirm -ne 'y') {
-        Write-Host "[-] Установка отменена." -ForegroundColor Yellow
+        Write-Host "[-] РЈСЃС‚Р°РЅРѕРІРєР° РѕС‚РјРµРЅРµРЅР°." -ForegroundColor Yellow
         return $false
     }
     return $true
@@ -66,7 +66,7 @@ function Install-StandardPreset {
     $apps = @("SumatraPDF", "7-Zip", "AnyDesk")
     if (-not (Show-LicenseAgreement $apps)) { return }
     Ask-OpenOfficeInstall
-    Write-Host "[+] Установка стандартного набора программ..." -ForegroundColor Yellow
+    Write-Host "[+] РЈСЃС‚Р°РЅРѕРІРєР° СЃС‚Р°РЅРґР°СЂС‚РЅРѕРіРѕ РЅР°Р±РѕСЂР° РїСЂРѕРіСЂР°РјРј..." -ForegroundColor Yellow
     choco install -y sumatrapdf 7zip anydesk
     if ($global:installOpenOffice) {
         choco install -y openoffice
@@ -77,7 +77,7 @@ function Install-StandardPreset {
 function Install-GamerPreset {
     $apps = @("Steam", "Discord")
     if (-not (Show-LicenseAgreement $apps)) { return }
-    Write-Host "[+] Установка геймерского набора..." -ForegroundColor Yellow
+    Write-Host "[+] РЈСЃС‚Р°РЅРѕРІРєР° РіРµР№РјРµСЂСЃРєРѕРіРѕ РЅР°Р±РѕСЂР°..." -ForegroundColor Yellow
     choco install -y steam discord
     Pause
 }
@@ -90,17 +90,17 @@ function Install-AllPresets {
 function Show-ManualInstallList {
     Clear-Host
     Write-Host "===================================" -ForegroundColor Cyan
-    Write-Host "         РУЧНАЯ УСТАНОВКА           " -ForegroundColor Magenta
+    Write-Host "         Р РЈР§РќРђРЇ РЈРЎРўРђРќРћР’РљРђ           " -ForegroundColor Magenta
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
 
     $categories = @{
-        "Браузеры" = @(
+        "Р‘СЂР°СѓР·РµСЂС‹" = @(
             @{Name='Opera'; Id='opera'},
             @{Name='Google Chrome'; Id='googlechrome'},
             @{Name='Mozilla Firefox'; Id='firefox'}
         )
-        "Инструменты" = @(
+        "РРЅСЃС‚СЂСѓРјРµРЅС‚С‹" = @(
             @{Name='SumatraPDF'; Id='sumatrapdf'},
             @{Name='7-Zip'; Id='7zip'},
             @{Name='AnyDesk'; Id='anydesk'},
@@ -108,17 +108,17 @@ function Show-ManualInstallList {
             @{Name='NAPS2'; Id='naps2'},
             @{Name='Warp'; Id='warp'}
         )
-        "Связь" = @(
+        "РЎРІСЏР·СЊ" = @(
             @{Name='Telegram'; Id='telegram'},
             @{Name='Viber'; Id='viber'},
             @{Name='Microsoft Teams'; Id='msteams'},
             @{Name='Zoom'; Id='zoom'}
         )
-        "Игры и Связь" = @(
+        "РРіСЂС‹ Рё РЎРІСЏР·СЊ" = @(
             @{Name='Steam'; Id='steam'},
             @{Name='Discord'; Id='discord'}
         )
-        "Офис" = @(
+        "РћС„РёСЃ" = @(
             @{Name='OpenOffice'; Id='openoffice'}
         )
     }
@@ -136,7 +136,7 @@ function Show-ManualInstallList {
     }
 
     Write-Host ""
-    $choice = Read-Host "Введите номера через запятую, что установить (0 для выхода):"
+    $choice = Read-Host "Р’РІРµРґРёС‚Рµ РЅРѕРјРµСЂР° С‡РµСЂРµР· Р·Р°РїСЏС‚СѓСЋ, С‡С‚Рѕ СѓСЃС‚Р°РЅРѕРІРёС‚СЊ (0 РґР»СЏ РІС‹С…РѕРґР°):"
 
     if ($choice -eq '0') { return }
 
@@ -146,7 +146,7 @@ function Show-ManualInstallList {
         if ($num -ge 0 -and $num -lt $allApps.Count) {
             choco install -y $($allApps[$num].Id)
         } else {
-            Write-Host "[!] Неверный выбор: $($i)" -ForegroundColor Red
+            Write-Host "[!] РќРµРІРµСЂРЅС‹Р№ РІС‹Р±РѕСЂ: $($i)" -ForegroundColor Red
         }
     }
     Pause
@@ -156,20 +156,20 @@ $backToMain = $false
 
 while (-not $backToMain) {
     Show-InstallMenu
-    $choice = Read-Host "Выберите опцию (0-2):"
+    $choice = Read-Host "Р’С‹Р±РµСЂРёС‚Рµ РѕРїС†РёСЋ (0-2):"
     switch ($choice) {
         '1' {
             if (Check-Choco) {
                 $presetBack = $false
                 while (-not $presetBack) {
                     Show-PresetMenu
-                    $presetChoice = Read-Host "Выберите пресет (0-3):"
+                    $presetChoice = Read-Host "Р’С‹Р±РµСЂРёС‚Рµ РїСЂРµСЃРµС‚ (0-3):"
                     switch ($presetChoice) {
                         '1' { Install-StandardPreset }
                         '2' { Install-GamerPreset }
                         '3' { Install-AllPresets }
                         '0' { $presetBack = $true }
-                        default { Write-Host "Неверный ввод. Попробуйте снова." -ForegroundColor Red; Pause }
+                        default { Write-Host "РќРµРІРµСЂРЅС‹Р№ РІРІРѕРґ. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°." -ForegroundColor Red; Pause }
                     }
                 }
             }
@@ -180,13 +180,13 @@ while (-not $backToMain) {
             }
         }
         '0' {
-            Write-Host "Возврат в главное меню..." -ForegroundColor Green
+            Write-Host "Р’РѕР·РІСЂР°С‚ РІ РіР»Р°РІРЅРѕРµ РјРµРЅСЋ..." -ForegroundColor Green
             Start-Sleep -Seconds 1
             iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1")
             $backToMain = $true
         }
         default {
-            Write-Host "Неверный ввод. Попробуйте снова." -ForegroundColor Red
+            Write-Host "РќРµРІРµСЂРЅС‹Р№ РІРІРѕРґ. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°." -ForegroundColor Red
             Pause
         }
     }
