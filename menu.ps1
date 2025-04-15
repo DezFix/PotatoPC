@@ -31,8 +31,8 @@ function Run-Selection {
             iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/clear.ps1")
         }
         '2' {
-            Write-Host ">> В разработке..." -ForegroundColor DarkGray
-            Pause
+            Write-Host ">> Запуск оптимизации системы..." -ForegroundColor Yellow
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/clear.ps1")
         }
         '3' {
             Write-Host ">> В разработке..." -ForegroundColor DarkGray
