@@ -41,12 +41,12 @@ function Show-PresetMenu {
 }
 
 function Ask-OpenOfficeInstall {
-    $global:installOpenOffice = $false
-    $answer = Read-Host "[?] Установить OpenOffice? (y/n)"
+    $global:installOnlyoffice = $false
+    $answer = Read-Host "[?] Установить Onlyoffice? (y/n)"
     if ($answer -eq 'y') {
-        $global:installOpenOffice = $true
+        $global:installOnlyoffice = $true
     } else {
-        Write-Host "[-] OpenOffice пропущен." -ForegroundColor DarkYellow
+        Write-Host "[-] Onlyoffice пропущен." -ForegroundColor DarkYellow
     }
 }
 
@@ -69,8 +69,8 @@ function Install-StandardPreset {
     Ask-OpenOfficeInstall
     Write-Host "[+] Установка стандартного набора программ..." -ForegroundColor Yellow
     choco install -y sumatrapdf 7zip anydesk
-    if ($global:installOpenOffice) {
-        choco install -y openoffice
+    if ($global:installOnlyoffice) {
+        choco install -y onlyoffice
     }
     Pause
 }
