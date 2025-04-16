@@ -154,8 +154,36 @@ function Show-ManualInstallList {
 }
 
 function Update-AllChoco {
-    Write-Host "[+] Обновление всех установленных пакетов через Chocolatey..." -ForegroundColor Yellow
-    choco upgrade all -y
+    Write-Host "[+] Проверка на доступные обновления..." -ForegroundColor Yellow
+    $updates = choco outdated | Select-String -Pattern '^\S+' | ForEach-Object { $_.Line.Split(' ')[0] } | Where-Object { $_ -ne "Outdated" -and $_ -ne "Package" }
+    if ($updates.Count -eq 0) {
+        Write-Host "Все пакеты уже обновлены." -ForegroundColor Green
+        Pause
+        return
+    }
+    Write-Host "Можно обновить следующие пакеты:" -ForegroundColor Cyan
+    for ($i = 0; $i -lt $updates.Count; $i++) {
+        Write-Host "$($i+1). $($updates[$i])"
+    }
+    $selection = Read-Host "Введите номера через запятую для обновления или нажмите Enter для обновления всех (0 для отмены)"
+
+    if ($selection -eq '0') {
+        Write-Host "Обновление отменено." -ForegroundColor DarkYellow
+        Pause
+        return
+    } elseif ([string]::IsNullOrWhiteSpace($selection)) {
+        choco upgrade all -y
+    } else {
+        $selectedIndexes = $selection -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^[0-9]+$' }
+        foreach ($index in $selectedIndexes) {
+            $i = [int]$index - 1
+            if ($i -ge 0 -and $i -lt $updates.Count) {
+                choco upgrade $($updates[$i]) -y
+            } else {
+                Write-Host "[!] Неверный выбор: $index" -ForegroundColor Red
+            }
+        }
+    }
     Pause
 }
 
