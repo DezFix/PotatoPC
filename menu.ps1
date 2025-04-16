@@ -6,8 +6,8 @@ function Show-Menu {
     Write-Host ""
     Write-Host " 1. Оптимизация системы"
     Write-Host " 2. Установка софта"
-    Write-Host " 3. Настройки приватности"
-    Write-Host " 4. Скоро..."
+    Write-Host " 3. В разработке..."
+    Write-Host " 4. В разработке..."
     Write-Host " 0. Выйти"
     Write-Host ""
 }
