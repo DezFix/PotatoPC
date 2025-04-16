@@ -6,6 +6,7 @@ function Show-InstallMenu {
     Write-Host ""
     Write-Host " 1. Установить по пресетам"
     Write-Host " 2. Ручная установка приложений"
+    Write-Host " 3. Обновить установленные пакеты"
     Write-Host " 0. Назад"
     Write-Host ""
 }
@@ -104,7 +105,7 @@ function Show-ManualInstallList {
             @{Name='SumatraPDF'; Id='sumatrapdf'},
             @{Name='7-Zip'; Id='7zip'},
             @{Name='AnyDesk'; Id='anydesk'},
-            @{Name='BCUninstaller'; Id='bcuninstaller'},
+            @{Name='BCUninstaller'; Id='bulk-crap-uninstaller'},
             @{Name='NAPS2'; Id='naps2'},
             @{Name='Warp'; Id='warp'}
         )
@@ -152,11 +153,17 @@ function Show-ManualInstallList {
     Pause
 }
 
+function Update-AllChoco {
+    Write-Host "[+] Обновление всех установленных пакетов через Chocolatey..." -ForegroundColor Yellow
+    choco upgrade all -y
+    Pause
+}
+
 $backToMain = $false
 
 while (-not $backToMain) {
     Show-InstallMenu
-    $choice = Read-Host "Выберите опцию (0-2):"
+    $choice = Read-Host "Выберите опцию (0-3):"
     switch ($choice) {
         '1' {
             if (Check-Choco) {
@@ -179,10 +186,20 @@ while (-not $backToMain) {
                 Show-ManualInstallList
             }
         }
+        '3' {
+            if (Check-Choco) {
+                Update-AllChoco
+            }
+        }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
             Start-Sleep -Seconds 1
-            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1")
+            try {
+                $menuScript = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1" -UseBasicParsing
+                Invoke-Expression $menuScript.Content
+            } catch {
+                Write-Host "[!] Не удалось загрузить меню. Проверьте подключение к интернету." -ForegroundColor Red
+            }
             $backToMain = $true
         }
         default {
