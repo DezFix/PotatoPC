@@ -31,6 +31,17 @@ function Disable-Telemetry {
         Set-Service -Name $svc -StartupType Disabled
     }
     reg add "HKLM\Software\Policies\Microsoft\Windows\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f
+    $tasks = @(
+        "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
+        "\Microsoft\Windows\Autochk\Proxy",
+        "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
+        "\Microsoft\Windows\Customer Experience Improvement Program\KernelCeipTask",
+        "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip"
+    )
+    foreach ($task in $tasks) {
+        schtasks /Change /TN $task /Disable 2>$null
+    }
+
     Start-Sleep -Seconds 3
 }
 
@@ -86,6 +97,12 @@ function Optimize-Performance {
     Write-Host "`n[+] Включение режима высокой производительности..." -ForegroundColor Yellow
     powercfg -setactive SCHEME_MIN
     Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Value "0"
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SubscribedContent-338388Enabled /t REG_DWORD /d 0 /f
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SubscribedContent-310093Enabled /t REG_DWORD /d 0 /f
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SubscribedContent-338389Enabled /t REG_DWORD /d 0 /f
+    reg add "HKCU\Software\Policies\Microsoft\Edge" /v BackgroundModeEnabled /t REG_DWORD /d 0 /f
+    reg add "HKCU\Software\Policies\Microsoft\Edge" /v PromoteFirefox /t REG_DWORD /d 0 /f
+
     Start-Sleep -Seconds 3
 }
 
@@ -148,7 +165,7 @@ while (-not $backToMain) {
             Optimize-Performance
             Remove-Bloatware
             Clear-System
-            }
+        }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
             Start-Sleep -Seconds 1
