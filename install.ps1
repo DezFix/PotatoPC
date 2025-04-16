@@ -120,7 +120,7 @@ function Show-ManualInstallList {
             @{Name='Discord'; Id='discord'}
         )
         "Офис" = @(
-            @{Name='OpenOffice'; Id='openoffice'}
+            @{Name='Onlyoffice'; Id='onlyoffice'}
         )
     }
 
