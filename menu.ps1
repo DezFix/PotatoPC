@@ -14,7 +14,7 @@ function Show-Menu {
 
 function Read-Choice {
     param (
-        [string]$Prompt = "Выберите опцию (0-4): "
+        [string]$Prompt = "Выберите опцию (0-4)"
     )
     Write-Host ""
     $choice = Read-Host -Prompt $Prompt
