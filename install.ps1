@@ -198,7 +198,7 @@ while (-not $backToMain) {
                 $presetBack = $false
                 while (-not $presetBack) {
                     Show-PresetMenu
-                    $presetChoice = Read-Host "Выберите пресет (0-3):"
+                    $presetChoice = Read-Host "Выберите пресет (0-3)"
                     switch ($presetChoice) {
                         '1' { Install-StandardPreset }
                         '2' { Install-GamerPreset }
