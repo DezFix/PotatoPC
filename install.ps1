@@ -191,7 +191,7 @@ $backToMain = $false
 
 while (-not $backToMain) {
     Show-InstallMenu
-    $choice = Read-Host "Выберите опцию (0-3):"
+    $choice = Read-Host "Выберите опцию (0-3)"
     switch ($choice) {
         '1' {
             if (Check-Choco) {
