@@ -137,7 +137,7 @@ function Show-ManualInstallList {
     }
 
     Write-Host ""
-    $choice = Read-Host "Введите номера через запятую, что установить (0 для выхода):"
+    $choice = Read-Host "Введите номера через запятую, что установить (0 для выхода)"
 
     if ($choice -eq '0') { return }
 
