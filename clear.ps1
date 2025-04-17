@@ -151,7 +151,7 @@ $backToMain = $false
 
 while (-not $backToMain) {
     Show-Menu
-    $choice = Read-Host "Выберите опцию (0-7):"
+    $choice = Read-Host "Выберите опцию (0-7)"
     switch ($choice) {
         '1' { Manage-Startup }
         '2' { Disable-Telemetry }
