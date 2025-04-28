@@ -115,7 +115,6 @@ function Remove-Bloatware {
         "Microsoft.ZuneMusic",
         "Microsoft.ZuneVideo",
         "Microsoft.windowscommunicationsapps",
-        "Microsoft.WindowsCalculator",
         "Microsoft.WindowsCamera",
         "Microsoft.549981C3F5F10",
         "Microsoft.BingWeather",
