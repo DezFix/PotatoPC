@@ -35,7 +35,7 @@ function Run-Selection {
             iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/install.ps1")
         }
         '3' {
-            Write-Host ">> Запуск оптимизации системы... " -ForegroundColor DarkGray
+            Write-Host ">> Запуск оптимизации системы... " -ForegroundColor Yellow
             iex (irm "https://github.com/DezFix/PotatoPC/raw/refs/heads/main/Diagnostics.ps1")  
         }
         '4' {
