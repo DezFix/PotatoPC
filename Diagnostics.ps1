@@ -15,41 +15,76 @@ function Show-DiagnosticsMenu {
 }
 
 function Run-SFC {
-    Write-Host "\n[+] Запуск проверки SFC..." -ForegroundColor Yellow
+    Write-Host "[+] Запуск проверки SFC..." -ForegroundColor Yellow
     sfc /scannow
     Pause
 }
 
 function Run-DISM {
-    Write-Host "\n[+] Запуск DISM для восстановления компонентов..." -ForegroundColor Yellow
+    Write-Host "[+] Запуск DISM для восстановления компонентов..." -ForegroundColor Yellow
     DISM /Online /Cleanup-Image /RestoreHealth
     Pause
 }
 
 function Run-CHKDSK {
-    Write-Host "\n[+] Проверка диска C: с исправлением ошибок при следующей загрузке..." -ForegroundColor Yellow
-    chkdsk C: /F /R
-    Write-Host "\n[!] Проверка запланирована. Перезагрузите ПК для выполнения." -ForegroundColor Cyan
+    Write-Host "[+] Выберите параметры проверки диска:" -ForegroundColor Cyan
+    Write-Host " 1. Только проверка (только чтение)"
+    Write-Host " 2. Проверка и исправление ошибок (/F)"
+    Write-Host " 3. Проверка, исправление и восстановление секторов (/F /R)"
+    Write-Host " 0. Отмена"
+    $option = Read-Host "Введите номер опции"
+
+    switch ($option) {
+        '1' {
+            Write-Host "[+] Выполняется проверка C: без изменений..." -ForegroundColor Yellow
+            chkdsk C:
+        }
+        '2' {
+            Write-Host "[+] Запланирована проверка C: с исправлением ошибок..." -ForegroundColor Yellow
+            chkdsk C: /F
+            Write-Host "[!] Перезагрузите ПК для выполнения проверки." -ForegroundColor Cyan
+        }
+        '3' {
+            Write-Host "[+] Запланирована проверка C: с восстановлением секторов..." -ForegroundColor Yellow
+            chkdsk C: /F /R
+            Write-Host "[!] Перезагрузите ПК для выполнения проверки." -ForegroundColor Cyan
+        }
+        '0' {
+            Write-Host "[!] Отменено пользователем." -ForegroundColor DarkYellow
+        }
+        default {
+            Write-Host "Неверный ввод. Возврат в меню." -ForegroundColor Red
+        }
+    }
     Pause
 }
 
 function Run-MemoryTest {
-    Write-Host "\n[+] Планирование проверки оперативной памяти..." -ForegroundColor Yellow
+    Write-Host "[+] Планирование проверки оперативной памяти..." -ForegroundColor Yellow
     mdsched.exe
 }
 
 function Reset-Network {
-    Write-Host "\n[+] Сброс сетевых настроек..." -ForegroundColor Yellow
+    Write-Host "[+] Сброс сетевых настроек..." -ForegroundColor Yellow
     ipconfig /flushdns
     netsh winsock reset
     netsh int ip reset
-    Write-Host "\n[!] Готово. Рекомендуется перезагрузка." -ForegroundColor Cyan
+    Write-Host "[!] Готово. Рекомендуется перезагрузка." -ForegroundColor Cyan
     Pause
 }
 
 function Show-SystemErrors {
-    Write-Host "\n[+] Последние 20 системных ошибок..." -ForegroundColor Yellow
-    Get-WinEvent -LogName System -MaxEvents 20 | Format-List
+    Write-Host "[+] Последние 20 системных ошибок..." -ForegroundColor Yellow
+    Get-WinEvent -LogName System -MaxEvents 20 | ForEach-Object {
+        $entry = $_
+        $color = switch ($entry.LevelDisplayName) {
+            'Error' { 'Red' }
+            'Warning' { 'Yellow' }
+            'Information' { 'Gray' }
+            default { 'White' }
+        }
+        Write-Host "[$($entry.TimeCreated)] [$($entry.LevelDisplayName)] $($entry.Message)" -ForegroundColor $color
+    }
     Pause
 }
 
