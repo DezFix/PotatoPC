@@ -1,7 +1,7 @@
 function Show-InstallMenu {
     Clear-Host
     Write-Host "===================================" -ForegroundColor Cyan
-    Write-Host "     WICKED RAVEN INSTALL SYSTEM    " -ForegroundColor Magenta
+    Write-Host "         WICKED RAVEN INSTALL      " -ForegroundColor Magenta
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host " 1. Установить по пресетам"
