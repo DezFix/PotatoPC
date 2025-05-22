@@ -1,7 +1,7 @@
 function Show-Menu {
     Clear-Host
     Write-Host "===================================" -ForegroundColor Cyan
-    Write-Host "     WICKED RAVEN SYSTEM TOOLKIT   " -ForegroundColor Magenta
+    Write-Host "       WICKED RAVEN TOOLKIT        " -ForegroundColor Magenta
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host " 1. Оптимизация системы"
