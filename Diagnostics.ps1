@@ -1,7 +1,7 @@
 function Show-DiagnosticsMenu {
     Clear-Host
     Write-Host "===========================================" -ForegroundColor Cyan
-    Write-Host "       WICKED RAVEN DIAGNOSTICS MODULE       " -ForegroundColor Magenta
+    Write-Host "           WICKED RAVEN DIAGNOSTICS        " -ForegroundColor Magenta
     Write-Host "===========================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host " 1. Проверка системных файлов (SFC)"
