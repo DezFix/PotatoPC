@@ -6,7 +6,7 @@ function Show-Menu {
     Write-Host ""
     Write-Host " 1. Оптимизация системы"
     Write-Host " 2. Установка софта"
-    Write-Host " 3. В разработке..."
+    Write-Host " 3. Тесты и проверки"
     Write-Host " 4. В разработке..."
     Write-Host " 0. Выйти"
     Write-Host ""
@@ -35,8 +35,8 @@ function Run-Selection {
             iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/install.ps1")
         }
         '3' {
-            Write-Host ">> В разработке..." -ForegroundColor DarkGray
-            Pause
+            Write-Host ">> Запуск оптимизации системы... " -ForegroundColor DarkGray
+            iex (irm "https://github.com/DezFix/PotatoPC/raw/refs/heads/main/Diagnostics.ps1")  
         }
         '4' {
             Write-Host ">> В разработке..." -ForegroundColor DarkGray
