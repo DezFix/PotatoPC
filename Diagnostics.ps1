@@ -4,51 +4,51 @@ function Show-DiagnosticsMenu {
     Write-Host "       WICKED RAVEN DIAGNOSTICS MODULE       " -ForegroundColor Magenta
     Write-Host "===========================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host " 1. Проверка системных файлов (SFC)"
-    Write-Host " 2. Восстановление компонентов Windows (DISM)"
-    Write-Host " 3. Проверка диска (CHKDSK)"
-    Write-Host " 4. Проверка оперативной памяти (RAM)"
-    Write-Host " 5. Сброс сетевых настроек"
-    Write-Host " 6. Быстрый просмотр системных ошибок"
-    Write-Host " 0. Назад"
+    Write-Host " 1. РџСЂРѕРІРµСЂРєР° СЃРёСЃС‚РµРјРЅС‹С… С„Р°Р№Р»РѕРІ (SFC)"
+    Write-Host " 2. Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёРµ РєРѕРјРїРѕРЅРµРЅС‚РѕРІ Windows (DISM)"
+    Write-Host " 3. РџСЂРѕРІРµСЂРєР° РґРёСЃРєР° (CHKDSK)"
+    Write-Host " 4. РџСЂРѕРІРµСЂРєР° РѕРїРµСЂР°С‚РёРІРЅРѕР№ РїР°РјСЏС‚Рё (RAM)"
+    Write-Host " 5. РЎР±СЂРѕСЃ СЃРµС‚РµРІС‹С… РЅР°СЃС‚СЂРѕРµРє"
+    Write-Host " 6. Р‘С‹СЃС‚СЂС‹Р№ РїСЂРѕСЃРјРѕС‚СЂ СЃРёСЃС‚РµРјРЅС‹С… РѕС€РёР±РѕРє"
+    Write-Host " 0. РќР°Р·Р°Рґ"
     Write-Host ""
 }
 
 function Run-SFC {
-    Write-Host "\n[+] Запуск проверки SFC..." -ForegroundColor Yellow
+    Write-Host "\n[+] Р—Р°РїСѓСЃРє РїСЂРѕРІРµСЂРєРё SFC..." -ForegroundColor Yellow
     sfc /scannow
     Pause
 }
 
 function Run-DISM {
-    Write-Host "\n[+] Запуск DISM для восстановления компонентов..." -ForegroundColor Yellow
+    Write-Host "\n[+] Р—Р°РїСѓСЃРє DISM РґР»СЏ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РєРѕРјРїРѕРЅРµРЅС‚РѕРІ..." -ForegroundColor Yellow
     DISM /Online /Cleanup-Image /RestoreHealth
     Pause
 }
 
 function Run-CHKDSK {
-    Write-Host "\n[+] Проверка диска C: с исправлением ошибок при следующей загрузке..." -ForegroundColor Yellow
+    Write-Host "\n[+] РџСЂРѕРІРµСЂРєР° РґРёСЃРєР° C: СЃ РёСЃРїСЂР°РІР»РµРЅРёРµРј РѕС€РёР±РѕРє РїСЂРё СЃР»РµРґСѓСЋС‰РµР№ Р·Р°РіСЂСѓР·РєРµ..." -ForegroundColor Yellow
     chkdsk C: /F /R
-    Write-Host "\n[!] Проверка запланирована. Перезагрузите ПК для выполнения." -ForegroundColor Cyan
+    Write-Host "\n[!] РџСЂРѕРІРµСЂРєР° Р·Р°РїР»Р°РЅРёСЂРѕРІР°РЅР°. РџРµСЂРµР·Р°РіСЂСѓР·РёС‚Рµ РџРљ РґР»СЏ РІС‹РїРѕР»РЅРµРЅРёСЏ." -ForegroundColor Cyan
     Pause
 }
 
 function Run-MemoryTest {
-    Write-Host "\n[+] Планирование проверки оперативной памяти..." -ForegroundColor Yellow
+    Write-Host "\n[+] РџР»Р°РЅРёСЂРѕРІР°РЅРёРµ РїСЂРѕРІРµСЂРєРё РѕРїРµСЂР°С‚РёРІРЅРѕР№ РїР°РјСЏС‚Рё..." -ForegroundColor Yellow
     mdsched.exe
 }
 
 function Reset-Network {
-    Write-Host "\n[+] Сброс сетевых настроек..." -ForegroundColor Yellow
+    Write-Host "\n[+] РЎР±СЂРѕСЃ СЃРµС‚РµРІС‹С… РЅР°СЃС‚СЂРѕРµРє..." -ForegroundColor Yellow
     ipconfig /flushdns
     netsh winsock reset
     netsh int ip reset
-    Write-Host "\n[!] Готово. Рекомендуется перезагрузка." -ForegroundColor Cyan
+    Write-Host "\n[!] Р“РѕС‚РѕРІРѕ. Р РµРєРѕРјРµРЅРґСѓРµС‚СЃСЏ РїРµСЂРµР·Р°РіСЂСѓР·РєР°." -ForegroundColor Cyan
     Pause
 }
 
 function Show-SystemErrors {
-    Write-Host "\n[+] Последние 20 системных ошибок..." -ForegroundColor Yellow
+    Write-Host "\n[+] РџРѕСЃР»РµРґРЅРёРµ 20 СЃРёСЃС‚РµРјРЅС‹С… РѕС€РёР±РѕРє..." -ForegroundColor Yellow
     Get-WinEvent -LogName System -MaxEvents 20 | Format-List
     Pause
 }
@@ -57,7 +57,7 @@ $backToMain = $false
 
 while (-not $backToMain) {
     Show-DiagnosticsMenu
-    $choice = Read-Host "Выберите опцию (0-6):"
+    $choice = Read-Host "Р’С‹Р±РµСЂРёС‚Рµ РѕРїС†РёСЋ (0-6):"
     switch ($choice) {
         '1' { Run-SFC }
         '2' { Run-DISM }
@@ -66,13 +66,13 @@ while (-not $backToMain) {
         '5' { Reset-Network }
         '6' { Show-SystemErrors }
         '0' {
-            Write-Host "Возврат в главное меню..." -ForegroundColor Green
+            Write-Host "Р’РѕР·РІСЂР°С‚ РІ РіР»Р°РІРЅРѕРµ РјРµРЅСЋ..." -ForegroundColor Green
             Start-Sleep -Seconds 1
             iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1")
             $backToMain = $true
         }
         default {
-            Write-Host "Неверный ввод. Попробуйте снова." -ForegroundColor Red
+            Write-Host "РќРµРІРµСЂРЅС‹Р№ РІРІРѕРґ. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°." -ForegroundColor Red
             Pause
         }
     }
