@@ -1,3 +1,9 @@
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Host "Запустите скрипт от имени администратора!" -ForegroundColor Red
+    Read-Host "Нажмите Enter для выхода..."
+    exit
+}
 function Show-Menu {
     Clear-Host
     Write-Host "===================================" -ForegroundColor Cyan
