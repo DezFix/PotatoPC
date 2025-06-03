@@ -55,7 +55,7 @@ function Disable-Telemetry {
     $services = @(
         "DiagTrack", "dmwappushservice", "DPS", "WdiServiceHost", 
         "WdiSystemHost", "Wecsvc", "WerSvc", "WMPNetworkSvc", 
-        "WpnService", "ndu", "XboxGameMonitoring", 
+        "WpnService", "XboxGameMonitoring", 
         "XboxSpeechToTextService", "XboxGipSvc"
     )
     
