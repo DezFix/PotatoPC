@@ -19,7 +19,6 @@ function Show-Menu {
     Write-Host " 4. Повышение производительности"
     Write-Host " 5. Удаление встроенного ПО"
     Write-Host " 6. Очистка системы"
-    Write-Host " 7. Блокировка рекламы (hosts файл) тестируется!!!"
     Write-Host ""
     Write-Host " 8. Выполнить всё"
     Write-Host " 0. Назад"
@@ -347,40 +346,6 @@ function Remove-Bloatware {
     Write-Host "[+] Все нежелательное ПО удалено" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
-# Замена Hosts файла для блокировки рекламы
-function Block-Ads {
-    Write-Host "[*] Блокировка рекламы через обновление hosts..." -ForegroundColor Cyan
-
-    $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
-    $backupDir = "$env:SystemRoot\System32\drivers\etc\hosts_backup"
-
-    try {
-        if (-not (Test-Path $backupDir)) {
-            New-Item -Path $backupDir -ItemType Directory -Force | Out-Null
-        }
-
-        $timestamp = Get-Date -Format "yyyyMMdd_HHmm"
-        $backupPath = Join-Path $backupDir "hosts_$timestamp.bak"
-        Copy-Item -Path $hostsPath -Destination $backupPath -Force
-        Write-Host "[*] Создана резервная копия: $backupPath" -ForegroundColor Yellow
-
-        $url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
-        $newHosts = Invoke-WebRequest -Uri $url -UseBasicParsing
-
-        if ($newHosts.StatusCode -eq 200) {
-            $newHosts.Content | Set-Content -Path $hostsPath -Force -Encoding ASCII
-            Write-Host "[+] Новый hosts успешно применён." -ForegroundColor Green
-        } else {
-            Write-Host "[!] Не удалось загрузить файл hosts. Код: $($newHosts.StatusCode)" -ForegroundColor Red
-        }
-    }
-    catch {
-        Write-Host "[!] Ошибка: $_" -ForegroundColor Red
-    }
-
-    Start-Sleep -Seconds 4
-}
-
 # Основной цикл
 $backToMain = $false
 
@@ -394,14 +359,12 @@ while (-not $backToMain) {
         '4' { Optimize-Performance }
         '5' { Remove-Bloatware }
         '6' { Clear-System }
-        '7' { Block-Ads }
-        '8' {
+        '7' {
             Write-Host "[+] Выполнение всех действий..." -ForegroundColor Magenta
             Disable-Telemetry
             Disable-Unused-Services
             Optimize-Performance
             Remove-Bloatware
-            
             Clear-System
             Write-Host "[+] Все действия выполнены!" -ForegroundColor Green
         }
