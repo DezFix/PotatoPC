@@ -19,7 +19,7 @@ function Show-Menu {
     Write-Host " 4. Повышение производительности"
     Write-Host " 5. Удаление встроенного ПО"
     Write-Host " 6. Очистка системы"
-    Write-Host " 7. Блокировка рекламы (hosts файл)"
+    Write-Host " 7. Блокировка рекламы (hosts файл) тестируется!!!"
     Write-Host ""
     Write-Host " 8. Выполнить всё"
     Write-Host " 0. Назад"
@@ -359,7 +359,7 @@ function Block-Ads {
             New-Item -Path $backupDir -ItemType Directory -Force | Out-Null
         }
 
-        $timestamp = Get-Date -Format "yyyyMMdd"
+        $timestamp = Get-Date -Format "yyyyMMdd_HHmm"
         $backupPath = Join-Path $backupDir "hosts_$timestamp.bak"
         Copy-Item -Path $hostsPath -Destination $backupPath -Force
         Write-Host "[*] Создана резервная копия: $backupPath" -ForegroundColor Yellow
@@ -401,7 +401,7 @@ while (-not $backToMain) {
             Disable-Unused-Services
             Optimize-Performance
             Remove-Bloatware
-            Block-Ads
+            
             Clear-System
             Write-Host "[+] Все действия выполнены!" -ForegroundColor Green
         }
