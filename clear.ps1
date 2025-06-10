@@ -20,7 +20,7 @@ function Show-Menu {
     Write-Host " 5. Удаление встроенного ПО"
     Write-Host " 6. Очистка системы"
     Write-Host ""
-    Write-Host " 8. Выполнить всё"
+    Write-Host " 7. Выполнить всё"
     Write-Host " 0. Назад"
     Write-Host ""
 }
