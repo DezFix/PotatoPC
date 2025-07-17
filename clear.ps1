@@ -1,9 +1,12 @@
-# Создание точки восстановления
-try {
-    Checkpoint-Computer -Description "До выполнения Wicked Raven System Clear" -RestorePointType "MODIFY_SETTINGS"
-    Write-Host "[+] Точка восстановления создана" -ForegroundColor Green
-} catch {
-    Write-Host "[-] Не удалось создать точку восстановления: $_" -ForegroundColor Yellow
+# Спрашиваем пользователя, создавать ли точку восстановления
+$createRestore = Read-Host "Создать точку восстановления перед изменениями? (y/n)"
+if ($createRestore -eq 'y' -or $createRestore -eq 'Y') {
+    try {
+        Checkpoint-Computer -Description "До выполнения Wicked Raven System Clear" -RestorePointType "MODIFY_SETTINGS"
+        Write-Host "[+] Точка восстановления создана" -ForegroundColor Green
+    } catch {
+        Write-Host "[-] Не удалось создать точку восстановления: $_" -ForegroundColor Yellow
+    }
 }
 
 # Функция отображения меню
