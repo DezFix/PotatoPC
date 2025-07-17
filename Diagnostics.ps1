@@ -211,11 +211,14 @@ function Show-SystemErrors {
 }
 function Show-WiFiMenu {
     Clear-Host
-    Write-Host "=== Меню просмотра паролей Wi-Fi ===" -ForegroundColor Cyan
-    Write-Host "1. Показать все Wi-Fi профили"
-    Write-Host "2. Показать пароль конкретного Wi-Fi профиля"
-    Write-Host "3. Экспортировать все пароли в файл"
-    Write-Host "4. Назад"
+    Write-Host "===========================================" -ForegroundColor Cyan
+    Write-Host "         WICKED RAVEN WI-FI PASSWORDS      " -ForegroundColor Magenta
+    Write-Host "===========================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host " 1. Показать все Wi-Fi профили"
+    Write-Host " 2. Показать пароль конкретного Wi-Fi профиля"
+    Write-Host " 3. Экспортировать все пароли в файл"
+    Write-Host " 4. Назад"
     Write-Host ""
 }
 
