@@ -12,6 +12,7 @@ function Show-DiagnosticsMenu {
     Write-Host " 5. Сброс сетевых настроек"
     Write-Host " 6. Быстрый просмотр системных ошибок"
     Write-Host " 7. Информация о системе"
+    Write-Host " 8. Просмотр паролей Wi-Fi"
     Write-Host " 0. Назад"
     Write-Host ""
 }
@@ -208,13 +209,105 @@ function Show-SystemErrors {
     
     Pause
 }
+function Show-WiFiMenu {
+    Clear-Host
+    Write-Host "=== Меню просмотра паролей Wi-Fi ===" -ForegroundColor Cyan
+    Write-Host "1. Показать все Wi-Fi профили"
+    Write-Host "2. Показать пароль конкретного Wi-Fi профиля"
+    Write-Host "3. Экспортировать все пароли в файл"
+    Write-Host "4. Назад"
+    Write-Host ""
+}
 
+function Get-WiFiProfiles {
+    try {
+        $profiles = netsh wlan show profiles | Select-String "All User Profile" | ForEach-Object { $_ -replace ".*: (.*)", '$1' }
+        return $profiles
+    }
+    catch {
+        Write-Host "Ошибка при получении списка профилей: $_" -ForegroundColor Red
+        return $null
+    }
+}
+
+function Get-WiFiPassword {
+    param($profileName)
+    try {
+        $output = netsh wlan show profile name="$profileName" key=clear
+        $keyContent = $output | Select-String "Key Content" | ForEach-Object { $_ -replace ".*: (.*)", '$1' }
+        return $keyContent
+    }
+    catch {
+        Write-Host "Ошибка при получении пароля для $profileName : $_" -ForegroundColor Red
+        return $null
+    }
+}
+
+function WiFi-Passwords-Menu {
+    while ($true) {
+        Show-WiFiMenu
+        $choice = Read-Host "Выберите опцию (1-4)"
+
+        switch ($choice) {
+            '1' {
+                $profiles = Get-WiFiProfiles
+                if ($profiles) {
+                    Write-Host "`nСписок Wi-Fi профилей:" -ForegroundColor Green
+                    $profiles | ForEach-Object { Write-Host $_ }
+                } else {
+                    Write-Host "Wi-Fi профили не найдены." -ForegroundColor Yellow
+                }
+                Read-Host "`nНажмите Enter для продолжения..."
+            }
+            '2' {
+                $profiles = Get-WiFiProfiles
+                if ($profiles) {
+                    Write-Host "`nДоступные Wi-Fi профили:" -ForegroundColor Green
+                    $profiles | ForEach-Object { Write-Host $_ }
+                    $profileName = Read-Host "`nВведите имя Wi-Fi профиля"
+                    $password = Get-WiFiPassword -profileName $profileName
+                    if ($password) {
+                        Write-Host "`nПароль для $profileName : $password" -ForegroundColor Green
+                    } else {
+                        Write-Host "Пароль не найден или профиль не существует." -ForegroundColor Yellow
+                    }
+                } else {
+                    Write-Host "Wi-Fi профили не найдены." -ForegroundColor Yellow
+                }
+                Read-Host "`nНажмите Enter для продолжения..."
+            }
+            '3' {
+                $profiles = Get-WiFiProfiles
+                if ($profiles) {
+                    $outputFile = "$env:USERPROFILE\Desktop\WiFi_Passwords.txt"
+                    $results = @()
+                    foreach ($profile in $profiles) {
+                        $password = Get-WiFiPassword -profileName $profile
+                        $results += "Профиль: $profile | Пароль: $password"
+                    }
+                    $results | Out-File -FilePath $outputFile
+                    Write-Host "`nПароли сохранены в $outputFile" -ForegroundColor Green
+                } else {
+                    Write-Host "Wi-Fi профили не найдены." -ForegroundColor Yellow
+                }
+                Read-Host "`nНажмите Enter для продолжения..."
+            }
+            '4' {
+                break
+            }
+            default {
+                Write-Host "Неверный выбор. Пожалуйста, выберите 1-4." -ForegroundColor Red
+                Read-Host "`nНажмите Enter для продолжения..."
+            }
+        }
+    }
+}
 # Основной цикл
 $backToMain = $false
 
 while (-not $backToMain) {
     Show-DiagnosticsMenu
-    $choice = Read-Host "Выберите опцию (0-7)"
+    $choice = Read-Host "Выберите опцию (0-8)"
     switch ($choice) {
         '1' { Run-SFC }
         '2' { Run-DISM }
@@ -223,6 +316,7 @@ while (-not $backToMain) {
         '5' { Reset-Network }
         '6' { Show-SystemErrors }
         '7' { Show-SystemInfo }
+        '8' { WiFi-Passwords-Menu }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
             Start-Sleep -Seconds 1
@@ -236,7 +330,7 @@ while (-not $backToMain) {
         }
         default {
             Write-Host "Неверный ввод. Попробуйте снова" -ForegroundColor Red
-            Pause
+            Read-Host "Нажмите Enter для продолжения..."
         }
     }
 }
