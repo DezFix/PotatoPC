@@ -302,7 +302,6 @@ function WiFi-Passwords-Menu {
                 Write-Host "[!] Не удалось загрузить меню. Проверьте подключение к интернету." -ForegroundColor Red
             }
             $backToMain = $true
-        }
             }
             default {
                 Write-Host "Неверный выбор. Пожалуйста, выберите 1-4." -ForegroundColor Red
