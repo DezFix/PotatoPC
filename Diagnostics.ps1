@@ -9,10 +9,12 @@ function Show-DiagnosticsMenu {
     Write-Host " 2. Восстановление компонентов Windows (DISM)"
     Write-Host " 3. Проверка диска (CHKDSK)"
     Write-Host " 4. Проверка оперативной памяти (RAM)"
+     Write-Host ""
     Write-Host " 5. Сброс сетевых настроек"
     Write-Host " 6. Быстрый просмотр системных ошибок"
     Write-Host " 7. Информация о системе"
     Write-Host " 8. Просмотр паролей Wi-Fi"
+     Write-Host ""
     Write-Host " 0. Назад"
     Write-Host ""
 }
