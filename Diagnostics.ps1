@@ -23,46 +23,57 @@ function Show-DiagnosticsMenu {
 function Show-SystemInfo {
     Clear-Host
     Write-Host "[+] Получение информации о системе..." -ForegroundColor Yellow
-    
+
     # ОС
-    $os = Get-WmiObject -Class Win32_OperatingSystem
-    $osVersion = [System.Environment]::OSVersion.Version
-    Write-Host "ОС: $($os.Caption) $($os.Version)" -ForegroundColor Cyan
-    Write-Host "Build: $($os.BuildNumber)"
-    Write-Host "Разрядность: $($os.OSArchitecture)"
-    Write-Host "Загружена: $($os.LastBootUpTime)" -ForegroundColor Cyan
+    try {
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem
+        Write-Host "ОС: $($os.Caption) $($os.Version)" -ForegroundColor Cyan
+        Write-Host "Build: $($os.BuildNumber)"
+        Write-Host "Разрядность: $($os.OSArchitecture)"
+        Write-Host "Пользователь: $($os.RegisteredUser)"
+        Write-Host "Загружена: $([Management.ManagementDateTimeConverter]::ToDateTime($os.LastBootUpTime))" -ForegroundColor Cyan
+    } catch {
+        Write-Host "Ошибка получения информации об ОС: $_" -ForegroundColor Red
+    }
 
     # Процессор
-    $cpu = Get-WmiObject -Class Win32_Processor
-    Write-Host "`nПроцессор: $($cpu.Name)" -ForegroundColor Cyan
-    Write-Host "Количество ядер: $($cpu.NumberOfCores)"
-    Write-Host "Максимальная скорость: $($cpu.MaxClockSpeed) МГц"
-
-    # ОЗУ
-    $memory = Get-WmiObject -Class Win32_ComputerSystem
-    $totalRam = [math]::Round($memory.TotalPhysicalMemory / 1GB, 2)
-    $freeRam = [math]::Round((Get-WmiObject -Class Win32_OperatingSystem).FreePhysicalMemory / 1MB, 2)
-    Write-Host "`nПамять: $totalRam ГБ" -ForegroundColor Cyan
-    Write-Host "Свободно: $freeRam ГБ"
-    Write-Host "Использовано: $($totalRam - $freeRam) ГБ"
-
-    # Диски
-    $disks = Get-WmiObject -Class Win32_LogicalDisk -Filter "DriveType=3"
-    Write-Host "`nДиски:" -ForegroundColor Cyan
-    foreach ($disk in $disks) {
-        $size = [math]::Round($disk.Size / 1GB, 2)
-        $free = [math]::Round($disk.FreeSpace / 1GB, 2)
-        Write-Host "$($disk.DeviceID) $size ГБ (Свободно: $free ГБ)"
+    try {
+        $cpu = Get-CimInstance -ClassName Win32_Processor
+        Write-Host "`nПроцессор: $($cpu.Name)" -ForegroundColor Cyan
+        Write-Host "Количество ядер: $($cpu.NumberOfCores)"
+        Write-Host "Потоков: $($cpu.NumberOfLogicalProcessors)"
+        Write-Host "Максимальная скорость: $($cpu.MaxClockSpeed) МГц"
+    } catch {
+        Write-Host "Ошибка получения информации о процессоре: $_" -ForegroundColor Red
     }
 
     # Графика
-    $gpu = Get-WmiObject -Class Win32_VideoController
-    Write-Host "`nГрафика: $($gpu.Name)" -ForegroundColor Cyan
-    Write-Host "Память: $([math]::Round($gpu.AdapterRAM / 1GB, 2)) ГБ"
+    try {
+        $gpus = Get-CimInstance -ClassName Win32_VideoController
+        Write-Host "`nГрафика:" -ForegroundColor Cyan
+        foreach ($gpu in $gpus) {
+            $gpuMem = if ($gpu.AdapterRAM) { [math]::Round($gpu.AdapterRAM / 1GB, 2) } else { "N/A" }
+            Write-Host "$($gpu.Name) ($gpuMem ГБ)"
+        }
+    } catch {
+        Write-Host "Ошибка получения информации о графике: $_" -ForegroundColor Red
+    }
+
+    # Сеть
+    try {
+        $adapters = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled }
+        Write-Host "`nСетевые адаптеры:" -ForegroundColor Cyan
+        foreach ($adapter in $adapters) {
+            Write-Host "$($adapter.Description):"
+            Write-Host "  IPv4: $($adapter.IPAddress -join ', ')"
+            Write-Host "  MAC: $($adapter.MACAddress)"
+        }
+    } catch {
+        Write-Host "Ошибка получения информации о сети: $_" -ForegroundColor Red
+    }
 
     Pause
 }
-
 # Функция проверки SFC
 function Run-SFC {
     Write-Host "[+] Запуск проверки SFC..." -ForegroundColor Yellow
