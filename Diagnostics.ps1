@@ -292,7 +292,11 @@ function WiFi-Passwords-Menu {
                 }
                 Read-Host "`nНажмите Enter для продолжения..."
             }
-            '4' { return }
+            '4' {
+                Write-Host "Возврат в меню диагностики..." -ForegroundColor Green
+                Start-Sleep -Seconds 1
+                return
+            }
             default {
                 Write-Host "Неверный выбор. Пожалуйста, выберите 1-4." -ForegroundColor Red
                 Read-Host "`nНажмите Enter для продолжения..."
