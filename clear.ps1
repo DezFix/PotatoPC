@@ -14,6 +14,7 @@ function Show-Menu {
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host " 1. Настройка автозагрузки"
+    Write-Host ""
     Write-Host " 2. Отключение телеметрии Windows"
     Write-Host " 3. Отключение ненужных служб"
     Write-Host " 4. Повышение производительности"
