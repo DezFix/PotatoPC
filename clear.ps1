@@ -131,14 +131,13 @@ function Manage-Startup {
                 $runPath = "$regHive\Software\Microsoft\Windows\CurrentVersion\Run"
                 if (Test-Path $runPath) {
                     $regKey = Get-Item $runPath -ErrorAction SilentlyContinue
-                    if ($regKey.ValueCount -gt 0) {
-                        $startupItems += $regKey.GetValueNames() | ForEach-Object {
-                            [PSCustomObject]@{
-                                Name = $_
-                                Location = $regKey.GetValue($_)
-                                Type = "Registry (HKCU)"
-                                User = $userName
-                            }
+                    $valueNames = (Get-ItemProperty -Path $runPath | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name)
+                    foreach ($val in $valueNames) {
+                        $startupItems += [PSCustomObject]@{
+                            Name = $val
+                            Location = (Get-ItemProperty -Path $runPath -Name $val).$val
+                            Type = "Registry (HKCU)"
+                            User = $userName
                         }
                     }
                 }
@@ -169,12 +168,13 @@ function Manage-Startup {
 
     # HKLM для всех
     $startupItemsHKLM = @()
-    $regKey = Get-Item "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue
-    if ($regKey.ValueCount -gt 0) {
-        $startupItemsHKLM += $regKey.GetValueNames() | ForEach-Object {
-            [PSCustomObject]@{
-                Name = $_
-                Location = $regKey.GetValue($_)
+    $runPathHKLM = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
+    if (Test-Path $runPathHKLM) {
+        $valueNames = (Get-ItemProperty -Path $runPathHKLM | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name)
+        foreach ($val in $valueNames) {
+            $startupItemsHKLM += [PSCustomObject]@{
+                Name = $val
+                Location = (Get-ItemProperty -Path $runPathHKLM -Name $val).$val
                 Type = "Registry (HKLM)"
                 User = "All Users"
             }
@@ -184,6 +184,25 @@ function Manage-Startup {
         $allStartupItems += [PSCustomObject]@{
             User = "All Users (HKLM)"
             Items = $startupItemsHKLM
+        }
+    }
+
+    # Startup folder для всех пользователей (Public)
+    $publicStartupFolder = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
+    if (Test-Path $publicStartupFolder) {
+        $publicItems = Get-ChildItem -Path $publicStartupFolder -File | ForEach-Object {
+            [PSCustomObject]@{
+                Name = $_.BaseName
+                Location = $_.FullName
+                Type = "Startup Folder (Public)"
+                User = "All Users"
+            }
+        }
+        if ($publicItems.Count -gt 0) {
+            $allStartupItems += [PSCustomObject]@{
+                User = "All Users (Startup Folder)"
+                Items = $publicItems
+            }
         }
     }
 
@@ -248,6 +267,10 @@ function Manage-Startup {
                         Remove-Item -Path $selectedItem.Location -Force -ErrorAction SilentlyContinue
                         Write-Host "[+] Элемент $($selectedItem.Name) удален из автозагрузки пользователя $($selectedItem.User)" -ForegroundColor Green
                     }
+                    "Startup Folder (Public)" {
+                        Remove-Item -Path $selectedItem.Location -Force -ErrorAction SilentlyContinue
+                        Write-Host "[+] Элемент $($selectedItem.Name) удален из автозагрузки всех пользователей" -ForegroundColor Green
+                    }
                 }
             } else {
                 Write-Host "[!] Неверный выбор: $index" -ForegroundColor Red
@@ -257,7 +280,6 @@ function Manage-Startup {
     } while (-not $valid)
     Pause
 }
-
 # Расширенное отключение служб
 function Disable-Unused-Services {
     Write-Host "`n[+] Отключение ненужных служб..." -ForegroundColor Yellow
