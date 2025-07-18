@@ -111,91 +111,145 @@ function Disable-Telemetry {
     Start-Sleep -Seconds 2
 }
 
-# Расширенное управление автозагрузкой
 function Manage-Startup {
-    Write-Host "`n[+] Сканирование автозагрузки..." -ForegroundColor Yellow
-    
-    # Получение всех элементов автозагрузки
-    $startupItems = @()
-    
-    # Реестр текущего пользователя
-    $regKey = Get-Item "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue
-    if ($regKey.ValueCount -gt 0) {
-        $startupItems += $regKey.GetValueNames() | ForEach-Object {
-            [PSCustomObject]@{
-                Name = $_
-                Location = $regKey.GetValue($_)
-                Type = "Registry (HKCU)"
+    Write-Host "`n[+] Сканирование автозагрузки всех пользователей..." -ForegroundColor Yellow
+
+    $allStartupItems = @()
+    $userProfiles = Get-WmiObject -Class Win32_UserProfile | Where-Object { $_.Loaded -eq $true -and $_.LocalPath -like "C:\Users\*" }
+
+    $userIndex = 1
+    foreach ($profile in $userProfiles) {
+        $userName = Split-Path $profile.LocalPath -Leaf
+        $startupItems = @()
+
+        # HKCU для каждого пользователя
+        $ntUserDat = "$($profile.LocalPath)\NTUSER.DAT"
+        if (Test-Path $ntUserDat) {
+            try {
+                $regHive = "HKU\$userName"
+                reg load $regHive $ntUserDat | Out-Null
+                $runPath = "$regHive\Software\Microsoft\Windows\CurrentVersion\Run"
+                if (Test-Path $runPath) {
+                    $regKey = Get-Item $runPath -ErrorAction SilentlyContinue
+                    if ($regKey.ValueCount -gt 0) {
+                        $startupItems += $regKey.GetValueNames() | ForEach-Object {
+                            [PSCustomObject]@{
+                                Name = $_
+                                Location = $regKey.GetValue($_)
+                                Type = "Registry (HKCU)"
+                                User = $userName
+                            }
+                        }
+                    }
+                }
+                reg unload $regHive | Out-Null
+            } catch {}
+        }
+
+        # Startup folder для каждого пользователя
+        $startupFolder = "$($profile.LocalPath)\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+        if (Test-Path $startupFolder) {
+            $startupItems += Get-ChildItem -Path $startupFolder -File | ForEach-Object {
+                [PSCustomObject]@{
+                    Name = $_.BaseName
+                    Location = $_.FullName
+                    Type = "Startup Folder"
+                    User = $userName
+                }
             }
         }
+
+        if ($startupItems.Count -gt 0) {
+            $allStartupItems += [PSCustomObject]@{
+                User = $userName
+                Items = $startupItems
+            }
+        }
+        $userIndex++
     }
-    
-    # Реестр локального компьютера
+
+    # HKLM для всех
+    $startupItemsHKLM = @()
     $regKey = Get-Item "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue
     if ($regKey.ValueCount -gt 0) {
-        $startupItems += $regKey.GetValueNames() | ForEach-Object {
+        $startupItemsHKLM += $regKey.GetValueNames() | ForEach-Object {
             [PSCustomObject]@{
                 Name = $_
                 Location = $regKey.GetValue($_)
                 Type = "Registry (HKLM)"
+                User = "All Users"
             }
         }
     }
-    
-    # Папка автозагрузки
-    $startupFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
-    if (Test-Path $startupFolder) {
-        $startupItems += Get-ChildItem -Path $startupFolder -File | ForEach-Object {
-            [PSCustomObject]@{
-                Name = $_.BaseName
-                Location = $_.FullName
-                Type = "Startup Folder"
-            }
+    if ($startupItemsHKLM.Count -gt 0) {
+        $allStartupItems += [PSCustomObject]@{
+            User = "All Users (HKLM)"
+            Items = $startupItemsHKLM
         }
     }
-    
-    if ($startupItems.Count -eq 0) {
+
+    if ($allStartupItems.Count -eq 0) {
         Write-Host "[!] Элементы автозагрузки не найдены" -ForegroundColor Red
         Start-Sleep -Seconds 2
         return
     }
 
-    do {
-        Write-Host "[+] Найдено элементов автозагрузки: $($startupItems.Count)" -ForegroundColor Yellow
-        $i = 1
-        foreach ($item in $startupItems) {
-            Write-Host "$i. $($item.Name) [$($item.Type)]" -ForegroundColor Cyan
-            $i++
+    $flatList = @()
+    $displayIndex = 1
+    foreach ($userBlock in $allStartupItems) {
+        Write-Host "`n[$displayIndex] Пользователь: $($userBlock.User)" -ForegroundColor Magenta
+        $itemIndex = 1
+        foreach ($item in $userBlock.Items) {
+            Write-Host " $displayIndex.$itemIndex $($item.Name) [$($item.Type)]" -ForegroundColor Cyan
+            $flatList += [PSCustomObject]@{
+                DisplayIndex = "$displayIndex.$itemIndex"
+                Item = $item
+                User = $userBlock.User
+            }
+            $itemIndex++
         }
+        $displayIndex++
+    }
 
-        $selection = Read-Host "`nВведите номера элементов для отключения (через запятую, 0 - выход)"
+    do {
+        $selection = Read-Host "`nВведите номера элементов для отключения (например: 1.2,2.1; 0 - выход)"
         if ($selection -eq '0') { return }
 
-        $indices = $selection -split ',' | ForEach-Object { ($_ -as [int]) - 1 }
+        $indices = $selection -split ',' | ForEach-Object { $_.Trim() }
         $valid = $true
 
         foreach ($index in $indices) {
-            if ($index -ge 0 -and $index -lt $startupItems.Count) {
-                $selectedItem = $startupItems[$index]
-                
-                # Обработка разных типов автозагрузки
+            $selected = $flatList | Where-Object { $_.DisplayIndex -eq $index }
+            if ($selected) {
+                $selectedItem = $selected.Item
                 switch ($selectedItem.Type) {
                     "Registry (HKCU)" {
-                        Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $selectedItem.Name -ErrorAction SilentlyContinue
+                        $userProfile = $userProfiles | Where-Object { (Split-Path $_.LocalPath -Leaf) -eq $selectedItem.User }
+                        if ($userProfile) {
+                            $ntUserDat = "$($userProfile.LocalPath)\NTUSER.DAT"
+                            $regHive = "HKU\$($selectedItem.User)"
+                            try {
+                                reg load $regHive $ntUserDat | Out-Null
+                                $runPath = "$regHive\Software\Microsoft\Windows\CurrentVersion\Run"
+                                Remove-ItemProperty -Path $runPath -Name $selectedItem.Name -ErrorAction SilentlyContinue
+                                reg unload $regHive | Out-Null
+                                Write-Host "[+] Элемент $($selectedItem.Name) отключен для $($selectedItem.User)" -ForegroundColor Green
+                            } catch {
+                                Write-Host "[!] Не удалось отключить $($selectedItem.Name) для $($selectedItem.User)" -ForegroundColor Red
+                            }
+                        }
                     }
                     "Registry (HKLM)" {
-                        if ($isAdmin) {
-                            Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $selectedItem.Name -ErrorAction SilentlyContinue
-                        }
+                        Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $selectedItem.Name -ErrorAction SilentlyContinue
+                        Write-Host "[+] Элемент $($selectedItem.Name) отключен (HKLM)" -ForegroundColor Green
                     }
                     "Startup Folder" {
                         Remove-Item -Path $selectedItem.Location -Force -ErrorAction SilentlyContinue
+                        Write-Host "[+] Элемент $($selectedItem.Name) удален из автозагрузки пользователя $($selectedItem.User)" -ForegroundColor Green
                     }
                 }
-                
-                Write-Host "[+] Элемент $($selectedItem.Name) отключен" -ForegroundColor Green
             } else {
-                Write-Host "[!] Неверный выбор: $($index + 1)" -ForegroundColor Red
+                Write-Host "[!] Неверный выбор: $index" -ForegroundColor Red
                 $valid = $false
             }
         }
