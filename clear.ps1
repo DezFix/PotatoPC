@@ -110,173 +110,74 @@ function Disable-Telemetry {
     Write-Host "[+] Телеметрия полностью отключена" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
-# Расширенное управление автозагрузкой
-function Get-StartupItems {
-    Write-Host "`n[+] Сканирование автозагрузки всех пользователей..." -ForegroundColor Yellow
+function Manage-Startup {
+    Write-Host "`n[+] Управление автозагрузкой..." -ForegroundColor Yellow
 
-    $allStartupItems = @()
-    $userProfiles = Get-WmiObject -Class Win32_UserProfile | Where-Object { $_.Loaded -eq $true -and $_.LocalPath -like "C:\Users\*" }
-
-    # Собираем автозагрузку для каждого пользователя
-    foreach ($userProf in $userProfiles) {
-        $userName = Split-Path $userProf.LocalPath -Leaf
-        $startupItems = @()
-
-        # HKCU для каждого пользователя
-        $ntUserDat = "$($userProf.LocalPath)\NTUSER.DAT"
-        if (Test-Path $ntUserDat) {
-            try {
-                $regHive = "HKU\$userName"
-                reg load $regHive $ntUserDat | Out-Null
-                $runPath = "$regHive\Software\Microsoft\Windows\CurrentVersion\Run"
-                if (Test-Path $runPath) {
-                    $valueNames = (Get-ItemProperty -Path $runPath | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name)
-                    foreach ($val in $valueNames) {
-                        $startupItems += [PSCustomObject]@{
-                            Name = $val
-                            Location = (Get-ItemProperty -Path $runPath -Name $val).$val
-                            Type = "Registry (HKCU)"
-                            User = $userName
-                        }
-                    }
-                }
-                reg unload $regHive | Out-Null
-            } catch {}
-        }
-
-        # Startup folder для каждого пользователя
-        $startupFolder = "$($profile.LocalPath)\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
-        $startupFolder = "$($userProf.LocalPath)\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
-        if (Test-Path $startupFolder) {
-            $startupItems += Get-ChildItem -Path $startupFolder -File | ForEach-Object {
-                [PSCustomObject]@{
-                    Name = $_.BaseName
-                    Location = $_.FullName
-                    Type = "Startup Folder"
-                    User = $userName
-                }
+    # HKCU
+    $runPathHKCU = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+    if (Test-Path $runPathHKCU) {
+        $items = Get-ItemProperty -Path $runPathHKCU | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name
+        if ($items.Count -gt 0) {
+            Write-Host "`nЭлементы автозагрузки (HKCU):" -ForegroundColor Magenta
+            $i = 1
+            foreach ($item in $items) {
+                Write-Host " $i. $item" -ForegroundColor Cyan
+                $i++
             }
-        }
-
-        if ($startupItems.Count -gt 0) {
-            $allStartupItems += [PSCustomObject]@{
-                User = $userName
-                Items = $startupItems
+            $disable = Read-Host "`nВведите номер элемента для отключения (или 0 для выхода)"
+            if ($disable -ne '0' -and $disable -match '^\d+$' -and [int]$disable -le $items.Count) {
+                $name = $items[[int]$disable - 1]
+                Remove-ItemProperty -Path $runPathHKCU -Name $name -ErrorAction SilentlyContinue
+                Write-Host "[+] Элемент $name отключен" -ForegroundColor Green
             }
+        } else {
+            Write-Host "[!] Нет элементов автозагрузки в HKCU" -ForegroundColor Yellow
         }
     }
-    # HKLM для всех
-    $startupItemsHKLM = @()
+
+    # HKLM
     $runPathHKLM = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
     if (Test-Path $runPathHKLM) {
-        $valueNames = (Get-ItemProperty -Path $runPathHKLM | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name)
-        foreach ($val in $valueNames) {
-            $startupItemsHKLM += [PSCustomObject]@{
-                Name = $val
-                Location = (Get-ItemProperty -Path $runPathHKLM -Name $val).$val
-                Type = "Registry (HKLM)"
-                User = "All Users"
+        $items = Get-ItemProperty -Path $runPathHKLM | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name
+        if ($items.Count -gt 0) {
+            Write-Host "`nЭлементы автозагрузки (HKLM):" -ForegroundColor Magenta
+            $i = 1
+            foreach ($item in $items) {
+                Write-Host " $i. $item" -ForegroundColor Cyan
+                $i++
             }
-        }
-    }
-    if ($startupItemsHKLM.Count -gt 0) {
-        $allStartupItems += [PSCustomObject]@{
-            User = "All Users (HKLM)"
-            Items = $startupItemsHKLM
-        }
-    }
-
-    # Startup folder для всех пользователей (Public)
-    $publicStartupFolder = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
-    if (Test-Path $publicStartupFolder) {
-        $publicItems = Get-ChildItem -Path $publicStartupFolder -File | ForEach-Object {
-            [PSCustomObject]@{
-                Name = $_.BaseName
-                Location = $_.FullName
-                Type = "Startup Folder (Public)"
-                User = "All Users"
+            $disable = Read-Host "`nВведите номер элемента для отключения (или 0 для выхода)"
+            if ($disable -ne '0' -and $disable -match '^\d+$' -and [int]$disable -le $items.Count) {
+                $name = $items[[int]$disable - 1]
+                Remove-ItemProperty -Path $runPathHKLM -Name $name -ErrorAction SilentlyContinue
+                Write-Host "[+] Элемент $name отключен" -ForegroundColor Green
             }
-        }
-        if ($publicItems.Count -gt 0) {
-            $allStartupItems += [PSCustomObject]@{
-                User = "All Users (Startup Folder)"
-                Items = $publicItems
-            }
+        } else {
+            Write-Host "[!] Нет элементов автозагрузки в HKLM" -ForegroundColor Yellow
         }
     }
 
-    if ($allStartupItems.Count -eq 0) {
-        Write-Host "[!] Элементы автозагрузки не найдены" -ForegroundColor Red
-        Start-Sleep -Seconds 2
-        return
-    }
-
-    # Выводим список в нужном формате
-    $flatList = @()
-    $displayIndex = 1
-    foreach ($userBlock in $allStartupItems) {
-        Write-Host "`nПользователь: $($userBlock.User)" -ForegroundColor Magenta
-        $itemIndex = 1
-        foreach ($item in $userBlock.Items) {
-            Write-Host " $itemIndex. $($item.Name) [$($item.Type)]" -ForegroundColor Cyan
-            $flatList += [PSCustomObject]@{
-                DisplayIndex = "$displayIndex.$itemIndex"
-                ItemIndex = $itemIndex
-                Item = $item
-                User = $userBlock.User
+    # Startup folder
+    $startupFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
+    if (Test-Path $startupFolder) {
+        $files = Get-ChildItem -Path $startupFolder -File
+        if ($files.Count -gt 0) {
+            Write-Host "`nЭлементы автозагрузки (Startup Folder):" -ForegroundColor Magenta
+            $i = 1
+            foreach ($file in $files) {
+                Write-Host " $i. $($file.Name)" -ForegroundColor Cyan
+                $i++
             }
-            $itemIndex++
-        }
-        $displayIndex++
-    }
-
-    do {
-        $selection = Read-Host "`nВведите номера элементов для отключения (например: 1,2,3; 0 - выход)"
-        if ($selection -eq '0') { return }
-
-        $indices = $selection -split ',' | ForEach-Object { $_.Trim() }
-        $valid = $true
-
-        foreach ($index in $indices) {
-            $selected = $flatList | Where-Object { $_.ItemIndex -eq [int]$index }
-            if ($selected) {
-                $selectedItem = $selected.Item
-                switch ($selectedItem.Type) {
-                    "Registry (HKCU)" {
-                        $userProfSel = $userProfiles | Where-Object { (Split-Path $_.LocalPath -Leaf) -eq $selectedItem.User }
-                        if ($userProfSel) {
-                            $ntUserDat = "$($userProfSel.LocalPath)\NTUSER.DAT"
-                            $regHive = "HKU\$($selectedItem.User)"
-                            try {
-                                reg load $regHive $ntUserDat | Out-Null
-                                $runPath = "$regHive\Software\Microsoft\Windows\CurrentVersion\Run"
-                                Remove-ItemProperty -Path $runPath -Name $selectedItem.Name -ErrorAction SilentlyContinue
-                                reg unload $regHive | Out-Null
-                                Write-Host "[+] Элемент $($selectedItem.Name) отключен для $($selectedItem.User)" -ForegroundColor Green
-                            } catch {
-                                Write-Host "[!] Не удалось отключить $($selectedItem.Name) для $($selectedItem.User)" -ForegroundColor Red
-                            }
-                        }
-                    }
-                    "Registry (HKLM)" {
-                        Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $selectedItem.Name -ErrorAction SilentlyContinue
-                        Write-Host "[+] Элемент $($selectedItem.Name) отключен (HKLM)" -ForegroundColor Green
-                    }
-                    "Startup Folder" {
-                        Remove-Item -Path $selectedItem.Location -Force -ErrorAction SilentlyContinue
-                        Write-Host "[+] Элемент $($selectedItem.Name) удален из автозагрузки пользователя $($selectedItem.User)" -ForegroundColor Green
-                    }
-                    "Startup Folder (Public)" {
-                        Remove-Item -Path $selectedItem.Location -Force -ErrorAction SilentlyContinue
-                        Write-Host "[+] Элемент $($selectedItem.Name) удален из автозагрузки всех пользователей" -ForegroundColor Green
-                    }
-                }
-            } else {
-                Write-Host "[!] Неверный выбор: $index" -ForegroundColor Red
-                $valid = $false
+            $disable = Read-Host "`nВведите номер файла для удаления (или 0 для выхода)"
+            if ($disable -ne '0' -and $disable -match '^\d+$' -and [int]$disable -le $files.Count) {
+                $fileToRemove = $files[[int]$disable - 1]
+                Remove-Item -Path $fileToRemove.FullName -Force -ErrorAction SilentlyContinue
+                Write-Host "[+] Файл $($fileToRemove.Name) удален из автозагрузки" -ForegroundColor Green
             }
+        } else {
+            Write-Host "[!] Нет файлов автозагрузки в папке Startup" -ForegroundColor Yellow
         }
-    } while (-not $valid)
+    }
     Pause
 }
 # Расширенное отключение служб
