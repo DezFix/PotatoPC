@@ -110,74 +110,95 @@ function Disable-Telemetry {
     Write-Host "[+] Телеметрия полностью отключена" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
+# Расширенное управление автозагрузкой
 function Manage-Startup {
-    Write-Host "`n[+] Управление автозагрузкой..." -ForegroundColor Yellow
-
-    # HKCU
-    $runPathHKCU = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-    if (Test-Path $runPathHKCU) {
-        $items = Get-ItemProperty -Path $runPathHKCU | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name
-        if ($items.Count -gt 0) {
-            Write-Host "`nЭлементы автозагрузки (HKCU):" -ForegroundColor Magenta
-            $i = 1
-            foreach ($item in $items) {
-                Write-Host " $i. $item" -ForegroundColor Cyan
-                $i++
+    Write-Host "`n[+] Сканирование автозагрузки..." -ForegroundColor Yellow
+    
+    # Получение всех элементов автозагрузки
+    $startupItems = @()
+    
+    # Реестр текущего пользователя
+    $regKey = Get-Item "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue
+    if ($regKey.ValueCount -gt 0) {
+        $startupItems += $regKey.GetValueNames() | ForEach-Object {
+            [PSCustomObject]@{
+                Name = $_
+                Location = $regKey.GetValue($_)
+                Type = "Registry (HKCU)"
             }
-            $disable = Read-Host "`nВведите номер элемента для отключения (или 0 для выхода)"
-            if ($disable -ne '0' -and $disable -match '^\d+$' -and [int]$disable -le $items.Count) {
-                $name = $items[[int]$disable - 1]
-                Remove-ItemProperty -Path $runPathHKCU -Name $name -ErrorAction SilentlyContinue
-                Write-Host "[+] Элемент $name отключен" -ForegroundColor Green
-            }
-        } else {
-            Write-Host "[!] Нет элементов автозагрузки в HKCU" -ForegroundColor Yellow
         }
     }
-
-    # HKLM
-    $runPathHKLM = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
-    if (Test-Path $runPathHKLM) {
-        $items = Get-ItemProperty -Path $runPathHKLM | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name
-        if ($items.Count -gt 0) {
-            Write-Host "`nЭлементы автозагрузки (HKLM):" -ForegroundColor Magenta
-            $i = 1
-            foreach ($item in $items) {
-                Write-Host " $i. $item" -ForegroundColor Cyan
-                $i++
+    
+    # Реестр локального компьютера
+    $regKey = Get-Item "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue
+    if ($regKey.ValueCount -gt 0) {
+        $startupItems += $regKey.GetValueNames() | ForEach-Object {
+            [PSCustomObject]@{
+                Name = $_
+                Location = $regKey.GetValue($_)
+                Type = "Registry (HKLM)"
             }
-            $disable = Read-Host "`nВведите номер элемента для отключения (или 0 для выхода)"
-            if ($disable -ne '0' -and $disable -match '^\d+$' -and [int]$disable -le $items.Count) {
-                $name = $items[[int]$disable - 1]
-                Remove-ItemProperty -Path $runPathHKLM -Name $name -ErrorAction SilentlyContinue
-                Write-Host "[+] Элемент $name отключен" -ForegroundColor Green
-            }
-        } else {
-            Write-Host "[!] Нет элементов автозагрузки в HKLM" -ForegroundColor Yellow
         }
     }
-
-    # Startup folder
+    
+    # Папка автозагрузки
     $startupFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
     if (Test-Path $startupFolder) {
-        $files = Get-ChildItem -Path $startupFolder -File
-        if ($files.Count -gt 0) {
-            Write-Host "`nЭлементы автозагрузки (Startup Folder):" -ForegroundColor Magenta
-            $i = 1
-            foreach ($file in $files) {
-                Write-Host " $i. $($file.Name)" -ForegroundColor Cyan
-                $i++
+        $startupItems += Get-ChildItem -Path $startupFolder -File | ForEach-Object {
+            [PSCustomObject]@{
+                Name = $_.BaseName
+                Location = $_.FullName
+                Type = "Startup Folder"
             }
-            $disable = Read-Host "`nВведите номер файла для удаления (или 0 для выхода)"
-            if ($disable -ne '0' -and $disable -match '^\d+$' -and [int]$disable -le $files.Count) {
-                $fileToRemove = $files[[int]$disable - 1]
-                Remove-Item -Path $fileToRemove.FullName -Force -ErrorAction SilentlyContinue
-                Write-Host "[+] Файл $($fileToRemove.Name) удален из автозагрузки" -ForegroundColor Green
-            }
-        } else {
-            Write-Host "[!] Нет файлов автозагрузки в папке Startup" -ForegroundColor Yellow
         }
     }
+    
+    if ($startupItems.Count -eq 0) {
+        Write-Host "[!] Элементы автозагрузки не найдены" -ForegroundColor Red
+        Start-Sleep -Seconds 2
+        return
+    }
+
+    do {
+        Write-Host "[+] Найдено элементов автозагрузки: $($startupItems.Count)" -ForegroundColor Yellow
+        $i = 1
+        foreach ($item in $startupItems) {
+            Write-Host "$i. $($item.Name) [$($item.Type)]" -ForegroundColor Cyan
+            $i++
+        }
+
+        $selection = Read-Host "`nВведите номера элементов для отключения (через запятую, 0 - выход)"
+        if ($selection -eq '0') { return }
+
+        $indices = $selection -split ',' | ForEach-Object { ($_ -as [int]) - 1 }
+        $valid = $true
+
+        foreach ($index in $indices) {
+            if ($index -ge 0 -and $index -lt $startupItems.Count) {
+                $selectedItem = $startupItems[$index]
+                
+                # Обработка разных типов автозагрузки
+                switch ($selectedItem.Type) {
+                    "Registry (HKCU)" {
+                        Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $selectedItem.Name -ErrorAction SilentlyContinue
+                    }
+                    "Registry (HKLM)" {
+                        if ($isAdmin) {
+                            Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $selectedItem.Name -ErrorAction SilentlyContinue
+                        }
+                    }
+                    "Startup Folder" {
+                        Remove-Item -Path $selectedItem.Location -Force -ErrorAction SilentlyContinue
+                    }
+                }
+                
+                Write-Host "[+] Элемент $($selectedItem.Name) отключен" -ForegroundColor Green
+            } else {
+                Write-Host "[!] Неверный выбор: $($index + 1)" -ForegroundColor Red
+                $valid = $false
+            }
+        }
+    } while (-not $valid)
     Pause
 }
 # Расширенное отключение служб
