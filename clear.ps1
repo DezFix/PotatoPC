@@ -111,26 +111,25 @@ function Disable-Telemetry {
     Start-Sleep -Seconds 2
 }
 # Расширенное управление автозагрузкой
-function Manage-Startup {
+function Get-StartupItems {
     Write-Host "`n[+] Сканирование автозагрузки всех пользователей..." -ForegroundColor Yellow
 
     $allStartupItems = @()
     $userProfiles = Get-WmiObject -Class Win32_UserProfile | Where-Object { $_.Loaded -eq $true -and $_.LocalPath -like "C:\Users\*" }
 
     # Собираем автозагрузку для каждого пользователя
-    foreach ($profile in $userProfiles) {
-        $userName = Split-Path $profile.LocalPath -Leaf
+    foreach ($userProf in $userProfiles) {
+        $userName = Split-Path $userProf.LocalPath -Leaf
         $startupItems = @()
 
         # HKCU для каждого пользователя
-        $ntUserDat = "$($profile.LocalPath)\NTUSER.DAT"
+        $ntUserDat = "$($userProf.LocalPath)\NTUSER.DAT"
         if (Test-Path $ntUserDat) {
             try {
                 $regHive = "HKU\$userName"
                 reg load $regHive $ntUserDat | Out-Null
                 $runPath = "$regHive\Software\Microsoft\Windows\CurrentVersion\Run"
                 if (Test-Path $runPath) {
-                    $regKey = Get-Item $runPath -ErrorAction SilentlyContinue
                     $valueNames = (Get-ItemProperty -Path $runPath | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name)
                     foreach ($val in $valueNames) {
                         $startupItems += [PSCustomObject]@{
@@ -147,6 +146,7 @@ function Manage-Startup {
 
         # Startup folder для каждого пользователя
         $startupFolder = "$($profile.LocalPath)\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+        $startupFolder = "$($userProf.LocalPath)\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
         if (Test-Path $startupFolder) {
             $startupItems += Get-ChildItem -Path $startupFolder -File | ForEach-Object {
                 [PSCustomObject]@{
@@ -165,7 +165,6 @@ function Manage-Startup {
             }
         }
     }
-
     # HKLM для всех
     $startupItemsHKLM = @()
     $runPathHKLM = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
@@ -244,9 +243,9 @@ function Manage-Startup {
                 $selectedItem = $selected.Item
                 switch ($selectedItem.Type) {
                     "Registry (HKCU)" {
-                        $userProfile = $userProfiles | Where-Object { (Split-Path $_.LocalPath -Leaf) -eq $selectedItem.User }
-                        if ($userProfile) {
-                            $ntUserDat = "$($userProfile.LocalPath)\NTUSER.DAT"
+                        $userProfSel = $userProfiles | Where-Object { (Split-Path $_.LocalPath -Leaf) -eq $selectedItem.User }
+                        if ($userProfSel) {
+                            $ntUserDat = "$($userProfSel.LocalPath)\NTUSER.DAT"
                             $regHive = "HKU\$($selectedItem.User)"
                             try {
                                 reg load $regHive $ntUserDat | Out-Null
