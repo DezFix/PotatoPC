@@ -111,7 +111,7 @@ function Disable-Telemetry {
     Start-Sleep -Seconds 2
 }
 # Расширенное управление автозагрузкой
-function Manage-Startup {
+function Get-StartupItems {
     Write-Host "`n[+] Сканирование автозагрузки..." -ForegroundColor Yellow
 
     $startupItems = @()
@@ -150,17 +150,17 @@ function Manage-Startup {
 
     # Папки автозагрузки всех пользователей
     $profileList = Get-ChildItem 'HKU:' | Where-Object { $_.Name -notmatch '_Classes' }
-    foreach ($profile in $profileList) {
+    foreach ($userProfileObj in $profileList) {
         try {
-            $userProfile = (Get-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$($profile.PSChildName)").ProfileImagePath
+            $userProfile = (Get-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$($userProfileObj.PSChildName)").ProfileImagePath
             $startupFolder = "$userProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
             if (Test-Path $startupFolder) {
                 $startupItems += Get-ChildItem -Path $startupFolder -File | ForEach-Object {
                     [PSCustomObject]@{
                         Name     = $_.BaseName
                         Location = $_.FullName
-                        Type     = "Startup Folder ($($profile.PSChildName))"
-                        UserSID  = $profile.PSChildName
+                        Type     = "Startup Folder ($($userProfileObj.PSChildName))"
+                        UserSID  = $userProfileObj.PSChildName
                     }
                 }
             }
@@ -211,6 +211,7 @@ function Manage-Startup {
     } while (-not $valid)
     Pause
 }
+
 # Расширенное отключение служб
 function Disable-Unused-Services {
     Write-Host "`n[+] Отключение ненужных служб..." -ForegroundColor Yellow
