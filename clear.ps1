@@ -110,14 +110,14 @@ function Disable-Telemetry {
     Write-Host "[+] Телеметрия полностью отключена" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
-
+# Расширенное управление автозагрузкой
 function Manage-Startup {
     Write-Host "`n[+] Сканирование автозагрузки всех пользователей..." -ForegroundColor Yellow
 
     $allStartupItems = @()
     $userProfiles = Get-WmiObject -Class Win32_UserProfile | Where-Object { $_.Loaded -eq $true -and $_.LocalPath -like "C:\Users\*" }
 
-    $userIndex = 1
+    # Собираем автозагрузку для каждого пользователя
     foreach ($profile in $userProfiles) {
         $userName = Split-Path $profile.LocalPath -Leaf
         $startupItems = @()
@@ -165,7 +165,6 @@ function Manage-Startup {
                 Items = $startupItems
             }
         }
-        $userIndex++
     }
 
     # HKLM для всех
@@ -194,15 +193,17 @@ function Manage-Startup {
         return
     }
 
+    # Выводим список в нужном формате
     $flatList = @()
     $displayIndex = 1
     foreach ($userBlock in $allStartupItems) {
-        Write-Host "`n[$displayIndex] Пользователь: $($userBlock.User)" -ForegroundColor Magenta
+        Write-Host "`nПользователь: $($userBlock.User)" -ForegroundColor Magenta
         $itemIndex = 1
         foreach ($item in $userBlock.Items) {
-            Write-Host " $displayIndex.$itemIndex $($item.Name) [$($item.Type)]" -ForegroundColor Cyan
+            Write-Host " $itemIndex. $($item.Name) [$($item.Type)]" -ForegroundColor Cyan
             $flatList += [PSCustomObject]@{
                 DisplayIndex = "$displayIndex.$itemIndex"
+                ItemIndex = $itemIndex
                 Item = $item
                 User = $userBlock.User
             }
@@ -212,14 +213,14 @@ function Manage-Startup {
     }
 
     do {
-        $selection = Read-Host "`nВведите номера элементов для отключения (например: 1.2,2.1; 0 - выход)"
+        $selection = Read-Host "`nВведите номера элементов для отключения (например: 1,2,3; 0 - выход)"
         if ($selection -eq '0') { return }
 
         $indices = $selection -split ',' | ForEach-Object { $_.Trim() }
         $valid = $true
 
         foreach ($index in $indices) {
-            $selected = $flatList | Where-Object { $_.DisplayIndex -eq $index }
+            $selected = $flatList | Where-Object { $_.ItemIndex -eq [int]$index }
             if ($selected) {
                 $selectedItem = $selected.Item
                 switch ($selectedItem.Type) {
