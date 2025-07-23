@@ -33,7 +33,6 @@ function Show-Menu {
 function Clear-System {
     Write-Host "`n[+] Очистка временных файлов..." -ForegroundColor Yellow
     
-    # Очистка временных файлов
     try {
         Remove-Item "$env:TEMP\*" -Recurse -Force -ErrorAction Stop
         Remove-Item "C:\Windows\Temp\*" -Recurse -Force -ErrorAction Stop
@@ -43,12 +42,8 @@ function Clear-System {
         Write-Host "[-] Ошибка при очистке: $_" -ForegroundColor Red
     }
 
-    # Очистка DNS кэша
     ipconfig /flushdns | Out-Null
-    
-    # Очистка prefetch
     Remove-Item "C:\Windows\Prefetch\*" -Recurse -Force -ErrorAction SilentlyContinue
-    
     Start-Sleep -Seconds 2
 }
 
@@ -56,14 +51,12 @@ function Clear-System {
 function Disable-Telemetry {
     Write-Host "`n[+] Расширенное отключение телеметрии..." -ForegroundColor Yellow
     
-    # Службы телеметрии
     $services = @(
         "DiagTrack", "dmwappushservice", "DPS", "WdiServiceHost", 
         "WdiSystemHost", "Wecsvc", "WerSvc", "WMPNetworkSvc", 
         "WpnService", "XboxGameMonitoring", 
         "XboxSpeechToTextService", "XboxGipSvc"
     )
-    
     foreach ($svc in $services) {
         if (Get-Service $svc -ErrorAction SilentlyContinue) {
             Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
@@ -72,7 +65,6 @@ function Disable-Telemetry {
         }
     }
 
-    # Запланированные задачи
     $tasks = @(
         "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
         "\Microsoft\Windows\Autochk\Proxy",
@@ -83,12 +75,10 @@ function Disable-Telemetry {
         "\Microsoft\Windows\Feedback\Siuf\DmClient",
         "\Microsoft\Windows\Feedback\Siuf\SiufTask"
     )
-    
     foreach ($task in $tasks) {
         schtasks /Change /TN $task /Disable 2>$null
     }
 
-    # Реестр
     $regPaths = @(
         "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection",
         "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search",
@@ -96,7 +86,6 @@ function Disable-Telemetry {
         "HKCU:\Software\Microsoft\InputPersonalization",
         "HKCU:\Software\Microsoft\InputPersonalization\TrainedDataStore"
     )
-    
     foreach ($path in $regPaths) {
         if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
     }
@@ -110,14 +99,12 @@ function Disable-Telemetry {
     Write-Host "[+] Телеметрия полностью отключена" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
+
 # Расширенное управление автозагрузкой
 function Manage-Startup {
     Write-Host "`n[+] Сканирование автозагрузки..." -ForegroundColor Yellow
     
-    # Получение всех элементов автозагрузки
     $startupItems = @()
-    
-    # Реестр текущего пользователя
     $regKey = Get-Item "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue
     if ($regKey.ValueCount -gt 0) {
         $startupItems += $regKey.GetValueNames() | ForEach-Object {
@@ -128,8 +115,6 @@ function Manage-Startup {
             }
         }
     }
-    
-    # Реестр локального компьютера
     $regKey = Get-Item "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue
     if ($regKey.ValueCount -gt 0) {
         $startupItems += $regKey.GetValueNames() | ForEach-Object {
@@ -140,8 +125,6 @@ function Manage-Startup {
             }
         }
     }
-    
-    # Папка автозагрузки
     $startupFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
     if (Test-Path $startupFolder) {
         $startupItems += Get-ChildItem -Path $startupFolder -File | ForEach-Object {
@@ -152,7 +135,6 @@ function Manage-Startup {
             }
         }
     }
-    
     if ($startupItems.Count -eq 0) {
         Write-Host "[!] Элементы автозагрузки не найдены" -ForegroundColor Red
         Start-Sleep -Seconds 2
@@ -176,8 +158,6 @@ function Manage-Startup {
         foreach ($index in $indices) {
             if ($index -ge 0 -and $index -lt $startupItems.Count) {
                 $selectedItem = $startupItems[$index]
-                
-                # Обработка разных типов автозагрузки
                 switch ($selectedItem.Type) {
                     "Registry (HKCU)" {
                         Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $selectedItem.Name -ErrorAction SilentlyContinue
@@ -191,7 +171,6 @@ function Manage-Startup {
                         Remove-Item -Path $selectedItem.Location -Force -ErrorAction SilentlyContinue
                     }
                 }
-                
                 Write-Host "[+] Элемент $($selectedItem.Name) отключен" -ForegroundColor Green
             } else {
                 Write-Host "[!] Неверный выбор: $($index + 1)" -ForegroundColor Red
@@ -213,15 +192,12 @@ function Disable-Unused-Services {
         "OneSyncSvc", "UnistoreSvc", "MessagingService", 
         "PrintNotify", "TabletInputService", "BthAvctpSvc"
     )
-    
     foreach ($svc in $svcList) {
         if (Get-Service $svc -ErrorAction SilentlyContinue) {
             Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
             Write-Host "[+] Служба $svc отключена" -ForegroundColor Cyan
         }
     }
-    
-    # Дополнительные параметры реестра для служб
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\WSearch" -Name "Start" -Value 4 -Type DWord -Force
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\OneSyncSvc" -Name "Start" -Value 4 -Type DWord -Force
     
@@ -233,24 +209,16 @@ function Disable-Unused-Services {
 function Optimize-Performance {
     Write-Host "`n[+] Применение оптимизаций производительности..." -ForegroundColor Yellow
     
-    # Энергия
     powercfg -setactive SCHEME_MIN
     powercfg /change standby-timeout-ac 0
     powercfg /change hibernate-timeout-ac 0
     
-    # Регистр
     Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Value "0" -Type String -Force
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 3 -Type DWord -Force
-    
-    # Системные параметры
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "DisablePagingExecutive" -Value 1 -Type DWord -Force
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "LargeSystemCache" -Value 1 -Type DWord -Force
-    
-    # Edge
     Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Edge" -Name "BackgroundModeEnabled" -Value 0 -Type DWord -Force
     Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Edge" -Name "PromoteFirefox" -Value 0 -Type DWord -Force
-    
-    # Диспетчер задач
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "SeparateProcess" -Value 1 -Type DWord -Force
     
     Write-Host "[+] Оптимизации производительности применены" -ForegroundColor Green
@@ -268,11 +236,9 @@ function Remove-Bloatware {
         "Microsoft.ZuneMusic",
         "Microsoft.ZuneVideo",
         "Microsoft.windowscommunicationsapps",
-        "Microsoft.WindowsCalculator",
         "Microsoft.WindowsCamera",
         "Microsoft.549981C3F5F10",
         "Microsoft.BingWeather",
-        "Microsoft.DesktopAppInstaller",
         "Microsoft.Getstarted",
         "Microsoft.Microsoft3DViewer",
         "Microsoft.MicrosoftOfficeHub",
@@ -329,26 +295,22 @@ function Remove-Bloatware {
         "Microsoft.MixedReality.Toolkit.XRSDK.Utilities",
         "Microsoft.MixedReality.Toolkit.XRSDK.WSA"
     )
-    
     foreach ($app in $apps) {
-        # Удаление для текущего пользователя
         $package = Get-AppxPackage -Name $app -ErrorAction SilentlyContinue
         if ($package) {
             Remove-AppxPackage -Package $package.PackageFullName -ErrorAction SilentlyContinue
             Write-Host "[+] Удалено: $app" -ForegroundColor Cyan
         }
-        
-        # Удаление для всех пользователей
         $provisioned = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq $app }
         if ($provisioned) {
             Remove-AppxProvisionedPackage -Online -PackageName $provisioned.PackageName -ErrorAction SilentlyContinue
             Write-Host "[+] Системный пакет удален: $app" -ForegroundColor Cyan
         }
     }
-    
     Write-Host "[+] Все нежелательное ПО удалено" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
+
 # Основной цикл
 $backToMain = $false
 
@@ -363,13 +325,14 @@ while (-not $backToMain) {
         '5' { Remove-Bloatware }
         '6' { Clear-System }
         '7' {
-            Write-Host "[+] Выполнение всех действий..." -ForegroundColor Magenta
-            Disable-Telemetry
-            Disable-Unused-Services
-            Optimize-Performance
-            Remove-Bloatware
-            Clear-System
-            Write-Host "[+] Все действия выполнены!" -ForegroundColor Green
+            try { Disable-Telemetry } catch {}
+            try { Disable-Unused-Services } catch {}
+            try { Optimize-Performance } catch {}
+            try { Remove-Bloatware } catch {}
+            try { Clear-System } catch {}
+            Write-Host "[!] Перезагрузка ПК через 10 секунд...(Ctrl + C что бы отменить)" -ForegroundColor Red
+            Start-Sleep -Seconds 10
+            Restart-Computer
         }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
@@ -382,3 +345,4 @@ while (-not $backToMain) {
         }
     }
 }
+
