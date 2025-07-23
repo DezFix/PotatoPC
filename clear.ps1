@@ -16,15 +16,13 @@ function Show-Menu {
     Write-Host "     WICKED RAVEN SYSTEM CLEAR     " -ForegroundColor Magenta
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host " 1. Настройка автозагрузки"
+    Write-Host " 1. Отключение телеметрии Windows"
+    Write-Host " 2. Отключение ненужных служб"
+    Write-Host " 3. Повышение производительности"
+    Write-Host " 4. Удаление встроенного ПО"
+    Write-Host " 5. Очистка системы"
     Write-Host ""
-    Write-Host " 2. Отключение телеметрии Windows"
-    Write-Host " 3. Отключение ненужных служб"
-    Write-Host " 4. Повышение производительности"
-    Write-Host " 5. Удаление встроенного ПО"
-    Write-Host " 6. Очистка системы"
-    Write-Host ""
-    Write-Host " 7. Выполнить всё"
+    Write-Host " 6. Выполнить всё"
     Write-Host " 0. Назад"
     Write-Host ""
 }
@@ -318,13 +316,12 @@ while (-not $backToMain) {
     Show-Menu
     $choice = Read-Host "Выберите опцию (0-7):"
     switch ($choice) {
-        '1' { Manage-Startup }
-        '2' { Disable-Telemetry }
-        '3' { Disable-Unused-Services }
-        '4' { Optimize-Performance }
-        '5' { Remove-Bloatware }
-        '6' { Clear-System }
-        '7' {
+        '1' { Disable-Telemetry }
+        '2' { Disable-Unused-Services }
+        '3' { Optimize-Performance }
+        '4' { Remove-Bloatware }
+        '5' { Clear-System }
+        '6' {
             try { Disable-Telemetry } catch {}
             try { Disable-Unused-Services } catch {}
             try { Optimize-Performance } catch {}
@@ -345,4 +342,3 @@ while (-not $backToMain) {
         }
     }
 }
-
