@@ -1,7 +1,10 @@
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    Write-Host "Запустите скрипт от имени администратора!" -ForegroundColor Red
-    Read-Host "Нажмите Enter для выхода..."
+    Write-Host "Скрипт не запущен от имени администратора!" -ForegroundColor Red
+    $answer = Read-Host "Запустить PowerShell от имени администратора? (Y/N)"
+    if ($answer -eq 'Y' -or $answer -eq 'y') {
+        Start-Process powershell "-File `"$PSCommandPath`"" -Verb RunAs
+    }
     exit
 }
 function Show-Menu {
