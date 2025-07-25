@@ -2,9 +2,9 @@
   "ManualCategories": {
     "Браузеры": [
       {"Name": "Opera", "Id": "opera"},
+	  {"Name": "OperaGX", "Id": "Opera.OperaGX"},
       {"Name": "Google Chrome", "Id": "googlechrome"},
-      {"Name": "Mozilla Firefox", "Id": "firefox"},
-      {"Name": "Tor Browser", "Id": "tor-browser"}
+      {"Name": "Mozilla Firefox", "Id": "firefox"}
     ],
     "Инструменты": [
       {"Name": "SumatraPDF", "Id": "sumatrapdf"},
@@ -13,20 +13,15 @@
       {"Name": "Notepad++", "Id": "notepadplusplus"},
       {"Name": "VLC Media Player", "Id": "vlc"},
       {"Name": "GIMP", "Id": "gimp"},
-      {"Name": "Inkscape", "Id": "inkscape"},
       {"Name": "Audacity", "Id": "audacity"}
     ],
     "Связь": [
       {"Name": "Telegram", "Id": "telegram"},
+	  {"Name": "Discord", "Id": "discord"},
       {"Name": "Viber", "Id": "viber"},
       {"Name": "Microsoft Teams", "Id": "msteams"},
       {"Name": "Zoom", "Id": "zoom"},
       {"Name": "Signal", "Id": "signal"}
-    ],
-    "Игры и Связь": [
-      {"Name": "Steam", "Id": "steam"},
-      {"Name": "Discord", "Id": "discord"},
-      {"Name": "OBS Studio", "Id": "obs-studio"}
     ],
     "Офис": [
       {"Name": "Onlyoffice", "Id": "onlyoffice"},
@@ -36,6 +31,10 @@
       {"Name": "VS Code", "Id": "vscode"},
       {"Name": "Git", "Id": "git"},
       {"Name": "Python", "Id": "python"}
+    ],
+	    "Разное": [
+      {"Name": "Steam", "Id": "steam"},
+      {"Name": "OBS Studio", "Id": "obs-studio"}
     ]
   }
 }
