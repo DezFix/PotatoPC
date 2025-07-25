@@ -1,34 +1,4 @@
-{
-  "Categories": [
-    {
-      "Name": "Standard",
-      "Apps": [
-        { "Id": "sumatrapdf", "Name": "SumatraPDF" },
-        { "Id": "7zip", "Name": "7-Zip" },
-        { "Id": "anydesk", "Name": "AnyDesk" },
-        { "Id": "notepadplusplus", "Name": "Notepad++" },
-        { "Id": "vlc", "Name": "VLC Media Player" }
-      ]
-    },
-    {
-      "Name": "Gamer",
-      "Apps": [
-        { "Id": "steam", "Name": "Steam" },
-        { "Id": "discord", "Name": "Discord" },
-        { "Id": "obs-studio", "Name": "OBS Studio" }
-      ]
-    },
-    {
-      "Name": "Optional",
-      "Apps": [
-        { "Id": "onlyoffice", "Name": "OnlyOffice" },
-        { "Id": "gimp", "Name": "GIMP" },
-        { "Id": "inkscape", "Name": "Inkscape" },
-        { "Id": "audacity", "Name": "Audacity" }
-      ]
-    }
-  ],
-  "ManualCategories": [
+   "ManualCategories": [
     {
       "Name": "Браузеры",
       "Apps": [
