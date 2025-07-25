@@ -53,44 +53,65 @@ function ShowCustomMessageBox {
 # URL-адрес JSON-файла с GitHub, содержащего информацию о приложениях
 $jsonUrl = 'https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/apps.json'
 
-# Попытка загрузить JSON-файл
-try {
-    $jsonRaw = Invoke-RestMethod -Uri $jsonUrl -UseBasicParsing
-} catch {
-    # Отображение сообщения об ошибке, если загрузка не удалась
-    [System.Windows.Forms.MessageBox]::Show("Не удалось загрузить apps.json. Проверьте подключение к Интернету или URL-адрес.", "Ошибка загрузки", "OK", "Error")
-    exit
-}
+# Глобальная переменная для хранения данных о приложениях
+$script:apps = @()
+$script:jsonRaw = $null # Глобальная переменная для хранения сырых данных JSON
 
-# Парсинг данных о приложениях из секции ManualCategories JSON-файла
-$apps = @() # Инициализация пустого массива для хранения данных о приложений
-# Правильная итерация по массиву категорий внутри ManualCategories
-foreach ($categoryObject in $jsonRaw.ManualCategories) {
-    $categoryName = $categoryObject.Name # Получаем имя категории
-    foreach ($app in $categoryObject.Apps) {
-        # Проверка наличия полей Name и Id для каждого приложения
-        if ($app.Name -and $app.Id) {
-            # Добавление приложения в массив в виде пользовательского объекта, включая категорию
-            $apps += [PSCustomObject]@{
-                Name = $app.Name
-                Id   = $app.Id
-                Category = $categoryName
+# Функция для загрузки и парсинга данных о приложениях
+function LoadAppsData {
+    param(
+        [string]$Url
+    )
+    try {
+        $script:jsonRaw = Invoke-RestMethod -Uri $Url -UseBasicParsing # Сохраняем в глобальную переменную
+        $script:apps = @() # Очищаем глобальный массив перед заполнением
+        
+        # Проверяем, существует ли ManualCategories и является ли он объектом (или хэш-таблицей в PowerShell)
+        if ($script:jsonRaw.ManualCategories -is [System.Management.Automation.PSCustomObject] -or $script:jsonRaw.ManualCategories -is [System.Collections.Hashtable]) {
+            # Итерируем по свойствам (ключам) ManualCategories
+            foreach ($categoryName in $script:jsonRaw.ManualCategories.PSObject.Properties.Name) {
+                $categoryApps = $script:jsonRaw.ManualCategories.$categoryName
+                # Проверяем, является ли значение категории массивом приложений
+                if ($categoryApps -is [System.Array]) {
+                    foreach ($app in $categoryApps) {
+                        # Проверяем наличие полей Name и Id для каждого приложения
+                        if ($app.Name -and $app.Id) {
+                            $script:apps += [PSCustomObject]@{
+                                Name = $app.Name
+                                Id   = $app.Id
+                                Category = $categoryName # Категория сохраняется, но не используется для фильтрации в этом варианте
+                            }
+                        }
+                    }
+                }
             }
         }
+        return $true
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show("Не удалось загрузить apps.json. Проверьте подключение к Интернету или URL-адрес.", "Ошибка загрузки", "OK", "Error")
+        return $false
     }
+}
+
+# Попытка загрузить JSON-файл при запуске скрипта
+if (-not (LoadAppsData $jsonUrl)) {
+    exit # Выходим, если не удалось загрузить данные
 }
 
 # Создание главной формы графического интерфейса
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Wicked Raven Installer" # Заголовок окна
-$form.Size = New-Object System.Drawing.Size(700, 750) # Увеличен размер формы для нового расположения элементов
+$form.Size = New-Object System.Drawing.Size(700, 700) # Размер формы, скорректированный для нового расположения
 $form.StartPosition = "CenterScreen" # Размещение формы по центру экрана
+$form.MinimumSize = New-Object System.Drawing.Size(500, 600) # Минимальный размер окна
+$form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi # Автоматическое масштабирование по DPI
 
 # Создание GroupBox для выбора метода установки
 $methodGroupBox = New-Object System.Windows.Forms.GroupBox
 $methodGroupBox.Text = "Выберите метод установки:"
 $methodGroupBox.Location = New-Object System.Drawing.Point(10, 10)
 $methodGroupBox.Size = New-Object System.Drawing.Size(660, 60) # Увеличена ширина GroupBox
+$methodGroupBox.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right # Привязка к верху, левому и правому краю
 $form.Controls.Add($methodGroupBox)
 
 # Создание RadioButton для Winget
@@ -98,12 +119,14 @@ $radioWinget = New-Object System.Windows.Forms.RadioButton
 $radioWinget.Text = "Winget"
 $radioWinget.Location = New-Object System.Drawing.Point(15, 25) # Позиция внутри GroupBox
 $radioWinget.Checked = $true # Устанавливаем Winget по умолчанию
+$radioWinget.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к верху и левому краю
 $methodGroupBox.Controls.Add($radioWinget)
 
 # Создание RadioButton для Chocolatey
 $radioChoco = New-Object System.Windows.Forms.RadioButton
 $radioChoco.Text = "Chocolatey"
 $radioChoco.Location = New-Object System.Drawing.Point(150, 25) # Скорректирована позиция для видимости
+$radioChoco.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к верху и левому краю
 $methodGroupBox.Controls.Add($radioChoco)
 
 
@@ -112,6 +135,7 @@ $selectionButtonsGroupBox = New-Object System.Windows.Forms.GroupBox
 $selectionButtonsGroupBox.Text = "Выбор приложений"
 $selectionButtonsGroupBox.Location = New-Object System.Drawing.Point(10, ($methodGroupBox.Location.Y + $methodGroupBox.Height + 10))
 $selectionButtonsGroupBox.Size = New-Object System.Drawing.Size(280, 70) # Достаточно места для двух кнопок
+$selectionButtonsGroupBox.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к верху и левому краю
 $form.Controls.Add($selectionButtonsGroupBox)
 
 # Создание кнопки "Выбрать все"
@@ -119,6 +143,7 @@ $selectAllBtn = New-Object System.Windows.Forms.Button
 $selectAllBtn.Text = "Выбрать все"
 $selectAllBtn.Location = New-Object System.Drawing.Point(10, 25) # Позиция внутри selectionButtonsGroupBox
 $selectAllBtn.Size = New-Object System.Drawing.Size(100, 30)
+$selectAllBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к верху и левому краю
 $selectAllBtn.Add_Click({
     for ($i = 0; $i -lt $checkedList.Items.Count; $i++) {
         $checkedList.SetItemChecked($i, $true)
@@ -132,6 +157,7 @@ $deselectAllBtn.Text = "Убрать отмеченные"
 $deselectAllBtnXLocation = $selectAllBtn.Location.X + $selectAllBtn.Width + 10
 $deselectAllBtn.Location = New-Object System.Drawing.Point($deselectAllBtnXLocation, 25) # После кнопки "Выбрать все"
 $deselectAllBtn.Size = New-Object System.Drawing.Size(130, 30) # Немного шире для текста
+$deselectAllBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к верху и левому краю
 $deselectAllBtn.Add_Click({
     for ($i = 0; $i -lt $checkedList.Items.Count; $i++) {
         $checkedList.SetItemChecked($i, $false)
@@ -145,59 +171,40 @@ $label = New-Object System.Windows.Forms.Label
 $label.Text = "Выберите приложения для установки:"
 $label.Location = New-Object System.Drawing.Point(10, ($selectionButtonsGroupBox.Location.Y + $selectionButtonsGroupBox.Height + 10))
 $label.AutoSize = $true # Автоматический размер метки по содержимому
+$label.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right # Привязка к верху, левому и правому краю
 $form.Controls.Add($label) # Добавление метки на форму
-
-# --- УДАЛЕН ComboBox для сортировки ---
-
-# Создание ComboBox для фильтрации по категориям
-$categoryComboBox = New-Object System.Windows.Forms.ComboBox
-$categoryComboBox.Location = New-Object System.Drawing.Point(10, ($label.Location.Y + $label.Height + 5)) # Теперь под меткой
-$categoryComboBox.Size = New-Object System.Drawing.Size(200, 30)
-$categoryComboBox.Items.Add("Все") # Опция для отображения всех категорий
-# Заполняем ComboBox категориями из JSON
-$jsonRaw.ManualCategories | ForEach-Object { $categoryComboBox.Items.Add($_.Name) }
-$categoryComboBox.SelectedIndex = 0 # По умолчанию выбрано "Все"
-$form.Controls.Add($categoryComboBox)
-
 
 # Создание списка с флажками (CheckedListBox) для выбора приложений
 $checkedList = New-Object System.Windows.Forms.CheckedListBox
-$checkedList.Location = New-Object System.Drawing.Point(10, ($categoryComboBox.Location.Y + $categoryComboBox.Height + 10)) # Смещаем список ниже ComboBox категории
-$checkedList.Size = New-Object System.Drawing.Size(660, 350) # Скорректирован размер списка
+$checkedList.Location = New-Object System.Drawing.Point(10, ($label.Location.Y + $label.Height + 5)) # Смещаем список ниже метки
+$checkedList.Size = New-Object System.Drawing.Size(660, 400) # Скорректирован размер списка
 $checkedList.CheckOnClick = $true # Позволяет отмечать/снимать флажок по одному клику
+$checkedList.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right # Привязка ко всем краям
 $form.Controls.Add($checkedList) # Добавление списка на форму
 
 
-# Функция для обновления списка приложений с учетом только фильтрации
-function UpdateCheckedList ($categoryFilter) { # УДАЛЕН параметр $sortOption
-    $checkedItemsBeforeFilter = @{}
+# Функция для обновления списка приложений (без фильтрации по категориям)
+function UpdateCheckedListNoFilter {
+    $checkedItemsBeforeRefresh = @{}
     # Сохраняем состояние отмеченных элементов по их ID
     for ($i = 0; $i -lt $checkedList.Items.Count; $i++) {
         if ($checkedList.GetItemChecked($i)) {
             $appName = $checkedList.Items[$i]
             # Находим приложение в исходном массиве $apps для получения его ID
-            $appObj = $apps | Where-Object { $_.Name -eq $appName }
+            $appObj = $script:apps | Where-Object { $_.Name -eq $appName }
             if ($appObj) {
-                $checkedItemsBeforeFilter[$appObj.Id] = $true
+                $checkedItemsBeforeRefresh[$appObj.Id] = $true
             }
         }
     }
 
     $checkedList.Items.Clear() # Очищаем список перед заполнением
 
-    $filteredApps = @()
-    if ($categoryFilter -eq "Все" -or $categoryFilter -eq $null) {
-        $filteredApps = $apps # Если выбрано "Все" или фильтр не указан, используем все приложения
-    } else {
-        # Фильтруем приложения по выбранной категории
-        $filteredApps = $apps | Where-Object { $_.Category -eq $categoryFilter }
-    }
-
-    # Теперь просто добавляем отфильтрованные приложения без сортировки
-    foreach ($app in $filteredApps) {
+    # Просто добавляем все приложения из глобального массива $script:apps
+    foreach ($app in $script:apps) {
         $checkedList.Items.Add($app.Name) | Out-Null
         # Восстанавливаем состояние отмеченных элементов
-        if ($checkedItemsBeforeFilter.ContainsKey($app.Id)) {
+        if ($checkedItemsBeforeRefresh.ContainsKey($app.Id)) {
             $index = $checkedList.Items.IndexOf($app.Name)
             if ($index -ne -1) {
                 $checkedList.SetItemChecked($index, $true)
@@ -206,25 +213,14 @@ function UpdateCheckedList ($categoryFilter) { # УДАЛЕН параметр $
     }
 }
 
-# --- УДАЛЕН обработчик события изменения выбора в ComboBox сортировки ---
-
-# Обработчик события изменения выбора в ComboBox категорий
-$categoryComboBox.Add_SelectedIndexChanged({
-    # Вызываем UpdateCheckedList с текущим выбранным элементом фильтрации
-    UpdateCheckedList($categoryComboBox.SelectedItem)
-})
-
-# Изначальное заполнение списка при запуске формы
-UpdateCheckedList($categoryComboBox.SelectedItem)
-
-
-# --- Создание единого GroupBox для нижних кнопок (Установить, Выход, Проверка обновлений) ---
+# --- Создание единого GroupBox для нижних кнопок (Установить, Выход, Проверка обновлений, Обновить список) ---
 $bottomButtonsGroupBox = New-Object System.Windows.Forms.GroupBox
 $bottomButtonsGroupBox.Text = "Управление" # Заголовок для GroupBox кнопок
 $bottomButtonsGroupBox.Location = New-Object System.Drawing.Point(10, ($checkedList.Location.Y + $checkedList.Height + 10))
-# Ширина GroupBox, достаточная для трех кнопок
-# 100 (Уст) + 10 (отст) + 100 (Вых) + 10 (отст) + 150 (Обновить) + 10 (отст) = 380 + 20 (внутр отст) = 400
-$bottomButtonsGroupBox.Size = New-Object System.Drawing.Size(420, 70)
+# Ширина GroupBox, достаточная для четырех кнопок
+# 100 (Уст) + 10 (отст) + 100 (Вых) + 10 (отст) + 150 (Проверка) + 10 (отст) + 120 (Обновить список) + 10 (отст) = 520 + 20 (внутр отст) = 540
+$bottomButtonsGroupBox.Size = New-Object System.Drawing.Size(540, 70)
+$bottomButtonsGroupBox.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right # Привязка к низу, левому и правому краю
 $form.Controls.Add($bottomButtonsGroupBox)
 
 # Создание кнопки "Установить"
@@ -232,6 +228,7 @@ $installBtn = New-Object System.Windows.Forms.Button
 $installBtn.Text = "Установить"
 $installBtn.Location = New-Object System.Drawing.Point(10, 25) # Позиция внутри bottomButtonsGroupBox
 $installBtn.Size = New-Object System.Drawing.Size(100, 30) # Размер кнопки
+$installBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к низу и левому краю
 $bottomButtonsGroupBox.Controls.Add($installBtn) # Добавление кнопки в GroupBox
 
 # Создание кнопки "Выход"
@@ -241,6 +238,7 @@ $exitBtn.Text = "Выход"
 $exitBtnXLocation = $installBtn.Location.X + $installBtn.Width + 10
 $exitBtn.Location = New-Object System.Drawing.Point($exitBtnXLocation, 25) # После кнопки "Установить"
 $exitBtn.Size = New-Object System.Drawing.Size(100, 30) # Размер кнопки
+$exitBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к низу и левому краю
 # Добавление обработчика события клика для кнопки "Выход"
 $exitBtn.Add_Click({
     $menuScriptUrl = 'https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1'
@@ -263,6 +261,7 @@ $checkUpdatesBtn.Text = "Проверка обновлений"
 $checkUpdatesBtnXLocation = $exitBtn.Location.X + $exitBtn.Width + 10
 $checkUpdatesBtn.Location = New-Object System.Drawing.Point($checkUpdatesBtnXLocation, 25) # После кнопки "Выход"
 $checkUpdatesBtn.Size = New-Object System.Drawing.Size(150, 30) # Увеличим ширину для текста
+$checkUpdatesBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к низу и левому краю
 $checkUpdatesBtn.Add_Click({
     $installMethod = if ($radioWinget.Checked) { "winget" } else { "choco" }
 
@@ -288,11 +287,21 @@ $checkUpdatesBtn.Add_Click({
 })
 $bottomButtonsGroupBox.Controls.Add($checkUpdatesBtn)
 
+# Создание кнопки "Обновить список"
+$refreshListBtn = New-Object System.Windows.Forms.Button
+$refreshListBtn.Text = "Обновить список"
+$refreshListBtnXLocation = $checkUpdatesBtn.Location.X + $checkUpdatesBtn.Width + 10
+$refreshListBtn.Location = New-Object System.Drawing.Point($refreshListBtnXLocation, 25) # После кнопки "Проверка обновлений"
+$refreshListBtn.Size = New-Object System.Drawing.Size(120, 30) # Размер кнопки
+$refreshListBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к низу и левому краю
+$refreshListBtn.Add_Click({
+    if (LoadAppsData $jsonUrl) { # Перезагружаем данные
+        UpdateCheckedListNoFilter # Обновляем список приложений
+        [System.Windows.Forms.MessageBox]::Show("Список приложений успешно обновлен.", "Обновление списка", "OK", "Information")
+    }
+})
+$bottomButtonsGroupBox.Controls.Add($refreshListBtn)
 
-# Заполнение списка приложений в GUI
-foreach ($app in $apps) {
-    $checkedList.Items.Add($app.Name) | Out-Null # Добавление имени приложения в список
-}
 
 # Обработчик события клика для кнопки "Установить"
 $installBtn.Add_Click({
@@ -300,7 +309,7 @@ $installBtn.Add_Click({
     # Перебор всех отмеченных элементов в списке
     foreach ($checkedItem in $checkedList.CheckedItems) {
         # Нахождение соответствующего объекта приложения по имени
-        $selectedApp = $apps | Where-Object { $_.Name -eq $checkedItem }
+        $selectedApp = $script:apps | Where-Object { $_.Name -eq $checkedItem }
         if ($selectedApp) {
             $selectedItems += $selectedApp.Id # Добавление ID выбранного приложения
         }
@@ -324,6 +333,7 @@ $installBtn.Add_Click({
         if ($installMethod -eq "winget") {
             # Проверка наличия winget
             if (Get-Command winget -ErrorAction SilentlyContinue) {
+                [System.Windows.Forms.MessageBox]::Show("Запуск установки через Winget. Это может занять некоторое время.", "Установка приложений", "OK", "Information")
                 # Пример установки с помощью winget (Windows Package Manager):
                 foreach ($id in $selectedItems) {
                     Write-Host "Установка $id с помощью winget..."
@@ -340,6 +350,7 @@ $installBtn.Add_Click({
         } elseif ($installMethod -eq "choco") {
             # Проверка наличия Chocolatey
             if (Get-Command choco -ErrorAction SilentlyContinue) {
+                [System.Windows.Forms.MessageBox]::Show("Запуск установки через Chocolatey. Это может занять некоторое время.", "Установка приложений", "OK", "Information")
                 # Пример установки с помощью Chocolatey:
                 foreach ($id in $selectedItems) {
                     Write-Host "Установка $id с помощью choco..."
@@ -356,6 +367,9 @@ $installBtn.Add_Click({
         }
     }
 })
+
+# Изначальное заполнение списка при запуске формы
+UpdateCheckedListNoFilter
 
 # Запуск формы графического интерфейса в модальном режиме
 [void]$form.ShowDialog()
