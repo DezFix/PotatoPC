@@ -1,24 +1,4 @@
 {
-  "Presets": {
-    "Standard": [
-      {"Id": "sumatrapdf", "Name": "SumatraPDF"},
-      {"Id": "7zip", "Name": "7-Zip"},
-      {"Id": "anydesk", "Name": "AnyDesk"},
-      {"Id": "notepadplusplus", "Name": "Notepad++"},
-      {"Id": "vlc", "Name": "VLC Media Player"}
-    ],
-    "Gamer": [
-      {"Id": "steam", "Name": "Steam"},
-      {"Id": "discord", "Name": "Discord"},
-      {"Id": "obs-studio", "Name": "OBS Studio"}
-    ],
-    "Optional": [
-      {"Id": "onlyoffice", "Name": "Onlyoffice"},
-      {"Id": "gimp", "Name": "GIMP"},
-      {"Id": "inkscape", "Name": "Inkscape"},
-      {"Id": "audacity", "Name": "Audacity"}
-    ]
-  },
   "ManualCategories": {
     "Браузеры": [
       {"Name": "Opera", "Id": "opera"},
