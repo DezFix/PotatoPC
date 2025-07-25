@@ -22,7 +22,8 @@ function ShowCustomMessageBox {
     $msgLabel.Text = $Message
     $msgLabel.Location = New-Object System.Drawing.Point(20, 20)
     $msgLabel.AutoSize = $true
-    $msgLabel.MaximumSize = New-Object System.Drawing.Size($msgBoxForm.Width - 40, 0) # Перенос текста
+    # ИСПРАВЛЕНО: обернуты математические операции в скобки
+    $msgLabel.MaximumSize = New-Object System.Drawing.Size(($msgBoxForm.Width - 40), 0) # Перенос текста
     $msgBoxForm.Controls.Add($msgLabel)
 
     $buttonPanel = New-Object System.Windows.Forms.FlowLayoutPanel
@@ -43,8 +44,8 @@ function ShowCustomMessageBox {
         $buttonPanel.Controls.Add($btn)
     }
 
-    # Корректировка позиции панели кнопок после добавления кнопок
-    $buttonPanel.Location = New-Object System.Drawing.Point($msgBoxForm.ClientSize.Width - $buttonPanel.Width - 20, $msgBoxForm.ClientSize.Height - $buttonPanel.Height - 20)
+    # ИСПРАВЛЕНО: обернуты математические операции в скобки
+    $buttonPanel.Location = New-Object System.Drawing.Point(($msgBoxForm.ClientSize.Width - $buttonPanel.Width - 20), ($msgBoxForm.ClientSize.Height - $buttonPanel.Height - 20))
 
     [void]$msgBoxForm.ShowDialog()
     return $result
