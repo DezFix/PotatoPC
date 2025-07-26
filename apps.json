@@ -8,7 +8,7 @@
     ],
     "Мультимедиа": [
       {"Name": "VLC Media Player", "Id": "VideoLAN.VLC", "Description": "Универсальный медиаплеер."},
-      {"Name": "GIMP", "Id": "GIMP.GIMP", "Description": "Бесплатный редактор изображений, альтернатива Photoshop."},
+      {"Name": "GIMP", "Id": "GIMP.GIMP.2", "Description": "Бесплатный редактор изображений, альтернатива Photoshop."},
       {"Name": "Audacity", "Id": "Audacity.Audacity", "Description": "Бесплатный аудиоредактор и звукозаписывающее приложение."},
       {"Name": "Shotcut", "Id": "Shotcut.Shotcut", "Description": "Бесплатный видеоредактор с открытым исходным кодом."},
       {"Name": "OBS Studio", "Id": "OBSProject.OBSStudio", "Description": "Бесплатное ПО для записи видео и потокового вещания."},
@@ -25,17 +25,17 @@
     "Файловые и Архиваторы": [
       {"Name": "7-Zip", "Id": "7zip.7zip", "Description": "Бесплатный архиватор с высокой степенью сжатия."},
       {"Name": "File Cxx", "Id": "FileCxx.FileCxx", "Description": "Легкий и быстрый файловый менеджер."},
-      {"Name": "ABDownloadManager", "Id": "ABSoftware.ABDownloadManager", "Description": "Менеджер загрузок с функциями ускорения."},
+      {"Name": "ABDownloadManager", "Id": "amir1376.ABDownloadManager", "Description": "Менеджер загрузок с функциями ускорения."},
       {"Name": "File Converter", "Id": "Tichau.FileConverter", "Description": "Инструмент для конвертации файлов через контекстное меню."},
       {"Name": "Minibin", "Id": "Minibin.Minibin", "Description": "Утилита для управления корзиной."},
       {"Name": "ShareX", "Id": "ShareX.ShareX", "Description": "Инструмент для захвата экрана и обмена файлами."}
     ],
     "Системные Утилиты": [
       {"Name": "AnyDesk", "Id": "AnyDesk.AnyDesk", "Description": "Программа для удаленного доступа и управления."},
-      {"Name": "BCUninstaller", "Id": "Klocman.BCUninstaller", "Description": "Бесплатный деинсталлятор программ с расширенными возможностями."},
-      {"Name": "QuickLook", "Id": "PaddyXu.QuickLook", "Description": "Быстрый предварительный просмотр файлов по нажатию пробела."},
+      {"Name": "BCUninstaller", "Id": "Klocman.BulkCrapUninstaller", "Description": "Бесплатный деинсталлятор программ с расширенными возможностями."},
+      {"Name": "QuickLook", "Id": "QL-Win.QuickLook", "Description": "Быстрый предварительный просмотр файлов по нажатию пробела."},
       {"Name": "EarTrumpet", "Id": "File-New-Project.EarTrumpet", "Description": "Расширенный регулятор громкости для Windows."},
-      {"Name": "ExplorerPatcher", "Id": "Valinet.ExplorerPatcher", "Description": "Патч для Проводника Windows, возвращающий старый вид."},
+      {"Name": "ExplorerPatcher", "Id": "valinet.ExplorerPatcher", "Description": "Патч для Проводника Windows, возвращающий старый вид."},
       {"Name": "NetTime", "Id": "NetTime.NetTime", "Description": "Утилита для синхронизации времени с NTP-серверами."},
       {"Name": "Flameshot", "Id": "Flameshot.Flameshot", "Description": "Мощный инструмент для создания скриншотов."}
     ],
