@@ -57,6 +57,8 @@ $jsonUrl = 'https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/ap
 # Глобальная переменная для хранения данных о приложениях
 $script:apps = @()
 $script:jsonRaw = $null # Глобальная переменная для хранения сырых данных JSON
+# НОВОЕ: Глобальная переменная для хранения ID всех отмеченных приложений
+$script:globalCheckedAppIds = New-Object System.Collections.Generic.HashSet[string]
 
 # Функция для загрузки и парсинга данных о приложениях
 function LoadAppsData {
@@ -87,10 +89,10 @@ function LoadAppsData {
                 }
             }
         }
-        return $true
+        return [bool]$true
     } catch {
         [System.Windows.Forms.MessageBox]::Show("Не удалось загрузить apps.json. Проверьте подключение к Интернету или URL-адрес.", "Ошибка загрузки", "OK", "Error")
-        return $false
+        return [bool]$false
     }
 }
 
@@ -146,8 +148,14 @@ $selectAllBtn.Location = New-Object System.Drawing.Point(10, 25) # Позици�
 $selectAllBtn.Size = New-Object System.Drawing.Size(100, 30)
 $selectAllBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к верху и левому краю
 $selectAllBtn.Add_Click({
+    # Обновляем глобальный список отмеченных ID при выборе всех
     for ($i = 0; $i -lt $checkedList.Items.Count; $i++) {
-        $checkedList.SetItemChecked($i, [bool]$true) # ИСПРАВЛЕНО: явное приведение к [bool]
+        $appName = $checkedList.Items[$i]
+        $appObj = $script:apps | Where-Object { $_.Name -eq $appName }
+        if ($appObj) {
+            $script:globalCheckedAppIds.Add($appObj.Id) | Out-Null
+        }
+        $checkedList.SetItemChecked($i, [bool]$true)
     }
 })
 $selectionButtonsGroupBox.Controls.Add($selectAllBtn)
@@ -160,8 +168,14 @@ $deselectAllBtn.Location = New-Object System.Drawing.Point($deselectAllBtnXLocat
 $deselectAllBtn.Size = New-Object System.Drawing.Size(130, 30) # Немного шире для текста
 $deselectAllBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к верху и левому краю
 $deselectAllBtn.Add_Click({
+    # Очищаем глобальный список отмеченных ID при снятии всех
     for ($i = 0; $i -lt $checkedList.Items.Count; $i++) {
-        $checkedList.SetItemChecked($i, [bool]$false) # ИСПРАВЛЕНО: явное приведение к [bool]
+        $appName = $checkedList.Items[$i]
+        $appObj = $script:apps | Where-Object { $_.Name -eq $appName }
+        if ($appObj) {
+            $script:globalCheckedAppIds.Remove($appObj.Id) | Out-Null
+        }
+        $checkedList.SetItemChecked($i, [bool]$false)
     }
 })
 $selectionButtonsGroupBox.Controls.Add($deselectAllBtn)
@@ -189,6 +203,20 @@ $checkedList.Size = New-Object System.Drawing.Size(660, 350) # Скоррект�
 $checkedList.CheckOnClick = [bool]$true # Позволяет отмечать/снимать флажок по одному клику
 $checkedList.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right # Привязка ко всем краям
 $form.Controls.Add($checkedList) # Добавление списка на форму
+
+# НОВОЕ: Обработчик события ItemCheck для обновления глобального состояния
+$checkedList.Add_ItemCheck({
+    param($sender, $e)
+    $appName = $checkedList.Items[$e.Index]
+    $appObj = $script:apps | Where-Object { $_.Name -eq $appName }
+    if ($appObj) {
+        if ($e.NewValue -eq [System.Windows.Forms.CheckState]::Checked) {
+            $script:globalCheckedAppIds.Add($appObj.Id) | Out-Null
+        } else {
+            $script:globalCheckedAppIds.Remove($appObj.Id) | Out-Null
+        }
+    }
+})
 
 
 # Функция для заполнения ComboBox категорий
@@ -218,19 +246,7 @@ function PopulateCategoryComboBox {
 
 # Функция для обновления списка приложений с учетом фильтрации по категориям
 function UpdateCheckedList ($categoryFilter) {
-    $checkedItemsBeforeFilter = @{}
-    # Сохраняем состояние отмеченных элементов по их ID
-    for ($i = 0; $i -lt $checkedList.Items.Count; $i++) {
-        if ($checkedList.GetItemChecked($i)) {
-            $appName = $checkedList.Items[$i]
-            # Находим приложение в исходном массиве $apps для получения его ID
-            $appObj = $script:apps | Where-Object { $_.Name -eq $appName }
-            if ($appObj) {
-                $checkedItemsBeforeFilter[$appObj.Id] = [bool]$true
-            }
-        }
-    }
-
+    # НОВОЕ: Мы больше не сохраняем состояние здесь, так как оно хранится глобально
     $checkedList.Items.Clear() # Очищаем список перед заполнением
 
     $filteredApps = @()
@@ -244,8 +260,8 @@ function UpdateCheckedList ($categoryFilter) {
     # Теперь просто добавляем отфильтрованные приложения
     foreach ($app in $filteredApps) {
         $checkedList.Items.Add($app.Name) | Out-Null
-        # Восстанавливаем состояние отмеченных элементов
-        if ($checkedItemsBeforeFilter.ContainsKey($app.Id)) {
+        # НОВОЕ: Восстанавливаем состояние отмеченных элементов из глобального списка
+        if ($script:globalCheckedAppIds.Contains($app.Id)) {
             $index = $checkedList.Items.IndexOf($app.Name)
             if ($index -ne -1) {
                 $checkedList.SetItemChecked($index, [bool]$true)
@@ -320,7 +336,8 @@ $checkUpdatesBtn.Add_Click({
             Start-Process "winget" -ArgumentList "upgrade --all --silent" -Wait 
             [System.Windows.Forms.MessageBox]::Show("Проверка и установка обновлений Winget завершена.", "Обновления завершены", "OK", "Information")
         } else {
-            [System.Windows.Forms.MessageBox]::Show("Winget не найден. Невозможно проверить обновления.", "Ошибка", "OK", "Error")
+            $installWingetPrompt = ShowCustomMessageBox -Title "Winget не найден" -Message "Winget не найден в вашей системе. Для его установки откройте Microsoft Store и найдите 'App Installer'." -ButtonTexts @("Понятно") # Изменено на "Понятно"
+            # Здесь нет автоматической установки Winget, только инструкция
         }
     } elseif ($installMethod -eq "choco") {
         if (Get-Command choco -ErrorAction SilentlyContinue) {
@@ -329,7 +346,13 @@ $checkUpdatesBtn.Add_Click({
             Start-Process "choco" -ArgumentList "upgrade all -y" -Wait 
             [System.Windows.Forms.MessageBox]::Show("Проверка и установка обновлений Chocolatey завершена.", "Обновления завершены", "OK", "Information")
         } else {
-            [System.Windows.Forms.MessageBox]::Show("Chocolatey не найден. Невозможно проверить обновления.", "Ошибка", "OK", "Error")
+            $installChocoPrompt = ShowCustomMessageBox -Title "Chocolatey не найден" -Message "Chocolatey не найден в вашей системе. Хотите установить его сейчас? Это потребует запуска PowerShell от имени администратора." -ButtonTexts @("Да", "Нет")
+            if ($installChocoPrompt -eq "Да") {
+                [System.Windows.Forms.MessageBox]::Show("Запуск установки Chocolatey. Откроется новое окно PowerShell для отображения прогресса. Пожалуйста, не закрывайте его до завершения.", "Установка Chocolatey", "OK", "Information")
+                # ИСПРАВЛЕНО: Автоматическая установка Chocolatey с экранированными кавычками
+                $chocoInstallCommand = "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')); Write-Host 'Установка Chocolatey завершена. Вы можете закрыть это окно.'"
+                Start-Process PowerShell -ArgumentList "-NoExit -Command `"$chocoInstallCommand`"" -Verb RunAs
+            }
         }
     }
 })
@@ -343,6 +366,7 @@ $refreshListBtn.Location = New-Object System.Drawing.Point($refreshListBtnXLocat
 $refreshListBtn.Size = New-Object System.Drawing.Size(120, 30) # Размер кнопки
 $refreshListBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к низу и левому краю
 $refreshListBtn.Add_Click({
+    [System.Windows.Forms.MessageBox]::Show("Обновление списка доступных приложений из JSON-файла. Установка приложений НЕ будет производиться.", "Обновление списка", "OK", "Information") # Уточненное сообщение
     if (LoadAppsData $jsonUrl) { # Перезагружаем данные
         PopulateCategoryComboBox -ComboBox ([ref]$categoryComboBox) -AppsData $script:apps # Обновляем категории
         UpdateCheckedList($categoryComboBox.SelectedItem) # Обновляем список приложений с новым фильтром
@@ -355,10 +379,10 @@ $bottomButtonsGroupBox.Controls.Add($refreshListBtn)
 # Обработчик события клика для кнопки "Установить"
 $installBtn.Add_Click({
     $selectedItems = @() # Инициализация пустого массива для хранения ID выбранных приложений
-    # Перебор всех отмеченных элементов в списке
-    foreach ($checkedItem in $checkedList.CheckedItems) {
-        # Нахождение соответствующего объекта приложения по имени
-        $selectedApp = $script:apps | Where-Object { $_.Name -eq $checkedItem }
+    # Перебор всех отмеченных элементов в глобальном списке отмеченных ID
+    foreach ($appId in $script:globalCheckedAppIds) {
+        # Находим соответствующий объект приложения по ID
+        $selectedApp = $script:apps | Where-Object { $_.Id -eq $appId }
         if ($selectedApp) {
             $selectedItems += $selectedApp.Id # Добавление ID выбранного приложения
         }
@@ -390,11 +414,8 @@ $installBtn.Add_Click({
                 }
                 [System.Windows.Forms.MessageBox]::Show("Процесс установки завершен. Проверьте установленные приложения.", "Готово", "OK", "Information")
             } else {
-                # Предложить установить Winget
-                $installWingetPrompt = ShowCustomMessageBox -Title "Winget не найден" -Message "Winget не найден в вашей системе. Хотите получить инструкции по его установке?" -ButtonTexts @("Да", "Нет")
-                if ($installWingetPrompt -eq "Да") {
-                    [System.Windows.Forms.MessageBox]::Show("Для установки Winget откройте Microsoft Store и найдите 'App Installer' или посетите страницу Winget на GitHub для ручной установки.", "Инструкции по установке Winget", "OK", "Information")
-                }
+                $installWingetPrompt = ShowCustomMessageBox -Title "Winget не найден" -Message "Winget не найден в вашей системе. Для его установки откройте Microsoft Store и найдите 'App Installer'." -ButtonTexts @("Понятно") # Изменено на "Понятно"
+                # Здесь нет автоматической установки Winget, только инструкция
             }
         } elseif ($installMethod -eq "choco") {
             # Проверка наличия Chocolatey
@@ -407,10 +428,12 @@ $installBtn.Add_Click({
                 }
                 [System.Windows.Forms.MessageBox]::Show("Процесс установки завершен. Проверьте установленные приложения.", "Готово", "OK", "Information")
             } else {
-                # Предложить установить Chocolatey
-                $installChocoPrompt = ShowCustomMessageBox -Title "Chocolatey не найден" -Message "Chocolatey не найден в вашей системе. Хотите получить инструкции по его установке?" -ButtonTexts @("Да", "Нет")
+                $installChocoPrompt = ShowCustomMessageBox -Title "Chocolatey не найден" -Message "Chocolatey не найден в вашей системе. Хотите установить его сейчас? Это потребует запуска PowerShell от имени администратора." -ButtonTexts @("Да", "Нет")
                 if ($installChocoPrompt -eq "Да") {
-                    [System.Windows.Forms.MessageBox]::Show("Для установки Chocolatey откройте PowerShell от имени администратора и выполните следующую команду: `n`nSet-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))", "Инструкции по установке Chocolatey", "OK", "Information")
+                    [System.Windows.Forms.MessageBox]::Show("Запуск установки Chocolatey. Откроется новое окно PowerShell для отображения прогресса. Пожалуйста, не закрывайте его до завершения.", "Установка Chocolatey", "OK", "Information")
+                    # ИСПРАВЛЕНО: Автоматическая установка Chocolatey с экранированными кавычками
+                    $chocoInstallCommand = "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')); Write-Host 'Установка Chocolatey завершена. Вы можете закрыть это окно.'"
+                    Start-Process PowerShell -ArgumentList "-NoExit -Command `"$chocoInstallCommand`"" -Verb RunAs
                 }
             }
         }
