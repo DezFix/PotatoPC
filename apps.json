@@ -11,16 +11,14 @@
       {"Name": "GIMP", "Id": "GIMP.GIMP.2", "Description": "Бесплатный редактор изображений, альтернатива Photoshop."},
       {"Name": "Audacity", "Id": "Audacity.Audacity", "Description": "Бесплатный аудиоредактор и звукозаписывающее приложение."},
       {"Name": "Shotcut", "Id": "Meltytech.Shotcut", "Description": "Бесплатный видеоредактор с открытым исходным кодом."},
-      {"Name": "OBS Studio", "Id": "OBSProject.OBSStudio", "Description": "Бесплатное ПО для записи видео и потокового вещания."},
-      {"Name": "Spotify", "Id": "Spotify.Spotify", "Description": "Популярный сервис потоковой передачи музыки."}
+      {"Name": "OBS Studio", "Id": "OBSProject.OBSStudio", "Description": "Бесплатное ПО для записи видео и потокового вещания."}
     ],
     "Офис и Документы": [
       {"Name": "Onlyoffice", "Id": "ONLYOFFICE.DesktopEditors", "Description": "Пакет офисных программ."},
       {"Name": "LibreOffice", "Id": "TheDocumentFoundation.LibreOffice", "Description": "Бесплатный офисный пакет, совместимый с Microsoft Office."},
       {"Name": "Microsoft Office", "Id": "Microsoft.Office", "Description": "Популярный офисный пакет от Microsoft."},
       {"Name": "SumatraPDF", "Id": "SumatraPDF.SumatraPDF", "Description": "Легкий просмотрщик PDF и других форматов."},
-      {"Name": "Notepad++", "Id": "Notepad++.Notepad++", "Description": "Бесплатный текстовый редактор с открытым исходным кодом."},
-      {"Name": "NormCap", "Id": "XP9KHM4BK9FZ7Q", "Description": "Инструмент для оптического распознавания символов (OCR). (Установка требует --source msstore)"}
+      {"Name": "Notepad++", "Id": "Notepad++.Notepad++", "Description": "Бесплатный текстовый редактор с открытым исходным кодом."}
     ],
     "Файловые и Архиваторы": [
       {"Name": "7-Zip", "Id": "7zip.7zip", "Description": "Бесплатный архиватор с высокой степенью сжатия."},
@@ -48,7 +46,7 @@
     "Разработка": [
       {"Name": "VS Code", "Id": "Microsoft.VisualStudioCode", "Description": "Мощный редактор кода от Microsoft."},
       {"Name": "Git", "Id": "Git.Git", "Description": "Система контроля версий для отслеживания изменений."},
-      {"Name": "Python", "Id": "Python.Python", "Description": "Популярный язык программирования. (Для конкретных версий используйте ID типа Python.Python.3.11)"},
+      {"Name": "Python", "Id": "Python.Python", "Description": "Популярный язык программирования."},
       {"Name": "Docker Desktop", "Id": "Docker.DockerDesktop", "Description": "Платформа для разработки и запуска приложений в контейнерах."}
     ],
     "Игры": [
