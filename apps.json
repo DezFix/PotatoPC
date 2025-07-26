@@ -10,7 +10,7 @@
       {"Name": "VLC Media Player", "Id": "VideoLAN.VLC", "Description": "Универсальный медиаплеер."},
       {"Name": "GIMP", "Id": "GIMP.GIMP.2", "Description": "Бесплатный редактор изображений, альтернатива Photoshop."},
       {"Name": "Audacity", "Id": "Audacity.Audacity", "Description": "Бесплатный аудиоредактор и звукозаписывающее приложение."},
-      {"Name": "Shotcut", "Id": "Shotcut.Shotcut", "Description": "Бесплатный видеоредактор с открытым исходным кодом."},
+      {"Name": "Shotcut", "Id": "Meltytech.Shotcut", "Description": "Бесплатный видеоредактор с открытым исходным кодом."},
       {"Name": "OBS Studio", "Id": "OBSProject.OBSStudio", "Description": "Бесплатное ПО для записи видео и потокового вещания."},
       {"Name": "Spotify", "Id": "Spotify.Spotify", "Description": "Популярный сервис потоковой передачи музыки."}
     ],
