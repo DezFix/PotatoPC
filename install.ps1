@@ -75,7 +75,7 @@ function LoadAppsData {
         
         # Проверяем, существует ли ManualCategories и является ли он объектом (или хэш-таблицей в PowerShell)
         if ($script:jsonRaw.ManualCategories -is [System.Management.Automation.PSCustomObject] -or $script:jsonRaw.ManualCategories -is [System.Collections.Hashtable]) {
-            # ИСПРАВЛЕНО: Более надежный способ итерации по свойствам PSCustomObject
+            # Более надежный способ итерации по свойствам PSCustomObject
             $script:jsonRaw.ManualCategories.PSObject.Properties | ForEach-Object {
                 $categoryName = $_.Name
                 $categoryApps = $_.Value
@@ -90,6 +90,8 @@ function LoadAppsData {
                                 Id   = $app.Id
                                 Description = $app.Description
                                 Category = $categoryName # Категория сохраняется для фильтрации
+                                # Добавляем флаг, если описание содержит "Установка требует --source msstore"
+                                RequiresMsStoreSource = $app.Description -like "*Установка требует --source msstore*"
                             }
                             # Явно добавляем метод ToString, который будет использоваться CheckedListBox
                             Add-Member -InputObject $newApp -MemberType ScriptMethod -Name ToString -Value { return "$($this.Name)" } -Force
@@ -105,6 +107,349 @@ function LoadAppsData {
         return [bool]$false
     }
 }
+
+# Функция для проверки, установлено ли приложение в системе (через записи деинсталлятора и AppX)
+function Check-ApplicationInstalled {
+    param(
+        [string]$AppNamePartial # Часть имени имени для поиска
+    )
+    # Check traditional uninstall entries
+    $uninstallPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+    )
+
+    foreach ($path in $uninstallPaths) {
+        if (Test-Path $path) {
+            Get-ItemProperty "$path\*" -ErrorAction SilentlyContinue | Where-Object {
+                $_.DisplayName -like "*$AppNamePartial*" -and $_.UninstallString
+            } | Select-Object -First 1 | Out-Null
+            if ($?) {
+                return $true
+            }
+        }
+    }
+
+    # Check for AppX packages (Microsoft Store apps)
+    try {
+        Get-AppxPackage -Name "*$AppNamePartial*" -ErrorAction SilentlyContinue | Select-Object -First 1 | Out-Null
+        if ($?) {
+            return $true
+        }
+    } catch {
+        # Handle cases where Get-AppxPackage might not be available or fails
+        Write-Warning "Не удалось проверить наличие AppX пакетов. Ошибка: $($_.Exception.Message)"
+    }
+
+    return $false
+}
+
+# Функция для получения версии Winget
+function Get-WingetVersion {
+    try {
+        # Capture all output, including potential header lines
+        $rawOutput = winget --version 2>&1 | Out-String
+        
+        # Look for a line that contains "vX.Y.Z" pattern
+        if ($rawOutput -match 'v(\d+\.\d+\.\d+)') {
+            $versionString = $matches[1]
+            return [version]$versionString
+        }
+    } catch {
+        # Убрано Write-Warning, так как это отладочный вывод
+    }
+    return $null
+}
+
+# Функция для отображения окна выбора обновлений Winget
+function ShowUpgradeWindow {
+    # Установка кодировки для корректного отображения вывода Winget
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+    [System.Windows.Forms.MessageBox]::Show("Получение списка доступных обновлений через Winget. Пожалуйста, подождите...", "Проверка обновлений", "OK", "Information")
+    Write-Host "Получение списка доступных обновлений через Winget..." -ForegroundColor Cyan
+
+    $parsedPackages = @()
+    $wingetRawOutput = ""
+
+    # 1. Попытка получить JSON-вывод
+    try {
+        $wingetRawOutput = (winget upgrade --output json --accept-source-agreements --accept-package-agreements 2>&1 | Out-String)
+        $jsonStart = $wingetRawOutput.IndexOf('{')
+        $jsonEnd = $wingetRawOutput.LastIndexOf('}')
+        
+        if ($jsonStart -ne -1 -and $jsonEnd -ne -1 -and $jsonEnd -gt $jsonStart) {
+            $wingetOutputJson = $wingetRawOutput.Substring($jsonStart, $jsonEnd - $jsonStart + 1)
+            $jsonResult = $wingetOutputJson | ConvertFrom-Json -ErrorAction SilentlyContinue
+            
+            if ($jsonResult -and $jsonResult.UpgradePackages -and $jsonResult.UpgradePackages.Count -gt 0) {
+                foreach ($pkg in $jsonResult.UpgradePackages) {
+                    $parsedPackages += [PSCustomObject]@{
+                        Name             = $pkg.Package.PackageIdentifier # Use PackageIdentifier from JSON
+                        Id               = $pkg.Package.PackageIdentifier
+                        CurrentVersion   = $pkg.Version
+                        AvailableVersion = $pkg.AvailableVersion
+                        Source           = $pkg.Source
+                        Description      = "Текущая версия: $($pkg.Version)`nДоступная версия: $($pkg.AvailableVersion)`nИсточник: $($pkg.Source)"
+                    }
+                }
+            } else {
+                # Fallback to text parsing if JSON is empty or malformed
+                $wingetRawOutput = (winget upgrade --accept-source-agreements --accept-package-agreements 2>&1 | Out-String)
+                # Text parsing logic
+                $upgradeLines = $wingetRawOutput -split "`r?`n" | Where-Object { $_ -match '^\s*\S' -and ($_ -notmatch '^Name\s+Id\s+Version') -and ($_ -notmatch '^-{3,}') }
+                foreach ($line in $upgradeLines) {
+                    if ($line -match '^(?<Name>.+?)\s+(?<Id>[^\s]+)\s+(?<CurrentVersion>[^\s]+)\s+(?<AvailableVersion>[^\s]+)\s*(?<Source>.*)$') {
+                        $parsedPackages += [PSCustomObject]@{
+                            Name             = $matches['Name'].Trim()
+                            Id               = $matches['Id'].Trim()
+                            CurrentVersion   = $matches['CurrentVersion'].Trim()
+                            AvailableVersion = $matches['AvailableVersion'].Trim()
+                            Source           = $matches['Source'].Trim()
+                            Description      = "Текущая версия: $($matches['CurrentVersion'])`nДоступная версия: $($matches['AvailableVersion'])`nИсточник: $($matches['Source'])"
+                        }
+                    }
+                }
+            }
+        } else {
+            # Fallback to text parsing if JSON structure is not found
+            $wingetRawOutput = (winget upgrade --accept-source-agreements --accept-package-agreements 2>&1 | Out-String)
+            # Text parsing logic
+            $upgradeLines = $wingetRawOutput -split "`r?`n" | Where-Object { $_ -match '^\s*\S' -and ($_ -notmatch '^Name\s+Id\s+Version') -and ($_ -notmatch '^-{3,}') }
+            foreach ($line in $upgradeLines) {
+                if ($line -match '^(?<Name>.+?)\s+(?<Id>[^\s]+)\s+(?<CurrentVersion>[^\s]+)\s+(?<AvailableVersion>[^\s]+)\s*(?<Source>.*)$') {
+                    $parsedPackages += [PSCustomObject]@{
+                        Name             = $matches['Name'].Trim()
+                        Id               = $matches['Id'].Trim()
+                        CurrentVersion   = $matches['CurrentVersion'].Trim()
+                        AvailableVersion = $matches['AvailableVersion'].Trim()
+                        Source           = $matches['Source'].Trim()
+                        Description      = "Текущая версия: $($matches['CurrentVersion'])`nДоступная версия: $($matches['AvailableVersion'])`nИсточник: $($matches['Source'])"
+                    }
+                }
+            }
+        }
+    } catch {
+        # Fallback to text parsing if JSON command fails
+        $wingetRawOutput = (winget upgrade --accept-source-agreements --accept-package-agreements 2>&1 | Out-String)
+        # Text parsing logic
+        $upgradeLines = $wingetRawOutput -split "`r?`n" | Where-Object { $_ -match '^\s*\S' -and ($_ -notmatch '^Name\s+Id\s+Version') -and ($_ -notmatch '^-{3,}') }
+        foreach ($line in $upgradeLines) {
+            if ($line -match '^(?<Name>.+?)\s+(?<Id>[^\s]+)\s+(?<CurrentVersion>[^\s]+)\s+(?<AvailableVersion>[^\s]+)\s*(?<Source>.*)$') {
+                $parsedPackages += [PSCustomObject]@{
+                    Name             = $matches['Name'].Trim()
+                    Id               = $matches['Id'].Trim()
+                    CurrentVersion   = $matches['CurrentVersion'].Trim()
+                    AvailableVersion = $matches['AvailableVersion'].Trim()
+                    Source           = $matches['Source'].Trim()
+                    Description      = "Текущая версия: $($matches['CurrentVersion'])`nДоступная версия: $($matches['AvailableVersion'])`nИсточник: $($matches['Source'])"
+                }
+            }
+        }
+    }
+
+    if ($parsedPackages.Count -eq 0) {
+        [System.Windows.Forms.MessageBox]::Show("Нет доступных обновлений через Winget.", "Обновления", "OK", "Information")
+        return
+    }
+
+    # Отладочный вывод в консоль (удален)
+    # Write-Host "`n--- Найденные обновления Winget (полный список) ---" -ForegroundColor Yellow
+    # foreach ($pkg in $parsedPackages) {
+    #     Write-Host "Имя: $($pkg.Name)" -ForegroundColor Green
+    #     Write-Host "ID: $($pkg.Id)" -ForegroundColor Green
+    #     Write-Host "Текущая версия: $($pkg.CurrentVersion)" -ForegroundColor Green
+    #     Write-Host "Доступная версия: $($pkg.AvailableVersion)" -ForegroundColor Green
+    #     Write-Host "Источник: $($pkg.Source)" -ForegroundColor Green
+    #     Write-Host "---------------------------------------------------" -ForegroundColor DarkGreen
+    # }
+    # Write-Host "`n"
+
+    # Создание нового окна
+    $upgradeForm = New-Object System.Windows.Forms.Form
+    $upgradeForm.Text = "Доступные обновления"
+    $upgradeForm.Size = New-Object System.Drawing.Size(600, 500)
+    $upgradeForm.StartPosition = "CenterScreen"
+    $upgradeForm.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $upgradeForm.MinimizeBox = [bool]$false
+    $upgradeForm.MaximizeBox = [bool]$false
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "Выберите приложения для обновления:"
+    $label.AutoSize = $true
+    $label.Location = New-Object System.Drawing.Point(10, 10)
+    $upgradeForm.Controls.Add($label)
+
+    # ComboBox для сортировки
+    $sortComboBox = New-Object System.Windows.Forms.ComboBox
+    $sortComboBox.Location = New-Object System.Drawing.Point(380, 10) # Размещаем справа от метки
+    $sortComboBox.Size = New-Object System.Drawing.Size(190, 30)
+    $sortComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList # Только выбор из списка
+    $sortComboBox.Items.AddRange(@(
+        "По имени (А-Я)",
+        "По имени (Я-А)",
+        "По ID (А-Я)",
+        "По ID (Я-А)",
+        "По версии (по возрастанию)",
+        "По версии (по убыванию)"
+    ))
+    $sortComboBox.SelectedIndex = 0 # Выбираем сортировку по умолчанию (по имени А-Я)
+    $upgradeForm.Controls.Add($sortComboBox)
+
+    # CheckedListBox для выбора приложений
+    $list = New-Object System.Windows.Forms.CheckedListBox
+    $list.Location = New-Object System.Drawing.Point(10, ($label.Location.Y + $label.Height + 5)) # Смещаем список ниже метки
+    $list.Size = New-Object System.Drawing.Size(560, 350) 
+    $list.CheckOnClick = $true
+    
+    # Функция для обновления списка CheckedListBox с учетом сортировки
+    $script:UpdateUpgradeCheckedList = {
+        param($packages, $checkedItems = $null) # $packages - это всегда полный список из $parsedPackages
+        $list.Items.Clear()
+        
+        # Сохраняем текущие отмеченные ID
+        $currentCheckedIds = New-Object System.Collections.Generic.HashSet[string]
+        if ($checkedItems -ne $null) {
+            foreach ($item in $checkedItems) {
+                [void]$currentCheckedIds.Add($item.Id)
+            }
+        }
+
+        # Применяем сортировку
+        $selectedSort = $sortComboBox.SelectedItem # Получаем текущий выбранный вариант сортировки
+        $sortedPackages = @()
+        switch ($selectedSort) {
+            "По имени (А-Я)" { $sortedPackages = $packages | Sort-Object Name }
+            "По имени (Я-А)" { $sortedPackages = $packages | Sort-Object Name -Descending }
+            "По ID (А-Я)" { $sortedPackages = $packages | Sort-Object Id }
+            "По ID (Я-А)" { $sortedPackages = $packages | Sort-Object Id -Descending }
+            "По версии (по возрастанию)" {
+                $sortedPackages = $packages | Sort-Object {
+                    try {
+                        [version]$_.AvailableVersion
+                    } catch {
+                        # If conversion fails, assign a very high version to push it to the end
+                        [version]'9999.9999.9999.9999'
+                    }
+                }
+            }
+            "По версии (по убыванию)" {
+                $sortedPackages = $packages | Sort-Object {
+                    try {
+                        [version]$_.AvailableVersion
+                    } catch {
+                        # If conversion fails, assign a very low version to push it to the end
+                        [version]'0.0.0.0'
+                    }
+                } -Descending
+            }
+        }
+
+        foreach ($pkg in $sortedPackages) {
+            # Добавляем метод ToString для корректного отображения в CheckedListBox
+            Add-Member -InputObject $pkg -MemberType ScriptMethod -Name ToString -Value { return "$($this.Name) (v$($this.CurrentVersion) -> v$($this.AvailableVersion))" } -Force
+            [void]$list.Items.Add($pkg)
+            
+            # Восстанавливаем состояние отмеченного элемента
+            if ($currentCheckedIds.Contains($pkg.Id)) {
+                $index = $list.Items.IndexOf($pkg) 
+                if ($index -ne -1) {
+                    $list.SetItemChecked($index, [bool]$true)
+                }
+            }
+        }
+    }
+
+    # Обработчик изменения выбора в ComboBox сортировки
+    [void]$sortComboBox.Add_SelectedIndexChanged({
+        $currentCheckedItems = @($list.CheckedItems) # Сохраняем текущий выбор
+        $script:UpdateUpgradeCheckedList.Invoke($parsedPackages, $currentCheckedItems)
+    })
+
+    # Изначальная сортировка и заполнение списка
+    $script:UpdateUpgradeCheckedList.Invoke($parsedPackages, @()) 
+
+    $upgradeForm.Controls.Add($list)
+
+    # Добавление кнопок "Выбрать все" и "Убрать отмеченные"
+    $selectAllUpdatesBtn = New-Object System.Windows.Forms.Button
+    $selectAllUpdatesBtn.Text = "Выбрать все"
+    $selectAllUpdatesBtn.Location = New-Object System.Drawing.Point(10, 410)
+    $selectAllUpdatesBtn.Size = New-Object System.Drawing.Size(100, 30)
+    [void]$selectAllUpdatesBtn.Add_Click({
+        for ($i = 0; $i -lt $list.Items.Count; $i++) {
+            $list.SetItemChecked($i, [bool]$true)
+        }
+    })
+    $upgradeForm.Controls.Add($selectAllUpdatesBtn)
+
+    $deselectAllUpdatesBtn = New-Object System.Windows.Forms.Button
+    $deselectAllUpdatesBtn.Text = "Убрать отмеченные"
+    $deselectAllUpdatesBtn.Location = New-Object System.Drawing.Point(($selectAllUpdatesBtn.Location.X + $selectAllUpdatesBtn.Width + 10), 410)
+    $deselectAllUpdatesBtn.Size = New-Object System.Drawing.Size(130, 30)
+    [void]$deselectAllUpdatesBtn.Add_Click({
+        for ($i = 0; $i -lt $list.Items.Count; $i++) {
+            $list.SetItemChecked($i, [bool]$false)
+        }
+    })
+    $upgradeForm.Controls.Add($deselectAllUpdatesBtn)
+
+
+    # Add ToolTip for updatable list
+    $updateToolTip = New-Object System.Windows.Forms.ToolTip
+    $updateToolTip.AutoPopDelay = 5000
+    $updateToolTip.InitialDelay = 500
+    $updateToolTip.ReshowDelay = 500
+    $updateToolTip.ShowAlways = [bool]$true
+
+    [void]$list.Add_MouseMove({
+        param($sender, $e)
+        $index = $list.IndexFromPoint($e.Location)
+        if ($index -ne -1) {
+            $appObj = $list.Items[$index]
+            if ($appObj -is [PSCustomObject] -and $appObj.Description) {
+                $updateToolTip.SetToolTip($list, $appObj.Description)
+            } else {
+                $updateToolTip.SetToolTip($list, "")
+            }
+        } else {
+            $updateToolTip.SetToolTip($list, "")
+        }
+    })
+
+    $upgradeButton = New-Object System.Windows.Forms.Button
+    $upgradeButton.Text = "Обновить выбранные"
+    $upgradeButton.Location = New-Object System.Drawing.Point(($deselectAllUpdatesBtn.Location.X + $deselectAllUpdatesBtn.Width + 10), 410)
+    $upgradeButton.Size = New-Object System.Drawing.Size(150, 30)
+    $upgradeButton.Add_Click({
+        $selected = @($list.CheckedItems)
+        if ($selected.Count -eq 0) {
+            [System.Windows.Forms.MessageBox]::Show("Вы не выбрали ни одного пакета.", "Внимание", "OK", "Warning")
+            return
+        }
+
+        [System.Windows.Forms.MessageBox]::Show("Запуск обновления выбранных приложений. Прогресс будет отображен в текущей консоли.", "Обновление", "OK", "Information")
+        foreach ($pkg in $selected) {
+            Write-Host "`nОбновление $($pkg.Name) ($($pkg.Id)) до версии $($pkg.AvailableVersion)" -ForegroundColor Cyan
+            winget upgrade --id $($pkg.Id) --accept-source-agreements --accept-package-agreements 2>&1 | Write-Host
+        }
+
+        [System.Windows.Forms.MessageBox]::Show("Обновление завершено.", "Готово", "OK", "Information")
+        $upgradeForm.Close()
+    })
+    $upgradeForm.Controls.Add($upgradeButton)
+
+    $cancelButton = New-Object System.Windows.Forms.Button
+    $cancelButton.Text = "Отмена"
+    $cancelButton.Location = New-Object System.Drawing.Point(($upgradeButton.Location.X + $upgradeButton.Width + 10), 410)
+    $cancelButton.Size = New-Object System.Drawing.Size(100, 30)
+    $cancelButton.Add_Click({ $upgradeForm.Close() })
+    $upgradeForm.Controls.Add($cancelButton)
+
+    [void]$upgradeForm.ShowDialog()
+}
+
 
 # Попытка загрузить JSON-файл при запуске скрипта
 if (-not (LoadAppsData $jsonUrl)) {
@@ -333,12 +678,7 @@ $checkUpdatesBtn.Size = New-Object System.Drawing.Size(150, 30) # Увеличи
 $checkUpdatesBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к низу и левому краю
 [void]$checkUpdatesBtn.Add_Click({
     if (Get-Command winget -ErrorAction SilentlyContinue) {
-        [System.Windows.Forms.MessageBox]::Show("Запуск проверки обновлений через Winget. Прогресс будет отображен в текущей консоли.", "Проверка обновлений", "OK", "Information")
-        # Установка кодировки для корректного отображения вывода Winget
-        $OutputEncoding = [System.Text.Encoding]::UTF8
-        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-        winget upgrade --all --accept-source-agreements --accept-package-agreements 2>&1 | Write-Host
-        [System.Windows.Forms.MessageBox]::Show("Проверка и установка обновлений Winget завершена.", "Обновления завершены", "OK", "Information")
+        ShowUpgradeWindow # Вызываем функцию для выбора обновлений в GUI
     } else {
         $installWingetPrompt = ShowCustomMessageBox -Title "Winget не найден" -Message "Winget не найден в вашей системе. Что вы хотите сделать?" -ButtonTexts @("Открыть Microsoft Store", "Открыть ссылку в браузере", "Отмена")
         if ($installWingetPrompt -eq "Открыть Microsoft Store") {
@@ -378,6 +718,7 @@ $refreshListBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [Syste
         $selectedItems += [PSCustomObject]@{
             Name = $checkedAppObject.Name
             Id   = $checkedAppObject.Id
+            RequiresMsStoreSource = $checkedAppObject.RequiresMsStoreSource # Получаем флаг
         }
     }
 
@@ -396,29 +737,41 @@ $refreshListBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [Syste
             [System.Windows.Forms.MessageBox]::Show("Запуск установки через Winget. Прогресс будет отображен в текущей консоли.", "Установка приложений", "OK", "Information")
             # Установка кодировки для корректного отображения вывода Winget
             $OutputEncoding = [System.Text.Encoding]::UTF8
-            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 
             
             # Пример установки с помощью winget (Windows Package Manager):
             foreach ($app in $selectedItems) {
-                Write-Host "Установка $($app.Name) (ID: $($app.Id)) с помощью Winget..." -ForegroundColor Cyan
-                # Выполняем команду Winget и перенаправляем stderr в stdout для Write-Host
-                $wingetOutput = winget install --id $($app.Id) --accept-source-agreements --accept-package-agreements 2>&1
-                Write-Host $wingetOutput
-
-                # Проверяем код выхода Winget для определения результата
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "Установка $($app.Name) завершена." -ForegroundColor Green
-                } elseif ($LASTEXITCODE -eq -1978335212) {
-                    Write-Host "ОШИБКА: Пакет $($app.Name) не найден или не соответствует условиям. Проверьте ID пакета или источники Winget." -ForegroundColor Red
-                } elseif ($LASTEXITCODE -eq 1700 -or $LASTEXITCODE -eq -1978335189) {
-                    Write-Host "ПРИМЕЧАНИЕ: Winget сообщает, что приложение $($app.Name) уже установлено и находится в актуальном состоянии. Обновления не требуются." -ForegroundColor Yellow
+                Write-Host "--- Обработка $($app.Name) (ID: $($app.Id)) ---" -ForegroundColor Yellow
+                
+                # Проверка фактического наличия приложения на ПК
+                if (Check-ApplicationInstalled -AppNamePartial $app.Name) {
+                    Write-Host "ПРИМЕЧАНИЕ: Приложение '$($app.Name)' уже обнаружено на вашем ПК. Пропускаем установку через Winget." -ForegroundColor Yellow
+                    # Можно добавить опцию для переустановки/восстановления через Winget, если нужно
                 } else {
-                    Write-Host "ОШИБКА при установке $($app.Name) через Winget. Код выхода: " + $LASTEXITCODE -ForegroundColor Red
+                    Write-Host "Приложение '$($app.Name)' не найдено на вашем ПК. Попытка установки через Winget..." -ForegroundColor Green
+                    
+                    $sourceFlag = if ($app.RequiresMsStoreSource) { "--source msstore" } else { "" }
+                    $wingetCommand = "winget install --id $($app.Id) $sourceFlag --accept-source-agreements --accept-package-agreements"
+                    
+                    $wingetOutput = Invoke-Expression "$wingetCommand 2>&1"
+                    Write-Host $wingetOutput
+
+                    # Проверяем код выхода Winget для определения результата
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "Установка $($app.Name) завершена." -ForegroundColor Green
+                    } elseif ($LASTEXITCODE -eq -1978335212) {
+                        Write-Host "ОШИБКА: Пакет $($app.Id) не найден в источниках Winget или не соответствует условиям." -ForegroundColor Red
+                    } elseif ($LASTEXITCODE -eq 1700 -or $LASTEXITCODE -eq -1978335189) {
+                        Write-Host "ПРИМЕЧАНИЕ: Winget сообщает, что пакет для '$($app.Id)' уже установлен и находится в актуальном состоянии (хотя мы не обнаружили его традиционным способом). Обновления не требуются." -ForegroundColor Yellow
+                    } else {
+                        Write-Host "ОШИБКА при установке $($app.Id) через Winget. Код выхода: " + $LASTEXITCODE -ForegroundColor Red
+                    }
                 }
+                Write-Host "--- Завершено $($app.Name) ---`n" -ForegroundColor Yellow
             }
             [System.Windows.Forms.MessageBox]::Show("Процесс установки Winget завершен. Проверьте установленные приложения.", "Готово", "OK", "Information")
         } else {
-            $installWingetPrompt = ShowCustomMessageBox -Title "Winget не найден" -Message "Winget не найден в вашей системе. Что вы хотите сделать?" -ButtonTexts @("Открыть Microsoft Store", "Открыть ссылку в браузere", "Отмена")
+            $installWingetPrompt = ShowCustomMessageBox -Title "Winget не найден" -Message "Winget не найден в вашей системе. Что вы хотите сделать?" -ButtonTexts @("Открыть Microsoft Store", "Открыть ссылку в браузере", "Отмена")
             if ($installWingetPrompt -eq "Открыть Microsoft Store") {
                 [void](Start-Process "ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1")
                 [System.Windows.Forms.MessageBox]::Show("Открыт Microsoft Store. Пожалуйста, найдите и установите 'App Installer'.", "Установка Winget", "OK", "Information")
