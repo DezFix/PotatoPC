@@ -3,7 +3,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # Проверка на наличие прав администратора
-if (-not ([Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+if (-not ([Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
     [System.Windows.Forms.MessageBox]::Show("Этот скрипт должен быть запущен от имени администратора. Пожалуйста, перезапустите PowerShell с правами администратора и повторите попытку.", "Недостаточно прав", "OK", "Error")
     exit
 }
@@ -113,6 +113,9 @@ function Check-ApplicationInstalled {
     param(
         [string]$AppNamePartial # Часть имени имени для поиска
     )
+    # Отладка: Выводим информацию о проверке
+    Write-Host "Отладка: Проверка, установлено ли приложение с частичным именем '$AppNamePartial'..." -ForegroundColor DarkYellow
+
     # Check traditional uninstall entries
     $uninstallPaths = @(
         "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
@@ -121,10 +124,11 @@ function Check-ApplicationInstalled {
 
     foreach ($path in $uninstallPaths) {
         if (Test-Path $path) {
-            Get-ItemProperty "$path\*" -ErrorAction SilentlyContinue | Where-Object {
+            $foundUninstall = Get-ItemProperty "$path\*" -ErrorAction SilentlyContinue | Where-Object {
                 $_.DisplayName -like "*$AppNamePartial*" -and $_.UninstallString
-            } | Select-Object -First 1 | Out-Null
-            if ($?) {
+            }
+            if ($foundUninstall) {
+                Write-Host "Отладка: Найдено в реестре: $($foundUninstall.DisplayName)" -ForegroundColor DarkGreen
                 return $true
             }
         }
@@ -132,15 +136,16 @@ function Check-ApplicationInstalled {
 
     # Check for AppX packages (Microsoft Store apps)
     try {
-        Get-AppxPackage -Name "*$AppNamePartial*" -ErrorAction SilentlyContinue | Select-Object -First 1 | Out-Null
-        if ($?) {
+        $foundAppX = Get-AppxPackage -Name "*$AppNamePartial*" -ErrorAction SilentlyContinue
+        if ($foundAppX) {
+            Write-Host "Отладка: Найдено как AppX пакет: $($foundAppX.Name)" -ForegroundColor DarkGreen
             return $true
         }
     } catch {
-        # Handle cases where Get-AppxPackage might not be available or fails
-        Write-Warning "Не удалось проверить наличие AppX пакетов. Ошибка: $($_.Exception.Message)"
+        # Используем Write-Warning, чтобы не прерывать выполнение, но сообщить об ошибке
+        Write-Warning "Отладка: Не удалось проверить наличие AppX пакетов. Ошибка: $($_.Exception.Message)"
     }
-
+    Write-Host "Отладка: Приложение с частичным именем '$AppNamePartial' не найдено." -ForegroundColor DarkRed
     return $false
 }
 
@@ -164,8 +169,12 @@ function Get-WingetVersion {
 # Функция для отображения окна выбора обновлений Winget
 function ShowUpgradeWindow {
     # Установка кодировки для корректного отображения вывода Winget
-    $OutputEncoding = [System.Text.Encoding]::UTF8
-    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    try {
+        $OutputEncoding = [System.Text.Encoding]::UTF8
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    } catch {
+        Write-Warning "Не удалось установить OutputEncoding для консоли: $($_.Exception.Message)"
+    }
 
     [System.Windows.Forms.MessageBox]::Show("Получение списка доступных обновлений через Winget. Пожалуйста, подождите...", "Проверка обновлений", "OK", "Information")
     Write-Host "Получение списка доступных обновлений через Winget..." -ForegroundColor Cyan
@@ -253,18 +262,6 @@ function ShowUpgradeWindow {
         [System.Windows.Forms.MessageBox]::Show("Нет доступных обновлений через Winget.", "Обновления", "OK", "Information")
         return
     }
-
-    # Отладочный вывод в консоль (удален)
-    # Write-Host "`n--- Найденные обновления Winget (полный список) ---" -ForegroundColor Yellow
-    # foreach ($pkg in $parsedPackages) {
-    #     Write-Host "Имя: $($pkg.Name)" -ForegroundColor Green
-    #     Write-Host "ID: $($pkg.Id)" -ForegroundColor Green
-    #     Write-Host "Текущая версия: $($pkg.CurrentVersion)" -ForegroundColor Green
-    #     Write-Host "Доступная версия: $($pkg.AvailableVersion)" -ForegroundColor Green
-    #     Write-Host "Источник: $($pkg.Source)" -ForegroundColor Green
-    #     Write-Host "---------------------------------------------------" -ForegroundColor DarkGreen
-    # }
-    # Write-Host "`n"
 
     # Создание нового окна
     $upgradeForm = New-Object System.Windows.Forms.Form
@@ -633,7 +630,7 @@ $bottomButtonsGroupBox = New-Object System.Windows.Forms.GroupBox
 $bottomButtonsGroupBox.Text = "Управление" # Заголовок для GroupBox кнопок
 $bottomButtonsGroupBox.Location = New-Object System.Drawing.Point(10, ($checkedList.Location.Y + $checkedList.Height + 10))
 # Ширина GroupBox, достаточная для трех кнопок (Установить, Выход, Проверка обновлений, Обновить список)
-$bottomButtonsGroupBox.Size = New-Object System.Drawing.Size(540, 70)
+$bottomButtonsGroupBox.Size = New-Object System.Drawing.Size(540, 70) 
 $bottomButtonsGroupBox.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right # Привязка к низу, левому и правому краю
 [void]$form.Controls.Add($bottomButtonsGroupBox)
 
@@ -655,16 +652,22 @@ $exitBtn.Size = New-Object System.Drawing.Size(100, 30) # Размер кноп�
 $exitBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left # Привязка к низу и левому краю
 # Добавление обработчика события клика для кнопки "Выход"
 [void]$exitBtn.Add_Click({
-    $menuScriptUrl = 'https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1'
+    $menuScriptUrl = 'https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1'
+    # Отладка: Сообщение о попытке загрузки и запуска меню
+    Write-Host "Отладка: Попытка загрузить и запустить скрипт меню: $menuScriptUrl" -ForegroundColor Yellow
     try {
         # Загрузка содержимого скрипта
         $scriptContent = Invoke-RestMethod -Uri $menuScriptUrl -UseBasicParsing
+        # Отладка: Сообщение об успешной загрузке
+        Write-Host "Отладка: Скрипт меню успешно загружен. Попытка выполнения..." -ForegroundColor Green
         # Закрываем текущую форму перед запуском нового скрипта
         $form.Close()
         # Выполняем загруженный скрипт
         Invoke-Expression $scriptContent
     } catch {
-        [System.Windows.Forms.MessageBox]::Show("Не удалось загрузить или запустить menu.ps1. Проверьте подключение к Интернету или URL-адрес.", "Ошибка запуска меню", "OK", "Error")
+        [System.Windows.Forms.MessageBox]::Show("Не удалось загрузить или запустить menu.ps1. Проверьте подключение к Интернету или URL-адрес. Ошибка: $($_.Exception.Message)", "Ошибка запуска меню", "OK", "Error")
+        # Отладка: Сообщение об ошибке при запуске меню
+        Write-Host "Отладка: Ошибка при запуске скрипта меню: $($_.Exception.Message)" -ForegroundColor Red
     }
 })
 [void]$bottomButtonsGroupBox.Controls.Add($exitBtn)
@@ -680,12 +683,21 @@ $checkUpdatesBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [Syst
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         ShowUpgradeWindow # Вызываем функцию для выбора обновлений в GUI
     } else {
-        $installWingetPrompt = ShowCustomMessageBox -Title "Winget не найден" -Message "Winget не найден в вашей системе. Что вы хотите сделать?" -ButtonTexts @("Открыть Microsoft Store", "Открыть ссылку в браузере", "Отмена")
-        if ($installWingetPrompt -eq "Открыть Microsoft Store") {
-            [void](Start-Process "ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1")
-            [System.Windows.Forms.MessageBox]::Show("Открыт Microsoft Store. Пожалуйста, найдите и установите 'App Installer'.", "Установка Winget", "OK", "Information")
-        } elseif ($installWingetPrompt -eq "Открыть ссылку в браузере") {
-            [void](Start-Process "https://apps.microsoft.com/detail/9nblggh4nns1?hl=ru-RU&gl=UA")
+        # Изменено: Удалена опция "Открыть Microsoft Store", оставлена только ссылка в браузере
+        $installWingetPrompt = ShowCustomMessageBox -Title "Winget не найден" -Message "Winget не найден в вашей системе. Что вы хотите сделать?" -ButtonTexts @("Открыть ссылку в браузере", "Отмена")
+        if ($installWingetPrompt -eq "Открыть ссылку в браузере") {
+            # Отладка: Выводим ссылку, которую пытаемся открыть
+            Write-Host "Отладка: Попытка открыть ссылку в браузере: https://apps.microsoft.com/detail/9nblggh4nns1?hl=ru-RU&gl=UA" -ForegroundColor Yellow
+            try {
+                # Используем Start-Process с -Verb Open для надежного открытия URL
+                [void](Start-Process "https://apps.microsoft.com/detail/9nblggh4nns1?hl=ru-RU&gl=UA" -Verb Open)
+                # Отладка: Сообщение об успешном запуске процесса
+                Write-Host "Отладка: Процесс Start-Process для ссылки должен быть запущен." -ForegroundColor Green
+            } catch {
+                [System.Windows.Forms.MessageBox]::Show("Ошибка при открытии ссылки в браузере: $($_.Exception.Message)", "Ошибка", "OK", "Error")
+                # Отладка: Сообщение об ошибке при открытии ссылки
+                Write-Host "Отладка: Ошибка при открытии ссылки в браузере: $($_.Exception.Message)" -ForegroundColor Red
+            }
             [System.Windows.Forms.MessageBox]::Show("Открыта страница Winget в браузере. Пожалуйста, следуйте инструкциям для ручной установки.", "Установка Winget", "OK", "Information")
         }
     }
@@ -736,19 +748,22 @@ $refreshListBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [Syste
         if (Get-Command winget -ErrorAction SilentlyContinue) {
             [System.Windows.Forms.MessageBox]::Show("Запуск установки через Winget. Прогресс будет отображен в текущей консоли.", "Установка приложений", "OK", "Information")
             # Установка кодировки для корректного отображения вывода Winget
-            $OutputEncoding = [System.Text.Encoding]::UTF8
-            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 
+            try {
+                $OutputEncoding = [System.Text.Encoding]::UTF8
+                [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 
+            } catch {
+                Write-Warning "Не удалось установить OutputEncoding для консоли: $($_.Exception.Message)"
+            }
             
             # Пример установки с помощью winget (Windows Package Manager):
             foreach ($app in $selectedItems) {
-                Write-Host "--- Обработка $($app.Name) (ID: $($app.Id)) ---" -ForegroundColor Yellow
+                Write-Host "--- Установка $($app.Name) (ID: $($app.Id)) ---" -ForegroundColor Yellow
                 
                 # Проверка фактического наличия приложения на ПК
                 if (Check-ApplicationInstalled -AppNamePartial $app.Name) {
-                    Write-Host "ПРИМЕЧАНИЕ: Приложение '$($app.Name)' уже обнаружено на вашем ПК. Пропускаем установку через Winget." -ForegroundColor Yellow
-                    # Можно добавить опцию для переустановки/восстановления через Winget, если нужно
+                    Write-Host "Приложение '$($app.Name)' уже обнаружено. Пропускаем установку." -ForegroundColor Yellow
                 } else {
-                    Write-Host "Приложение '$($app.Name)' не найдено на вашем ПК. Попытка установки через Winget..." -ForegroundColor Green
+                    Write-Host "Запуск установки '$($app.Name)'..." -ForegroundColor Green
                     
                     $sourceFlag = if ($app.RequiresMsStoreSource) { "--source msstore" } else { "" }
                     $wingetCommand = "winget install --id $($app.Id) $sourceFlag --accept-source-agreements --accept-package-agreements"
@@ -758,11 +773,11 @@ $refreshListBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [Syste
 
                     # Проверяем код выхода Winget для определения результата
                     if ($LASTEXITCODE -eq 0) {
-                        Write-Host "Установка $($app.Name) завершена." -ForegroundColor Green
+                        Write-Host "Установка $($app.Name) завершена успешно." -ForegroundColor Green
                     } elseif ($LASTEXITCODE -eq -1978335212) {
                         Write-Host "ОШИБКА: Пакет $($app.Id) не найден в источниках Winget или не соответствует условиям." -ForegroundColor Red
                     } elseif ($LASTEXITCODE -eq 1700 -or $LASTEXITCODE -eq -1978335189) {
-                        Write-Host "ПРИМЕЧАНИЕ: Winget сообщает, что пакет для '$($app.Id)' уже установлен и находится в актуальном состоянии (хотя мы не обнаружили его традиционным способом). Обновления не требуются." -ForegroundColor Yellow
+                        Write-Host "ПРИМЕЧАНИЕ: Winget сообщает, что пакет для '$($app.Id)' уже установлен и находится в актуальном состоянии. Обновления не требуются." -ForegroundColor Yellow
                     } else {
                         Write-Host "ОШИБКА при установке $($app.Id) через Winget. Код выхода: " + $LASTEXITCODE -ForegroundColor Red
                     }
@@ -771,12 +786,19 @@ $refreshListBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [Syste
             }
             [System.Windows.Forms.MessageBox]::Show("Процесс установки Winget завершен. Проверьте установленные приложения.", "Готово", "OK", "Information")
         } else {
-            $installWingetPrompt = ShowCustomMessageBox -Title "Winget не найден" -Message "Winget не найден в вашей системе. Что вы хотите сделать?" -ButtonTexts @("Открыть Microsoft Store", "Открыть ссылку в браузере", "Отмена")
-            if ($installWingetPrompt -eq "Открыть Microsoft Store") {
-                [void](Start-Process "ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1")
-                [System.Windows.Forms.MessageBox]::Show("Открыт Microsoft Store. Пожалуйста, найдите и установите 'App Installer'.", "Установка Winget", "OK", "Information")
-            } elseif ($installWingetPrompt -eq "Открыть ссылку в браузере") {
-                [void](Start-Process "https://apps.microsoft.com/detail/9nblggh4nns1?hl=ru-RU&gl=UA")
+            $installWingetPrompt = ShowCustomMessageBox -Title "Winget не найден" -Message "Winget не найден в вашей системе. Что вы хотите сделать?" -ButtonTexts @("Открыть ссылку в браузере", "Отмена")
+            if ($installWingetPrompt -eq "Открыть ссылку в браузере") {
+                # Отладка: Выводим ссылку, которую пытаемся открыть
+                Write-Host "Отладка: Попытка открыть ссылку в браузере: https://apps.microsoft.com/detail/9nblggh4nns1?hl=ru-RU&gl=UA" -ForegroundColor Yellow
+                try {
+                    [void](Start-Process "https://apps.microsoft.com/detail/9nblggh4nns1?hl=ru-RU&gl=UA" -Verb Open)
+                    # Отладка: Сообщение об успешном запуске процесса
+                    Write-Host "Отладка: Процесс Start-Process для ссылки должен быть запущен." -ForegroundColor Green
+                } catch {
+                    [System.Windows.Forms.MessageBox]::Show("Ошибка при открытии ссылки в браузере: $($_.Exception.Message)", "Ошибка", "OK", "Error")
+                    # Отладка: Сообщение об ошибке при открытии ссылки
+                    Write-Host "Отладка: Ошибка при открытии ссылки в браузере: $($_.Exception.Message)" -ForegroundColor Red
+                }
                 [System.Windows.Forms.MessageBox]::Show("Открыта страница Winget в браузере. Пожалуйста, следуйте инструкциям для ручной установки.", "Установка Winget", "OK", "Information")
             }
         }
