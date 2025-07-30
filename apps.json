@@ -51,7 +51,8 @@
       {"Name": "Docker Desktop", "Id": "Docker.DockerDesktop", "Description": "Платформа для разработки и запуска приложений в контейнерах."}
     ],
     "Игры": [
-      {"Name": "Steam", "Id": "Valve.Steam", "Description": "Крупнейшая платформа для цифровой дистрибуции игр."}
+      {"Name": "Steam", "Id": "Valve.Steam", "Description": "Крупнейшая платформа для цифровой дистрибуции игр."},
+      {"Name": "Heroic Games Launcher", "Id": "HeroicGamesLauncher.HeroicGamesLauncher", "Description": "Открытый игровой лаунчер для Epic Games, GOG и Amazon Games."}
     ]
   }
 }
