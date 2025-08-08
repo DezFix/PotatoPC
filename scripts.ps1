@@ -11,8 +11,7 @@ function Show-ScriptsMenu {
     Write-Host " 2. Очистка логов системы"
     Write-Host " 3. Сброс разрешений файлов"
     Write-Host " 4. Создание точки восстановления"
-    Write-Host " 5. Управление автозагрузкой"
-    Write-Host " 6. Очистка кэша DNS и сети"
+    Write-Host " 5. Очистка кэша DNS и сети"
     Write-Host ""
     Write-Host " 0. Назад в главное меню"
     Write-Host ""
@@ -226,44 +225,6 @@ function Create-RestorePoint {
     Pause
 }
 
-# Функция управления автозагрузкой
-function Manage-Startup {
-    Write-Host "`n[+] Анализ программ в автозагрузке..." -ForegroundColor Yellow
-    
-    # Получение списка автозагрузки из реестра
-    $startupItems = @()
-    $registryPaths = @(
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
-        "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-    )
-    
-    foreach ($path in $registryPaths) {
-        if (Test-Path $path) {
-            Get-ItemProperty $path | ForEach-Object {
-                $_.PSObject.Properties | Where-Object { $_.Name -ne 'PSPath' -and $_.Name -ne 'PSParentPath' -and $_.Name -ne 'PSChildName' -and $_.Name -ne 'PSDrive' -and $_.Name -ne 'PSProvider' } | ForEach-Object {
-                    $startupItems += [PSCustomObject]@{
-                        Name = $_.Name
-                        Command = $_.Value
-                        Location = $path
-                    }
-                }
-            }
-        }
-    }
-    
-    if ($startupItems.Count -eq 0) {
-        Write-Host "[!] Программы в автозагрузке не найдены" -ForegroundColor Yellow
-    } else {
-        Write-Host "Найдено программ в автозагрузке: $($startupItems.Count)" -ForegroundColor Cyan
-        for ($i = 0; $i -lt $startupItems.Count; $i++) {
-            Write-Host "[$($i + 1)] $($startupItems[$i].Name)" -ForegroundColor White
-            Write-Host "    Команда: $($startupItems[$i].Command)" -ForegroundColor Gray
-        }
-    }
-    
-    Pause
-}
-
 # Функция очистки сетевого кэша
 function Clear-NetworkCache {
     Write-Host "`n[+] Очистка сетевого кэша и DNS..." -ForegroundColor Yellow
@@ -307,8 +268,7 @@ while (-not $backToMain) {
         '2' { Clear-SystemLogs }
         '3' { Reset-FilePermissions }
         '4' { Create-RestorePoint }
-        '5' { Manage-Startup }
-        '6' { Clear-NetworkCache }
+        '5' { Clear-NetworkCache }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
             Start-Sleep -Seconds 1
