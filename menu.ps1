@@ -17,6 +17,7 @@ function Show-Menu {
     Write-Host " 2. Установка софта"
     Write-Host " 3. Тесты и проверки"
     Write-Host " 4. Системные скрипты"
+    Write-Host ""
     Write-Host " 0. Выйти"
     Write-Host ""
 }
