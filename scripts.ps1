@@ -58,16 +58,20 @@ function Move-UsersToD {
             return
         }
         
-        Write-Host "[*] Найдено пользователей для переноса: $($users.Count)" -ForegroundColor Cyan
-        foreach ($user in $users) {
-            Write-Host "  - $($user.Name)" -ForegroundColor White
+       Write-Host "[*] Найдено пользователей для переноса: $($users.Count)" -ForegroundColor Cyan
+        for ($i = 0; $i -lt $users.Count; $i++) {
+        Write-Host " [$i] $($users[$i].Name)" -ForegroundColor White
         }
-        
-        $finalConfirm = Read-Host "`nПродолжить перенос этих пользователей на D:\Users? (y/n)"
-        if ($finalConfirm -ne 'y' -and $finalConfirm -ne 'Y') {
-            Write-Host "[!] Операция отменена" -ForegroundColor Yellow
-            return
+
+        $userIndex = Read-Host "`nВведите номер пользователя для переноса (или оставьте пустым для отмены)"
+        if (![int]::TryParse($userIndex, [ref]$null) -or $userIndex -lt 0 -or $userIndex -ge $users.Count) {
+        Write-Host "[!] Операция отменена или некорректный выбор" -ForegroundColor Yellow
+        return
         }
+
+$user = $users[$userIndex]
+Write-Host "`n[*] Выбран пользователь: $($user.Name)" -ForegroundColor Cyan
+
         
         # Создание папки Users на диске D:
         $targetUsersPath = "D:\Users"
