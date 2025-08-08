@@ -19,150 +19,127 @@ function Show-ScriptsMenu {
 
 # Функция переноса пользователей с диска C на D
 function Move-UsersToD {
-    Write-Host "`n[!] ВНИМАНИЕ: Этот процесс изменит расположение пользовательских папок" -ForegroundColor Yellow
+    Write-Host "`n[!] ВНИМАНИЕ: Этот процесс перенесёт пользовательскую папку" -ForegroundColor Yellow
     Write-Host "[!] Рекомендуется создать резервную копию важных данных" -ForegroundColor Yellow
-    
+
     $confirm = Read-Host "`nВы уверены, что хотите продолжить? (y/n)"
     if ($confirm -ne 'y' -and $confirm -ne 'Y') {
         Write-Host "[!] Операция отменена пользователем" -ForegroundColor Yellow
         return
     }
-    
-    # Проверка наличия диска D:
+
     if (-not (Test-Path "D:\")) {
         Write-Host "[-] Диск D: не найден или недоступен" -ForegroundColor Red
         Pause
         return
     }
-    
-    Write-Host "`n[+] Начинаем процесс переноса пользователей..." -ForegroundColor Green
-    
+
+    Write-Host "`n[+] Начинаем процесс переноса пользователя..." -ForegroundColor Green
+
     try {
         # Создание точки восстановления
-        Write-Host "[*] Создание точки восстановления..." -ForegroundColor Cyan
-        try {
-            Checkpoint-Computer -Description "Перед переносом пользователей на D:" -RestorePointType "MODIFY_SETTINGS"
-            Write-Host "[+] Точка восстановления создана" -ForegroundColor Green
-        } catch {
-            Write-Host "[-] Не удалось создать точку восстановления: $_" -ForegroundColor Yellow
-        }
-        
+$makeRestorePoint = Read-Host "`nСоздать точку восстановления перед переносом? (y/n)"
+if ($makeRestorePoint -eq 'y' -or $makeRestorePoint -eq 'Y') {
+    Write-Host "[*] Создание точки восстановления..." -ForegroundColor Cyan
+    try {
+        Checkpoint-Computer -Description "Перед переносом пользователя на D:" -RestorePointType "MODIFY_SETTINGS"
+        Write-Host "[+] Точка восстановления создана" -ForegroundColor Green
+    } catch {
+        Write-Host "[-] Не удалось создать точку восстановления: $_" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "[!] Создание точки восстановления пропущено по запросу пользователя" -ForegroundColor Yellow
+}
+
         # Получение списка пользователей
-        $users = Get-ChildItem "C:\Users" -Directory | Where-Object { 
+        $users = Get-ChildItem "C:\Users" -Directory | Where-Object {
             $_.Name -notin @('Public', 'All Users', 'Default', 'Default User') -and
             -not $_.Name.StartsWith('.')
         }
-        
+
         if ($users.Count -eq 0) {
             Write-Host "[!] Пользователи для переноса не найдены" -ForegroundColor Yellow
             return
         }
-        
-       Write-Host "[*] Найдено пользователей для переноса: $($users.Count)" -ForegroundColor Cyan
+
+        Write-Host "[*] Найдено пользователей: $($users.Count)" -ForegroundColor Cyan
         for ($i = 0; $i -lt $users.Count; $i++) {
-        Write-Host " [$i] $($users[$i].Name)" -ForegroundColor White
+            Write-Host " [$i] $($users[$i].Name)" -ForegroundColor White
         }
 
-        $userIndex = Read-Host "`nВведите номер пользователя для переноса (или оставьте пустым для отмены)"
+        $userIndex = Read-Host "`nВведите номер пользователя для переноса (или пусто для отмены)"
         if (![int]::TryParse($userIndex, [ref]$null) -or $userIndex -lt 0 -or $userIndex -ge $users.Count) {
-        Write-Host "[!] Операция отменена или некорректный выбор" -ForegroundColor Yellow
-        return
+            Write-Host "[!] Операция отменена или некорректный выбор" -ForegroundColor Yellow
+            return
         }
 
-$user = $users[$userIndex]
-Write-Host "`n[*] Выбран пользователь: $($user.Name)" -ForegroundColor Cyan
+        $user = $users[$userIndex]
+        Write-Host "`n[*] Выбран пользователь: $($user.Name)" -ForegroundColor Cyan
 
-        
-        # Создание папки Users на диске D:
+        $sourceUserPath = $user.FullName
         $targetUsersPath = "D:\Users"
+        $targetUserPath = Join-Path $targetUsersPath $user.Name
+
         if (-not (Test-Path $targetUsersPath)) {
             Write-Host "[*] Создание папки D:\Users..." -ForegroundColor Cyan
             New-Item -Path $targetUsersPath -ItemType Directory -Force | Out-Null
         }
-        
-        # Перенос каждого пользователя
-        foreach ($user in $users) {
-            $sourceUserPath = $user.FullName
-            $targetUserPath = Join-Path $targetUsersPath $user.Name
-            
-            Write-Host "`n[*] Обработка пользователя: $($user.Name)" -ForegroundColor Cyan
-            
-            # Проверка, не существует ли уже папка на диске D:
-            if (Test-Path $targetUserPath) {
-                Write-Host "[!] Папка $targetUserPath уже существует. Пропускаем..." -ForegroundColor Yellow
-                continue
-            }
-            
-            # Копирование данных пользователя
-            Write-Host "[*] Копирование данных на D:..." -ForegroundColor Cyan
-            try {
-                # Используем robocopy для надежного копирования
-                $robocopyArgs = @(
-                    "`"$sourceUserPath`"",
-                    "`"$targetUserPath`"",
-                    "/E",           # Копировать подпапки, включая пустые
-                    "/COPYALL",     # Копировать все атрибуты
-                    "/R:3",         # Количество попыток при ошибке
-                    "/W:5",         # Время ожидания между попытками
-                    "/XD", "AppData\Local\Temp", # Исключить временные файлы
-                    "/XF", "ntuser.dat*", "NTUSER.DAT*" # Исключить файлы реестра пользователя
-                )
-                
-                $robocopyResult = & robocopy @robocopyArgs
-                
-                # Robocopy возвращает различные коды выхода
-                if ($LASTEXITCODE -le 7) {
-                    Write-Host "[+] Данные скопированы успешно" -ForegroundColor Green
-                } else {
-                    throw "Robocopy завершился с ошибкой. Код: $LASTEXITCODE"
-                }
-                
-                # Изменение реестра для перенаправления папки пользователя
-                Write-Host "[*] Обновление реестра..." -ForegroundColor Cyan
-                
-                # Загрузка куста реестра пользователя
-                $userSid = (New-Object System.Security.Principal.NTAccount($user.Name)).Translate([System.Security.Principal.SecurityIdentifier]).Value
-                $profileListPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$userSid"
-                
-                if (Test-Path $profileListPath) {
-                    Set-ItemProperty -Path $profileListPath -Name "ProfileImagePath" -Value $targetUserPath -Force
-                    Write-Host "[+] Путь профиля обновлен в реестре" -ForegroundColor Green
-                } else {
-                    Write-Host "[-] Не удалось найти запись профиля в реестре" -ForegroundColor Yellow
-                }
-                
-            } catch {
-                Write-Host "[-] Ошибка при копировании пользователя $($user.Name): $_" -ForegroundColor Red
-                continue
-            }
+
+        if (Test-Path $targetUserPath) {
+            Write-Host "[!] Папка $targetUserPath уже существует. Операция отменена" -ForegroundColor Yellow
+            return
         }
-        
+
+        # Перенос папки
+        Write-Host "[*] Перенос папки $sourceUserPath → $targetUserPath" -ForegroundColor Cyan
+        try {
+            Move-Item -Path $sourceUserPath -Destination $targetUserPath -Force
+            Write-Host "[+] Папка успешно перемещена" -ForegroundColor Green
+        } catch {
+            Write-Host "[-] Ошибка при перемещении: $_" -ForegroundColor Red
+            return
+        }
+
+        # Обновление реестра
+        Write-Host "[*] Обновление реестра..." -ForegroundColor Cyan
+        try {
+            $userSid = (New-Object System.Security.Principal.NTAccount($user.Name)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+            $profileListPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$userSid"
+
+            if (Test-Path $profileListPath) {
+                Set-ItemProperty -Path $profileListPath -Name "ProfileImagePath" -Value $targetUserPath -Force
+                Write-Host "[+] Путь профиля обновлен в реестре" -ForegroundColor Green
+            } else {
+                Write-Host "[-] Не найдена запись профиля в реестре" -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "[-] Ошибка при обновлении реестра: $_" -ForegroundColor Red
+        }
+
         # Обновление переменных среды
-        Write-Host "`n[*] Обновление системных переменных..." -ForegroundColor Cyan
+        Write-Host "`n[*] Обновление переменных среды..." -ForegroundColor Cyan
         try {
             [Environment]::SetEnvironmentVariable("USERPROFILE", "D:\Users\%USERNAME%", [EnvironmentVariableTarget]::Machine)
             Write-Host "[+] Переменные среды обновлены" -ForegroundColor Green
         } catch {
             Write-Host "[-] Ошибка обновления переменных среды: $_" -ForegroundColor Yellow
         }
-        
-        Write-Host "`n[+] Процесс переноса завершен!" -ForegroundColor Green
-        Write-Host "[!] ВАЖНО: Необходимо перезагрузить компьютер для применения изменений" -ForegroundColor Yellow
-        Write-Host "[!] После перезагрузки проверьте, что все работает корректно" -ForegroundColor Yellow
-        Write-Host "[!] Старые папки в C:\Users можно удалить вручную после проверки" -ForegroundColor Yellow
-        
+
+        Write-Host "`n[+] Перенос завершён!" -ForegroundColor Green
+        Write-Host "[!] Перезагрузите компьютер для применения изменений" -ForegroundColor Yellow
+
         $reboot = Read-Host "`nПерезагрузить компьютер сейчас? (y/n)"
         if ($reboot -eq 'y' -or $reboot -eq 'Y') {
             Write-Host "[+] Перезагрузка через 10 секунд... (Ctrl+C для отмены)" -ForegroundColor Yellow
             Start-Sleep -Seconds 10
             Restart-Computer -Force
         }
-        
+
     } catch {
         Write-Host "[-] Критическая ошибка при переносе: $_" -ForegroundColor Red
         Write-Host "[!] Рекомендуется восстановить систему из точки восстановления" -ForegroundColor Yellow
     }
-    
+
     Pause
 }
 
