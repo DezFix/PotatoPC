@@ -18,7 +18,6 @@ function Show-ScriptsMenu {
 }
 
 # Функция переноса пользователей с диска C на D
-# Исправленная функция переноса пользователей с диска C на D
 function Move-UsersToD {
     Write-Host "`n[!] ВНИМАНИЕ: Этот процесс перенесёт пользовательскую папку" -ForegroundColor Yellow
     Write-Host "[!] Рекомендуется создать резервную копию важных данных" -ForegroundColor Yellow
