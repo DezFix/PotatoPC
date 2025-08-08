@@ -27,38 +27,6 @@ function Show-Menu {
     
 }
 
-# Функция для загрузки и выполнения скриптов с обработкой ошибок
-function Execute-RemoteScript {
-    param (
-        [string]$Url,
-        [string]$Description
-    )
-    
-    Write-Host ">> $Description..." -ForegroundColor Yellow
-    
-    # Проверка интернет-соединения перед загрузкой
-    if (-not (Test-InternetConnection)) {
-        Write-Host "[!] Нет подключения к интернету. Проверьте соединение." -ForegroundColor Red
-        Pause
-        return
-    }
-    
-    try {
-        Write-Host "[*] Загрузка скрипта..." -ForegroundColor Cyan
-        $scriptContent = Invoke-RestMethod -Uri $Url -UseBasicParsing -TimeoutSec 30
-        Write-Host "[+] Скрипт загружен успешно" -ForegroundColor Green
-        
-        # Выполнение скрипта
-        Invoke-Expression $scriptContent
-        
-    } catch {
-        Write-Host "[-] Ошибка при загрузке или выполнении скрипта:" -ForegroundColor Red
-        Write-Host $_.Exception.Message -ForegroundColor Red
-        Write-Host "[!] Проверьте подключение к интернету или попробуйте позже." -ForegroundColor Yellow
-        Pause
-    }
-}
-
 # Функция выполнения выбора пользователя
 function Run-Selection {
     param (
