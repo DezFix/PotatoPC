@@ -1,4 +1,4 @@
-﻿# Модуль системных скриптов для Wicked Raven Toolkit
+# Модуль системных скриптов для Wicked Raven Toolkit
 
 # Функция отображения меню скриптов
 function Show-ScriptsMenu {
@@ -17,7 +17,7 @@ function Show-ScriptsMenu {
     Write-Host ""
 }
 
-# Функция переноса пользователей с диска C на D
+# Полная функция переноса пользователей с диска C на D с переключением профиля
 function Move-UsersToD {
     Write-Host "`n[!] ВНИМАНИЕ: Этот процесс ПОЛНОСТЬЮ перенесёт пользователя на диск D:" -ForegroundColor Yellow
     Write-Host "[!] После переноса пользователь будет работать с папкой на диске D:" -ForegroundColor Yellow
@@ -118,7 +118,6 @@ function Move-UsersToD {
 
         # Проверка активных сессий пользователя
         Write-Host "[*] Проверка активных сессий пользователя..." -ForegroundColor Cyan
-        $userLoggedIn = $false
         try {
             $sessions = query user 2>$null | Select-String $user.Name
             if ($sessions) {
@@ -448,68 +447,6 @@ function Move-UsersToD {
     Pause
 }
 
-        # Обновление реестра
-        if ($userSid) {
-            Write-Host "[*] Обновление реестра..." -ForegroundColor Cyan
-            try {
-                $profileListPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$userSid"
-
-                if (Test-Path $profileListPath) {
-                    Set-ItemProperty -Path $profileListPath -Name "ProfileImagePath" -Value $targetUserPath -Force
-                    Write-Host "[+] Путь профиля обновлен в реестре" -ForegroundColor Green
-                } else {
-                    Write-Host "[-] Не найдена запись профиля в реестре для SID: $userSid" -ForegroundColor Yellow
-                }
-            } catch {
-                Write-Host "[-] Ошибка при обновлении реестра: $_" -ForegroundColor Red
-            }
-        }
-
-        # Создание символической ссылки (опционально)
-        Write-Host "[*] Создание символической ссылки..." -ForegroundColor Cyan
-        try {
-            $symlinkPath = $sourceUserPath
-            if (-not (Test-Path $symlinkPath)) {
-                cmd /c "mklink /D `"$symlinkPath`" `"$targetUserPath`"" | Out-Null
-                Write-Host "[+] Символическая ссылка создана" -ForegroundColor Green
-            }
-        } catch {
-            Write-Host "[-] Не удалось создать символическую ссылку: $_" -ForegroundColor Yellow
-        }
-
-        # Запуск службы поиска
-        Write-Host "[*] Запуск службы поиска Windows..." -ForegroundColor Cyan
-        try {
-            Start-Service -Name "WSearch" -ErrorAction SilentlyContinue
-            Write-Host "[+] Служба поиска запущена" -ForegroundColor Green
-        } catch {
-            Write-Host "[-] Не удалось запустить службу поиска" -ForegroundColor Yellow
-        }
-
-        Write-Host "`n[+] Перенос завершён успешно!" -ForegroundColor Green
-        Write-Host "[+] Пользователь '$($user.Name)' перенесен с C:\Users на D:\Users" -ForegroundColor Green
-        Write-Host "[!] Настоятельно рекомендуется перезагрузить компьютер для применения всех изменений" -ForegroundColor Yellow
-
-        $reboot = Read-Host "`nПерезагрузить компьютер сейчас? (y/n)"
-        if ($reboot -eq 'y' -or $reboot -eq 'Y') {
-            Write-Host "[+] Перезагрузка через 10 секунд... (Ctrl+C для отмены)" -ForegroundColor Yellow
-            Start-Sleep -Seconds 10
-            Restart-Computer -Force
-        }
-
-    } catch {
-        Write-Host "[-] Критическая ошибка при переносе: $_" -ForegroundColor Red
-        Write-Host "[!] Рекомендуется восстановить систему из точки восстановления" -ForegroundColor Yellow
-        
-        # Запуск службы поиска если была остановлена
-        try {
-            Start-Service -Name "WSearch" -ErrorAction SilentlyContinue
-        } catch {}
-    }
-
-    Pause
-}
-
 # Функция очистки системных логов
 function Clear-SystemLogs {
     Write-Host "`n[+] Очистка системных логов..." -ForegroundColor Yellow
@@ -609,7 +546,7 @@ $backToMain = $false
 
 while (-not $backToMain) {
     Show-ScriptsMenu
-    $choice = Read-Host "Выберите опцию (0-6)"
+    $choice = Read-Host "Выберите опцию (0-5)"
     
     switch ($choice) {
         '1' { Move-UsersToD }
