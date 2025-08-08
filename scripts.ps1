@@ -37,19 +37,19 @@ function Move-UsersToD {
     Write-Host "`n[+] Начинаем процесс переноса пользователя..." -ForegroundColor Green
 
     try {
-        # Создание точки восстановления
-$makeRestorePoint = Read-Host "`nСоздать точку восстановления перед переносом? (y/n)"
-if ($makeRestorePoint -eq 'y' -or $makeRestorePoint -eq 'Y') {
-    Write-Host "[*] Создание точки восстановления..." -ForegroundColor Cyan
-    try {
-        Checkpoint-Computer -Description "Перед переносом пользователя на D:" -RestorePointType "MODIFY_SETTINGS"
-        Write-Host "[+] Точка восстановления создана" -ForegroundColor Green
-    } catch {
-        Write-Host "[-] Не удалось создать точку восстановления: $_" -ForegroundColor Yellow
-    }
-} else {
-    Write-Host "[!] Создание точки восстановления пропущено по запросу пользователя" -ForegroundColor Yellow
-}
+        # Создание точки восстановления (по желанию)
+        $makeRestorePoint = Read-Host "`nСоздать точку восстановления перед переносом? (y/n)"
+        if ($makeRestorePoint -eq 'y' -or $makeRestorePoint -eq 'Y') {
+            Write-Host "[*] Создание точки восстановления..." -ForegroundColor Cyan
+            try {
+                Checkpoint-Computer -Description "Перед переносом пользователя на D:" -RestorePointType "MODIFY_SETTINGS"
+                Write-Host "[+] Точка восстановления создана" -ForegroundColor Green
+            } catch {
+                Write-Host "[-] Не удалось создать точку восстановления: $_" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "[!] Создание точки восстановления пропущено по запросу пользователя" -ForegroundColor Yellow
+        }
 
         # Получение списка пользователей
         $users = Get-ChildItem "C:\Users" -Directory | Where-Object {
@@ -67,13 +67,19 @@ if ($makeRestorePoint -eq 'y' -or $makeRestorePoint -eq 'Y') {
             Write-Host " [$i] $($users[$i].Name)" -ForegroundColor White
         }
 
-        $userIndex = Read-Host "`nВведите номер пользователя для переноса (или пусто для отмены)"
-        if (![int]::TryParse($userIndex, [ref]$null) -or $userIndex -lt 0 -or $userIndex -ge $users.Count) {
-            Write-Host "[!] Операция отменена или некорректный выбор" -ForegroundColor Yellow
+        $userIndex = Read-Host "`nВведите номер пользователя для переноса (или оставьте пустым для отмены)"
+
+        if ([string]::IsNullOrWhiteSpace($userIndex)) {
+            Write-Host "[!] Операция отменена пользователем" -ForegroundColor Yellow
             return
         }
 
-        $user = $users[$userIndex]
+        if ($userIndex -notmatch '^\d+$' -or [int]$userIndex -lt 0 -or [int]$userIndex -ge $users.Count) {
+            Write-Host "[!] Некорректный выбор. Операция отменена." -ForegroundColor Yellow
+            return
+        }
+
+        $user = $users[[int]$userIndex]
         Write-Host "`n[*] Выбран пользователь: $($user.Name)" -ForegroundColor Cyan
 
         $sourceUserPath = $user.FullName
