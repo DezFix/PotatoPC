@@ -11,15 +11,13 @@ function Show-Menu {
     Clear-Host
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host "       WICKED RAVEN TOOLKIT        " -ForegroundColor Magenta
-    Write-Host "         v2.1 - Улучшенная         " -ForegroundColor DarkGray
     Write-Host "===================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host " 1. Оптимизация системы" 
-    Write-Host " 2. Установка программ" 
-    Write-Host " 3. Диагностика и тесты" 
-    Write-Host " 4. Системные скрипты" 
-    Write-Host ""
-    Write-Host " 0. Выйти" -ForegroundColor Red
+    Write-Host " 1. Оптимизация системы"
+    Write-Host " 2. Установка софта"
+    Write-Host " 3. Тесты и проверки"
+    Write-Host " 4. Системные скрипты"
+    Write-Host " 0. Выйти"
     Write-Host ""
 }
 
@@ -51,7 +49,7 @@ function Run-Selection {
         }
         '4' {
             Write-Host ">> Запуск модуля системных скриптов..." -ForegroundColor Yellow
-            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/scripts.ps1") 
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/scripts.ps1")
         }    
         '0' {
             Write-Host ">> Выход. До встречи!" -ForegroundColor Green
