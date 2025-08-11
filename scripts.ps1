@@ -114,7 +114,6 @@ function Create-UserOnD {
             Password = $password1
             FullName = $fullName
             AccountNeverExpires = $true
-            UserMayChangePassword = $true
         }
 
         $newUser = New-LocalUser @userParams
