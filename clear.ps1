@@ -130,27 +130,70 @@ function Optimize-Performance {
     powercfg /change standby-timeout-ac 0
     powercfg /change hibernate-timeout-ac 0
     
-    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Value "0" -Type String -Force
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 3 -Type DWord -Force
-    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "DisablePagingExecutive" -Value 1 -Type DWord -Force
-    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "LargeSystemCache" -Value 1 -Type DWord -Force
-    Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Edge" -Name "BackgroundModeEnabled" -Value 0 -Type DWord -Force
-    Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Edge" -Name "PromoteFirefox" -Value 0 -Type DWord -Force
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "SeparateProcess" -Value 1 -Type DWord -Force
+    try {
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Value "0" -Type String -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 3 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "DisablePagingExecutive" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "LargeSystemCache" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        
+        # Создание ключей для Edge если не существуют
+        if (-not (Test-Path "HKCU:\Software\Policies\Microsoft\Edge")) {
+            New-Item -Path "HKCU:\Software\Policies\Microsoft\Edge" -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+        Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Edge" -Name "BackgroundModeEnabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Edge" -Name "StartupBoostEnabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "SeparateProcess" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        
+        Write-Host "[+] Основные оптимизации производительности применены" -ForegroundColor Green
+    } catch {
+        Write-Host "[-] Некоторые оптимизации не удалось применить: $_" -ForegroundColor Yellow
+    }
     
     # Отключение новостей и интересов на панели задач
     Write-Host "[+] Отключение новостей и интересов на панели задач..." -ForegroundColor Cyan
-    if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds")) {
-        New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Force | Out-Null
+    try {
+        # Создание ключа если не существует
+        if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds")) {
+            New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+        
+        # Попытка через HKCU
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue
+        
+        # Альтернативный способ через HKLM (требует админ права)
+        if (-not (Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds")) {
+            New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds" -Name "EnableFeeds" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        
+        # Дополнительный способ отключения
+        if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced")) {
+            New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        
+        Write-Host "[+] Новости и интересы отключены" -ForegroundColor Green
+    } catch {
+        Write-Host "[-] Частичная ошибка при отключении новостей: $_" -ForegroundColor Yellow
+        Write-Host "[!] Попробуйте запустить скрипт от имени администратора для полного отключения" -ForegroundColor Yellow
     }
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2 -Type DWord -Force
     
     # Отключение кнопки "Люди" на панели задач
     Write-Host "[+] Отключение кнопки 'Люди' на панели задач..." -ForegroundColor Cyan
-    if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People")) {
-        New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Force | Out-Null
+    try {
+        if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People")) {
+            New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        
+        # Альтернативный путь для кнопки "Люди"
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "PeopleBand" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        
+        Write-Host "[+] Кнопка 'Люди' отключена" -ForegroundColor Green
+    } catch {
+        Write-Host "[-] Ошибка при отключении кнопки 'Люди': $_" -ForegroundColor Yellow
     }
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0 -Type DWord -Force
     
     Write-Host "[+] Оптимизации производительности применены" -ForegroundColor Green
     Start-Sleep -Seconds 2
@@ -245,14 +288,20 @@ function Remove-Bloatware {
     # Дополнительные настройки панели задач
     Write-Host "[+] Дополнительная настройка панели задач..." -ForegroundColor Cyan
     
-    # Отключение поиска на панели задач
-    if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search")) {
-        New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Force | Out-Null
+    try {
+        # Отключение поиска на панели задач
+        if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search")) {
+            New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        
+        # Отключение представления задач
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        
+        Write-Host "[+] Дополнительные настройки панели задач применены" -ForegroundColor Green
+    } catch {
+        Write-Host "[-] Ошибка при настройке панели задач: $_" -ForegroundColor Yellow
     }
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0 -Type DWord -Force
-    
-    # Отключение представления задач
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0 -Type DWord -Force
     
     Write-Host "[+] Все нежелательное ПО удалено" -ForegroundColor Green
     Start-Sleep -Seconds 2
