@@ -138,6 +138,20 @@ function Optimize-Performance {
     Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Edge" -Name "PromoteFirefox" -Value 0 -Type DWord -Force
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "SeparateProcess" -Value 1 -Type DWord -Force
     
+    # Отключение новостей и интересов на панели задач
+    Write-Host "[+] Отключение новостей и интересов на панели задач..." -ForegroundColor Cyan
+    if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds")) {
+        New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Force | Out-Null
+    }
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2 -Type DWord -Force
+    
+    # Отключение кнопки "Люди" на панели задач
+    Write-Host "[+] Отключение кнопки 'Люди' на панели задач..." -ForegroundColor Cyan
+    if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People")) {
+        New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Force | Out-Null
+    }
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name "PeopleBand" -Value 0 -Type DWord -Force
+    
     Write-Host "[+] Оптимизации производительности применены" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
@@ -145,6 +159,38 @@ function Optimize-Performance {
 # Расширенное удаление встроенного ПО
 function Remove-Bloatware {
     Write-Host "`n[+] Расширенное удаление встроенного ПО..." -ForegroundColor Yellow
+    
+    # Удаление Copilot
+    Write-Host "[+] Удаление Microsoft Copilot..." -ForegroundColor Cyan
+    try {
+        # Отключение Copilot через реестр
+        if (-not (Test-Path "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot")) {
+            New-Item -Path "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot" -Force | Out-Null
+        }
+        Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot" -Name "TurnOffWindowsCopilot" -Value 1 -Type DWord -Force
+        
+        if (-not (Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot")) {
+            New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" -Force | Out-Null
+        }
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" -Name "TurnOffWindowsCopilot" -Value 1 -Type DWord -Force
+        
+        # Удаление Copilot из панели задач
+        if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced")) {
+            New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Force | Out-Null
+        }
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowCopilotButton" -Value 0 -Type DWord -Force
+        
+        # Попытка удалить приложение Copilot
+        $copilotPackages = Get-AppxPackage -AllUsers -Name "*Microsoft.Copilot*" -ErrorAction SilentlyContinue
+        foreach ($package in $copilotPackages) {
+            Remove-AppxPackage -Package $package.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+            Write-Host "[+] Удален пакет Copilot: $($package.Name)" -ForegroundColor Cyan
+        }
+        
+        Write-Host "[+] Microsoft Copilot успешно отключен и удален" -ForegroundColor Green
+    } catch {
+        Write-Host "[-] Ошибка при удалении Copilot: $_" -ForegroundColor Yellow
+    }
     
     $apps = @(
         "Microsoft.3DBuilder",
@@ -177,40 +223,11 @@ function Remove-Bloatware {
         "Microsoft.XboxIdentityProvider",
         "Microsoft.YourPhone",
         "Microsoft.GamingApp",
-        "Microsoft.MixedReality.Portal",
-        "Microsoft.MixedReality.OpenXR",
-        "Microsoft.MixedReality.Portal",
-        "Microsoft.MixedReality.SpectatorView",
-        "Microsoft.MixedReality.WebView2",
-        "Microsoft.MixedReality.SceneUnderstanding",
-        "Microsoft.MixedReality.SceneUnderstanding.Samples",
-        "Microsoft.MixedReality.SpatialPerception",
-        "Microsoft.MixedReality.Toolkit.Unity",
-        "Microsoft.MixedReality.Toolkit.Editor",
-        "Microsoft.MixedReality.Toolkit.Extensions",
-        "Microsoft.MixedReality.Toolkit.GLTFSerialization",
-        "Microsoft.MixedReality.Toolkit.Physics",
-        "Microsoft.MixedReality.Toolkit.Providers",
-        "Microsoft.MixedReality.Toolkit.SDK",
-        "Microsoft.MixedReality.Toolkit.Services",
-        "Microsoft.MixedReality.Toolkit.Tools",
-        "Microsoft.MixedReality.Toolkit.UX",
-        "Microsoft.MixedReality.Toolkit.Utilities",
-        "Microsoft.MixedReality.Toolkit.WSA",
-        "Microsoft.MixedReality.Toolkit.XRSDK",
-        "Microsoft.MixedReality.Toolkit.XRSDK.OpenXR",
-        "Microsoft.MixedReality.Toolkit.XRSDK.WindowsMixedReality",
-        "Microsoft.MixedReality.Toolkit.XRSDK.Unity",
-        "Microsoft.MixedReality.Toolkit.XRSDK.Editor",
-        "Microsoft.MixedReality.Toolkit.XRSDK.Extensions",
-        "Microsoft.MixedReality.Toolkit.XRSDK.GLTFSerialization",
-        "Microsoft.MixedReality.Toolkit.XRSDK.Physics",
-        "Microsoft.MixedReality.Toolkit.XRSDK.Providers",
-        "Microsoft.MixedReality.Toolkit.XRSDK.Services",
-        "Microsoft.MixedReality.Toolkit.XRSDK.Tools",
-        "Microsoft.MixedReality.Toolkit.XRSDK.UX",
-        "Microsoft.MixedReality.Toolkit.XRSDK.Utilities",
-        "Microsoft.MixedReality.Toolkit.XRSDK.WSA"
+        "Microsoft.Copilot",
+        "Microsoft.WindowsCopilot",
+        "Microsoft.AI.Copilot",
+        "Microsoft.BingNews",
+        "Microsoft.NewsAndInterests"
     )
     foreach ($app in $apps) {
         $package = Get-AppxPackage -Name $app -ErrorAction SilentlyContinue
@@ -224,6 +241,19 @@ function Remove-Bloatware {
             Write-Host "[+] Системный пакет удален: $app" -ForegroundColor Cyan
         }
     }
+    
+    # Дополнительные настройки панели задач
+    Write-Host "[+] Дополнительная настройка панели задач..." -ForegroundColor Cyan
+    
+    # Отключение поиска на панели задач
+    if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search")) {
+        New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Force | Out-Null
+    }
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "SearchboxTaskbarMode" -Value 0 -Type DWord -Force
+    
+    # Отключение представления задач
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowTaskViewButton" -Value 0 -Type DWord -Force
+    
     Write-Host "[+] Все нежелательное ПО удалено" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
