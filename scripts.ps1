@@ -1,9 +1,9 @@
 # Функция отображения меню скриптов
 function Show-ScriptsMenu {
     Clear-Host
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║                        WICKED RAVEN SYSTEM SCRIPTS                   ║" -ForegroundColor Magenta
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
+    Write-Host "║                        WICKED RAVEN SYSTEM SCRIPTS                    ║" -ForegroundColor Yellow
+    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
     Write-Host ""
     
     Write-Host " 1. " -ForegroundColor Green -NoNewline
