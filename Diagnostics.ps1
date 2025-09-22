@@ -1,3 +1,16 @@
+# Проверка прав администратора в начале скрипта
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Red
+    Write-Host "║                            ВНИМАНИЕ!                                  ║" -ForegroundColor Red
+    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "[-] Для работы с этим скриптом требуются права администратора!" -ForegroundColor Red
+    Write-Host "[!] Пожалуйста, запустите PowerShell от имени администратора" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Нажмите любую клавишу для выхода..." -ForegroundColor White
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
+}
 # Функция отображения основного меню
 function Show-DiagnosticsMenu {
     Clear-Host
