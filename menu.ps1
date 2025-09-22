@@ -36,9 +36,6 @@ function Show-Menu {
 }
 
 
-
-
-
 function Read-Choice {
     $choice = Read-Host -Prompt $Prompt
     return $choice
@@ -76,7 +73,6 @@ function Run-Selection {
     }
 }
 
-# Главный цикл
 do {
     Show-Menu
     $userInput = Read-Choice
