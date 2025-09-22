@@ -2,10 +2,66 @@
 $createRestore = Read-Host "Создать точку восстановления перед изменениями? (y/n)"
 if ($createRestore -eq 'y' -or $createRestore -eq 'Y') {
     try {
+        # Получаем системный диск (обычно C:)
+        $systemDrive = $env:SystemDrive
+        
+        # Проверяем, включена ли функция System Restore для системного диска
+        $restoreStatus = Get-ComputerRestorePoint -ErrorAction SilentlyContinue
+        $isRestoreEnabled = $false
+        
+        # Проверяем статус System Restore через WMI
+        try {
+            $restoreConfig = Get-WmiObject -Class "Win32_SystemRestore" -ErrorAction SilentlyContinue
+            if ($restoreConfig) {
+                $isRestoreEnabled = $true
+            } else {
+                # Дополнительная проверка через реестр
+                $regKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+                $regValue = Get-ItemProperty -Path $regKey -Name "DisableSR" -ErrorAction SilentlyContinue
+                if ($regValue -and $regValue.DisableSR -eq 0) {
+                    $isRestoreEnabled = $true
+                }
+            }
+        } catch {
+            Write-Host "[!] Ошибка при проверке статуса System Restore" -ForegroundColor Yellow
+        }
+        
+        # Если System Restore отключена, включаем её
+        if (-not $isRestoreEnabled) {
+            Write-Host "[!] System Restore отключена. Включаем..." -ForegroundColor Yellow
+            try {
+                # Включаем System Restore для системного диска
+                Enable-ComputerRestore -Drive $systemDrive
+                
+                # Ждём немного, чтобы служба успела инициализироваться
+                Start-Sleep -Seconds 3
+                
+                Write-Host "[+] System Restore успешно включена для диска $systemDrive" -ForegroundColor Green
+            } catch {
+                Write-Host "[-] Не удалось включить System Restore: $_" -ForegroundColor Red
+                Write-Host "[!] Возможно, требуются права администратора или служба VSS недоступна" -ForegroundColor Yellow
+                return
+            }
+        } else {
+            Write-Host "[+] System Restore уже включена" -ForegroundColor Green
+        }
+        
+        # Создаём точку восстановления
+        Write-Host "[*] Создание точки восстановления..." -ForegroundColor Cyan
         Checkpoint-Computer -Description "До выполнения Wicked Raven System Clear" -RestorePointType "MODIFY_SETTINGS"
-        Write-Host "[+] Точка восстановления создана" -ForegroundColor Green
+        Write-Host "[+] Точка восстановления успешно создана" -ForegroundColor Green
+        
     } catch {
-        Write-Host "[-] Не удалось создать точку восстановления: $_" -ForegroundColor Yellow
+        Write-Host "[-] Не удалось создать точку восстановления: $_" -ForegroundColor Red
+        
+        # Дополнительная информация для диагностики
+        if ($_.Exception.Message -match "0x80042308") {
+            Write-Host "[!] Возможно, нужно подождать. Между точками восстановления должно пройти не менее 24 часов" -ForegroundColor Yellow
+        } elseif ($_.Exception.Message -match "0x8004230F") {
+            Write-Host "[!] System Restore отключена в групповых политиках" -ForegroundColor Yellow
+        } else {
+            Write-Host "[!] Убедитесь, что скрипт запущен с правами администратора" -ForegroundColor Yellow
+        }
     }
 }
 
