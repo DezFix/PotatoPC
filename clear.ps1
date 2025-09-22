@@ -33,7 +33,7 @@ function Show-Menu {
     Write-Host "Очистка системы"
     
     Write-Host ""
-    Write-Host " A. " -ForegroundColor Magenta -NoNewline
+    Write-Host " 6. " -ForegroundColor Magenta -NoNewline
     Write-Host "Применить ВСЕ оптимизации"
     
     Write-Host " 0. " -ForegroundColor Red -NoNewline
@@ -370,7 +370,7 @@ while (-not $backToMain) {
         '3' { Optimize-Performance }
         '4' { Remove-Bloatware }
         '5' { Clear-System }
-        'А' {
+        '6' {
             try { Disable-Telemetry } catch {}
             try { Disable-Unused-Services } catch {}
             try { Optimize-Performance } catch {}
