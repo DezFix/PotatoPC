@@ -9,18 +9,35 @@ if (-not $isAdmin) {
 }
 function Show-Menu {
     Clear-Host
-    Write-Host "===================================" -ForegroundColor Cyan
-    Write-Host "       WICKED RAVEN TOOLKIT        " -ForegroundColor Magenta
-    Write-Host "===================================" -ForegroundColor Cyan
+    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║                    WICKED RAVEN SYSTEM TOOLKIT                        ║" -ForegroundColor Magenta
+    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host " 1. Оптимизация системы"
-   # Write-Host " 2. Установка софта"
-    Write-Host " 3. Тесты и проверки"
-   # Write-Host " 4. Системные скрипты"
+    
+    Write-Host " 1. " -ForegroundColor Green -NoNewline
+    Write-Host "Оптимизация системы"
+    
+    Write-Host " 2. " -ForegroundColor Green -NoNewline
+    Write-Host "Установка софта"
+    
+    Write-Host " 3. " -ForegroundColor Green -NoNewline
+    Write-Host "Тесты и проверки"
+    
+    Write-Host " 4. " -ForegroundColor Green -NoNewline
+    Write-Host "Системные скрипты"
+    
     Write-Host ""
-    Write-Host " 0. Выйти"
+    Write-Host " 0. " -ForegroundColor Red -NoNewline
+    Write-Host "Выход"
+
     Write-Host ""
+    Write-Host "Выберите опцию: " -NoNewline -ForegroundColor White
+
 }
+
+
+
+
 
 function Read-Choice {
     param (
