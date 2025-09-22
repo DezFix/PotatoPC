@@ -11,6 +11,7 @@ if ($createRestore -eq 'y' -or $createRestore -eq 'Y') {
 
 # Функция отображения меню
 function Show-Menu {
+    Clear-Host
     Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║                      WICKED RAVEN SYSTEM CLEAR                        ║" -ForegroundColor Magenta
     Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
