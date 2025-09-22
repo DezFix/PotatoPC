@@ -1,22 +1,29 @@
-# Модуль системных скриптов для Wicked Raven Toolkit
-
 # Функция отображения меню скриптов
 function Show-ScriptsMenu {
     Clear-Host
-    Write-Host "===========================================" -ForegroundColor Cyan
-    Write-Host "        WICKED RAVEN SYSTEM SCRIPTS        " -ForegroundColor Magenta
-    Write-Host "===========================================" -ForegroundColor Cyan
+    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║                        WICKED RAVEN SYSTEM SCRIPTS                   ║" -ForegroundColor Magenta
+    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host " 1. Создание пользователя на диске D:"
+    
+    Write-Host " 1. " -ForegroundColor Green -NoNewline
+    Write-Host "Отложить обновления Windows"
+    
+    Write-Host " 2. " -ForegroundColor Green -NoNewline
+    Write-Host "Изменить реестр для долгосрочного отложения"
+    
     Write-Host ""
-    Write-Host " 0. Назад в главное меню"
+    Write-Host " 0. " -ForegroundColor Red -NoNewline
+    Write-Host "Назад в главное меню"
+    
     Write-Host ""
+    Write-Host "Выберите опцию: " -NoNewline -ForegroundColor White
 }
 
-# Функция создания нового пользователя на диске D:
-function Create-UserOnD {
-    Write-Host "`n[!] Создание нового пользователя на диске D:" -ForegroundColor Yellow
-    Write-Host "[!] Профиль пользователя будет создан в D:\Users\" -ForegroundColor Yellow
+# Функция отложения обновлений Windows
+function Postpone-WindowsUpdates {
+    Write-Host "`n[!] Отложение обновлений Windows" -ForegroundColor Yellow
+    Write-Host "[!] Изменение настроек реестра для приостановки обновлений" -ForegroundColor Yellow
 
     # Проверка прав администратора
     if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
@@ -25,205 +32,270 @@ function Create-UserOnD {
         return
     }
 
-    # Проверка существования диска D:
-    if (-not (Test-Path "D:\")) {
-        Write-Host "[-] Диск D: не найден или недоступен" -ForegroundColor Red
+    Write-Host "`n[+] Начинаем настройку отложения обновлений..." -ForegroundColor Green
+
+    try {
+        # Путь к реестру для настроек Windows Update
+        $registryPath = "HKLM:\Software\Microsoft\WindowsUpdate\UX\Settings"
+
+        # Проверка существования ключа реестра
+        if (-not (Test-Path $registryPath)) {
+            Write-Host "[*] Создание ключа реестра..." -ForegroundColor Cyan
+            New-Item -Path $registryPath -Force | Out-Null
+            Write-Host "[+] Ключ реестра создан" -ForegroundColor Green
+        }
+
+        # Ввод количества дней для отложения
+        do {
+            Write-Host "`n[*] Введите количество дней для отложения обновлений:" -ForegroundColor Cyan
+            Write-Host "[*] Минимум: 1 день, Максимум: 365 дней" -ForegroundColor Cyan
+            
+            $daysInput = Read-Host "Количество дней"
+            
+            if ([string]::IsNullOrWhiteSpace($daysInput)) {
+                Write-Host "[-] Количество дней не может быть пустым!" -ForegroundColor Red
+                continue
+            }
+            
+            # Проверка на число
+            if (-not [int]::TryParse($daysInput, [ref]$null)) {
+                Write-Host "[-] Введите корректное число!" -ForegroundColor Red
+                continue
+            }
+            
+            $days = [int]$daysInput
+            
+            if ($days -lt 1 -or $days -gt 365) {
+                Write-Host "[-] Количество дней должно быть от 1 до 365!" -ForegroundColor Red
+                continue
+            }
+            
+            break
+        } while ($true)
+
+        # Установка параметра в реестре
+        Write-Host "`n[*] Установка параметра FlightSettingsMaxPauseDays = $days..." -ForegroundColor Cyan
+        
+        Set-ItemProperty -Path $registryPath -Name "FlightSettingsMaxPauseDays" -Value $days -Type DWord -Force
+        Write-Host "[+] Параметр успешно установлен" -ForegroundColor Green
+
+        # Дополнительные настройки для лучшего контроля обновлений
+        Write-Host "[*] Применение дополнительных настроек..." -ForegroundColor Cyan
+        
+        # Установка периода отложения для качественных обновлений
+        Set-ItemProperty -Path $registryPath -Name "PauseQualityUpdatesStartTime" -Value (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ") -Force
+        Set-ItemProperty -Path $registryPath -Name "PauseQualityUpdatesEndTime" -Value (Get-Date).AddDays($days).ToString("yyyy-MM-ddTHH:mm:ssZ") -Force
+        
+        # Установка периода отложения для функциональных обновлений
+        Set-ItemProperty -Path $registryPath -Name "PauseFeatureUpdatesStartTime" -Value (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ") -Force
+        Set-ItemProperty -Path $registryPath -Name "PauseFeatureUpdatesEndTime" -Value (Get-Date).AddDays($days).ToString("yyyy-MM-ddTHH:mm:ssZ") -Force
+
+        Write-Host "[+] Дополнительные настройки применены" -ForegroundColor Green
+
+        # Проверка установленных значений
+        Write-Host "`n[*] Проверка установленных настроек..." -ForegroundColor Cyan
+        
+        try {
+            $maxPauseDays = Get-ItemProperty -Path $registryPath -Name "FlightSettingsMaxPauseDays" -ErrorAction Stop
+            if ($maxPauseDays.FlightSettingsMaxPauseDays -eq $days) {
+                Write-Host "[+] Проверка успешна: FlightSettingsMaxPauseDays = $($maxPauseDays.FlightSettingsMaxPauseDays)" -ForegroundColor Green
+            } else {
+                Write-Host "[-] Ошибка: значение не соответствует заданному" -ForegroundColor Red
+            }
+        } catch {
+            Write-Host "[-] Ошибка при проверке настроек" -ForegroundColor Red
+        }
+
+        # Информация о результате
+        Write-Host "`n[+] ========================================" -ForegroundColor Green
+        Write-Host "[+] НАСТРОЙКА ВЫПОЛНЕНА УСПЕШНО!" -ForegroundColor Green
+        Write-Host "[+] ========================================" -ForegroundColor Green
+        Write-Host "[+] Обновления отложены на: $days дней" -ForegroundColor White
+        Write-Host "[+] Дата окончания: $((Get-Date).AddDays($days).ToString('dd.MM.yyyy'))" -ForegroundColor White
+        Write-Host "[+] Путь в реестре: $registryPath" -ForegroundColor White
+        
+        Write-Host "`n[!] Примечание:" -ForegroundColor Yellow
+        Write-Host "    - Настройки вступят в силу после перезагрузки" -ForegroundColor Yellow
+        Write-Host "    - Для отмены отложения удалите созданные записи из реестра" -ForegroundColor Yellow
+
+    } catch {
+        Write-Host "`n[-] ОШИБКА: $_" -ForegroundColor Red
+        Write-Host "[-] Не удалось применить настройки отложения обновлений" -ForegroundColor Red
+    }
+
+# Функция для изменения реестра для долгосрочного отложения обновлений
+function Modify-UpdateRegistryForLongTerm {
+    Write-Host "`n[!] Изменение реестра для долгосрочного отложения обновлений" -ForegroundColor Yellow
+    Write-Host "[!] Работа с дополнительными ключами реестра Windows Update" -ForegroundColor Yellow
+
+    # Проверка прав администратора
+    if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+        Write-Host "[-] Требуются права администратора!" -ForegroundColor Red
         Pause
         return
     }
 
-    Write-Host "`n[+] Начинаем создание нового пользователя..." -ForegroundColor Green
+    Write-Host "`n[+] Начинаем изменение дополнительных настроек реестра..." -ForegroundColor Green
 
     try {
-        # Ввод данных пользователя
-        Write-Host "`n[*] Введите данные нового пользователя:" -ForegroundColor Cyan
-        
+        # Дополнительные пути реестра для расширенного контроля обновлений
+        $additionalPaths = @{
+            "WindowsUpdate" = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
+            "AU" = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+            "DeliveryOptimization" = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization"
+        }
+
+        # Ввод количества дней для расширенного отложения
         do {
-            $username = Read-Host "Имя пользователя"
-            if ([string]::IsNullOrWhiteSpace($username)) {
-                Write-Host "[-] Имя пользователя не может быть пустым!" -ForegroundColor Red
+            Write-Host "`n[*] Введите количество дней для расширенного отложения обновлений:" -ForegroundColor Cyan
+            Write-Host "[*] Для долгосрочного отложения рекомендуется: 90-730 дней" -ForegroundColor Cyan
+            Write-Host "[*] Максимум: 730 дней (2 года)" -ForegroundColor Cyan
+            
+            $daysInput = Read-Host "Количество дней"
+            
+            if ([string]::IsNullOrWhiteSpace($daysInput)) {
+                Write-Host "[-] Количество дней не может быть пустым!" -ForegroundColor Red
                 continue
             }
-            if ($username -match '[^\w\-_.]') {
-                Write-Host "[-] Недопустимые символы! Используйте только буквы, цифры, дефис, подчеркивание" -ForegroundColor Red
+            
+            # Проверка на число
+            if (-not [int]::TryParse($daysInput, [ref]$null)) {
+                Write-Host "[-] Введите корректное число!" -ForegroundColor Red
                 continue
             }
+            
+            $days = [int]$daysInput
+            
+            if ($days -lt 1 -or $days -gt 730) {
+                Write-Host "[-] Количество дней должно быть от 1 до 730!" -ForegroundColor Red
+                continue
+            }
+            
             break
         } while ($true)
 
-        # Проверка существования пользователя
-        try {
-            Get-LocalUser -Name $username -ErrorAction Stop | Out-Null
-            Write-Host "[-] Пользователь '$username' уже существует!" -ForegroundColor Red
-            Pause
-            return
-        } catch [Microsoft.PowerShell.Commands.UserNotFoundException] {
-            Write-Host "[+] Имя пользователя '$username' доступно" -ForegroundColor Green
-        }
-
-        $fullName = Read-Host "Полное имя (необязательно)"
-        if ([string]::IsNullOrWhiteSpace($fullName)) {
-            $fullName = $username
-        }
-
-        # Ввод пароля с проверкой
-        do {
-            $password1 = Read-Host "Пароль пользователя" -AsSecureString
-            $password2 = Read-Host "Подтвердите пароль" -AsSecureString
+        # Создание и настройка ключей реестра
+        foreach ($pathName in $additionalPaths.Keys) {
+            $path = $additionalPaths[$pathName]
             
-            $pwd1 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password1))
-            $pwd2 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password2))
+            Write-Host "`n[*] Обработка ключа: $pathName..." -ForegroundColor Cyan
             
-            if ($pwd1 -ne $pwd2) {
-                Write-Host "[-] Пароли не совпадают!" -ForegroundColor Red
-                continue
-            }
-            if ($pwd1.Length -lt 4) {
-                Write-Host "[-] Пароль слишком короткий! Минимум 4 символа." -ForegroundColor Red
-                continue
-            }
-            break
-        } while ($true)
-
-        # Определение путей
-        $targetUsersPath = "D:\Users"
-        $targetUserPath = Join-Path $targetUsersPath $username
-
-        # Создание структуры папок
-        if (-not (Test-Path $targetUsersPath)) {
-            New-Item -Path $targetUsersPath -ItemType Directory -Force | Out-Null
-            Write-Host "[+] Создана папка D:\Users" -ForegroundColor Green
-        }
-
-        if (Test-Path $targetUserPath) {
-            Write-Host "[!] Папка $targetUserPath уже существует" -ForegroundColor Yellow
-            $overwrite = Read-Host "Удалить и продолжить? (y/n)"
-            if ($overwrite -eq 'y' -or $overwrite -eq 'Y') {
-                Remove-Item -Path $targetUserPath -Recurse -Force -ErrorAction SilentlyContinue
+            # Проверка существования ключа
+            if (-not (Test-Path $path)) {
+                Write-Host "[*] Создание ключа реестра: $path" -ForegroundColor Yellow
+                New-Item -Path $path -Force | Out-Null
+                Write-Host "[+] Ключ создан" -ForegroundColor Green
             } else {
-                Write-Host "[!] Операция отменена" -ForegroundColor Yellow
-                return
+                Write-Host "[+] Ключ уже существует: $path" -ForegroundColor Green
             }
         }
 
-        # Создание пользователя
-        Write-Host "`n[*] Создание пользователя '$username'..." -ForegroundColor Cyan
+        # Настройка параметров Windows Update
+        $windowsUpdatePath = $additionalPaths["WindowsUpdate"]
+        Write-Host "`n[*] Настройка основных параметров Windows Update..." -ForegroundColor Cyan
         
-        $userParams = @{
-            Name = $username
-            Password = $password1
-            FullName = $fullName
-            AccountNeverExpires = $true
-        }
-
-        $newUser = New-LocalUser @userParams
-        Write-Host "[+] Пользователь '$username' создан" -ForegroundColor Green
-
-        # Добавление в группу пользователей
-        try {
-            Add-LocalGroupMember -Group "Users" -Member $username
-            Write-Host "[+] Добавлен в группу Users" -ForegroundColor Green
-        } catch {
-            Add-LocalGroupMember -Group "Пользователи" -Member $username -ErrorAction SilentlyContinue
-        }
-
-        # Получение SID пользователя
-        $ntAccount = New-Object System.Security.Principal.NTAccount($username)
-        $userSid = $ntAccount.Translate([System.Security.Principal.SecurityIdentifier]).Value
-        Write-Host "[+] SID пользователя: $userSid" -ForegroundColor Green
-
-        # Создание профиля
-        Write-Host "[*] Создание профиля пользователя..." -ForegroundColor Cyan
+        # Отключение автоматических обновлений драйверов
+        Set-ItemProperty -Path $windowsUpdatePath -Name "ExcludeWUDriversInQualityUpdate" -Value 1 -Type DWord -Force
         
-        # Создание основной папки
-        New-Item -Path $targetUserPath -ItemType Directory -Force | Out-Null
+        # Установка периода отсрочки для качественных обновлений
+        Set-ItemProperty -Path $windowsUpdatePath -Name "DeferQualityUpdatesPeriodInDays" -Value $days -Type DWord -Force
         
-        # Создание стандартных папок
-        $standardFolders = @("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos", "AppData\Local", "AppData\Roaming")
-        foreach ($folder in $standardFolders) {
-            $folderPath = Join-Path $targetUserPath $folder
-            New-Item -Path $folderPath -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
-        }
-        Write-Host "[+] Структура папок создана" -ForegroundColor Green
-
-        # Установка разрешений
-        icacls $targetUserPath /grant "$username`:F" /t /q 2>$null
-        Write-Host "[+] Разрешения настроены" -ForegroundColor Green
-
-        # Регистрация в реестре
-        Write-Host "[*] Регистрация профиля в системе..." -ForegroundColor Cyan
-        $profileListPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$userSid"
+        # Установка периода отсрочки для функциональных обновлений  
+        Set-ItemProperty -Path $windowsUpdatePath -Name "DeferFeatureUpdatesPeriodInDays" -Value $days -Type DWord -Force
         
-        New-Item -Path $profileListPath -Force | Out-Null
-        Set-ItemProperty -Path $profileListPath -Name "ProfileImagePath" -Value $targetUserPath -Force
-        Set-ItemProperty -Path $profileListPath -Name "Flags" -Value 0 -Force
-        Set-ItemProperty -Path $profileListPath -Name "State" -Value 0 -Force
-        Write-Host "[+] Профиль зарегистрирован в системе" -ForegroundColor Green
+        # Отключение автоматического перезапуска
+        Set-ItemProperty -Path $windowsUpdatePath -Name "NoAutoRebootWithLoggedOnUsers" -Value 1 -Type DWord -Force
 
-        # Копирование шаблона профиля
-        $defaultProfilePath = "C:\Users\Default"
-        if (Test-Path $defaultProfilePath) {
-            Write-Host "[*] Копирование шаблона профиля..." -ForegroundColor Cyan
-            robocopy "$defaultProfilePath" "$targetUserPath" /E /XJ /R:1 /W:1 /NFL /NDL /NP >$null 2>&1
-            Write-Host "[+] Шаблон профиля скопирован" -ForegroundColor Green
-        }
+        Write-Host "[+] Основные параметры настроены" -ForegroundColor Green
 
-        # Финальная проверка
-        $success = $true
+        # Настройка параметров AU (Automatic Updates)
+        $auPath = $additionalPaths["AU"]
+        Write-Host "`n[*] Настройка параметров автоматических обновлений..." -ForegroundColor Cyan
         
-        if (-not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
-            Write-Host "[-] Пользователь не найден в системе!" -ForegroundColor Red
-            $success = $false
-        }
+        # Уведомлять перед загрузкой и установкой
+        Set-ItemProperty -Path $auPath -Name "AUOptions" -Value 2 -Type DWord -Force
         
-        if (-not (Test-Path $targetUserPath)) {
-            Write-Host "[-] Папка профиля не найдена!" -ForegroundColor Red
-            $success = $false
-        }
+        # Отключение автоматического перезапуска
+        Set-ItemProperty -Path $auPath -Name "NoAutoRebootWithLoggedOnUsers" -Value 1 -Type DWord -Force
         
-        try {
-            $registryPath = (Get-ItemProperty -Path $profileListPath -Name "ProfileImagePath").ProfileImagePath
-            if ($registryPath -ne $targetUserPath) {
-                Write-Host "[-] Неверная запись в реестре!" -ForegroundColor Red
-                $success = $false
-            }
-        } catch {
-            Write-Host "[-] Запись в реестре не найдена!" -ForegroundColor Red
-            $success = $false
-        }
+        # Настройка времени активных часов
+        Set-ItemProperty -Path $auPath -Name "ActiveHoursStart" -Value 8 -Type DWord -Force
+        Set-ItemProperty -Path $auPath -Name "ActiveHoursEnd" -Value 22 -Type DWord -Force
 
-        if ($success) {
-            Write-Host "`n[+] ========================================" -ForegroundColor Green
-            Write-Host "[+] ПОЛЬЗОВАТЕЛЬ СОЗДАН УСПЕШНО!" -ForegroundColor Green
-            Write-Host "[+] ========================================" -ForegroundColor Green
-            Write-Host "[+] Имя: $username" -ForegroundColor White
-            Write-Host "[+] Профиль: $targetUserPath" -ForegroundColor White
-            Write-Host "[+] SID: $userSid" -ForegroundColor White
-        } else {
-            Write-Host "`n[-] Создание завершено с ошибками!" -ForegroundColor Red
-        }
+        Write-Host "[+] Параметры автоматических обновлений настроены" -ForegroundColor Green
 
-        # Добавление в администраторы (опционально)
-        $makeAdmin = Read-Host "`nДобавить в группу Администраторы? (y/n)"
-        if ($makeAdmin -eq 'y' -or $makeAdmin -eq 'Y') {
+        # Настройка Delivery Optimization
+        $deliveryPath = $additionalPaths["DeliveryOptimization"]
+        Write-Host "`n[*] Настройка оптимизации доставки..." -ForegroundColor Cyan
+        
+        # Отключение загрузки обновлений с других компьютеров
+        Set-ItemProperty -Path $deliveryPath -Name "DODownloadMode" -Value 0 -Type DWord -Force
+
+        Write-Host "[+] Оптимизация доставки настроена" -ForegroundColor Green
+
+        # Дополнительные настройки в основном ключе UX Settings
+        $uxSettingsPath = "HKLM:\Software\Microsoft\WindowsUpdate\UX\Settings"
+        if (Test-Path $uxSettingsPath) {
+            Write-Host "`n[*] Обновление настроек UX..." -ForegroundColor Cyan
+            
+            # Проверка и обновление существующего значения FlightSettingsMaxPauseDays
             try {
-                Add-LocalGroupMember -Group "Administrators" -Member $username
-                Write-Host "[+] Добавлен в группу Administrators" -ForegroundColor Green
+                $currentValue = Get-ItemProperty -Path $uxSettingsPath -Name "FlightSettingsMaxPauseDays" -ErrorAction SilentlyContinue
+                if ($currentValue) {
+                    Write-Host "[+] Найден существующий параметр FlightSettingsMaxPauseDays = $($currentValue.FlightSettingsMaxPauseDays)" -ForegroundColor Yellow
+                    Write-Host "[*] Обновление значения на $days дней..." -ForegroundColor Cyan
+                } else {
+                    Write-Host "[*] Создание нового параметра FlightSettingsMaxPauseDays..." -ForegroundColor Cyan
+                }
+                
+                Set-ItemProperty -Path $uxSettingsPath -Name "FlightSettingsMaxPauseDays" -Value $days -Type DWord -Force
+                Write-Host "[+] Параметр FlightSettingsMaxPauseDays обновлен" -ForegroundColor Green
+                
             } catch {
-                Add-LocalGroupMember -Group "Администраторы" -Member $username -ErrorAction SilentlyContinue
+                Write-Host "[-] Ошибка при работе с FlightSettingsMaxPauseDays: $_" -ForegroundColor Red
             }
         }
+
+        # Проверка всех установленных значений
+        Write-Host "`n[*] Проверка установленных параметров..." -ForegroundColor Cyan
+        
+        $verificationResults = @()
+        
+        # Проверка основных параметров
+        try {
+            $deferQuality = (Get-ItemProperty -Path $windowsUpdatePath -Name "DeferQualityUpdatesPeriodInDays" -ErrorAction SilentlyContinue).DeferQualityUpdatesPeriodInDays
+            $deferFeature = (Get-ItemProperty -Path $windowsUpdatePath -Name "DeferFeatureUpdatesPeriodInDays" -ErrorAction SilentlyContinue).DeferFeatureUpdatesPeriodInDays
+            $flightSettings = (Get-ItemProperty -Path $uxSettingsPath -Name "FlightSettingsMaxPauseDays" -ErrorAction SilentlyContinue).FlightSettingsMaxPauseDays
+            
+            $verificationResults += "[+] DeferQualityUpdatesPeriodInDays: $deferQuality"
+            $verificationResults += "[+] DeferFeatureUpdatesPeriodInDays: $deferFeature"  
+            $verificationResults += "[+] FlightSettingsMaxPauseDays: $flightSettings"
+            
+        } catch {
+            $verificationResults += "[-] Ошибка при проверке некоторых параметров"
+        }
+
+        # Вывод результатов
+        Write-Host "`n[+] ========================================" -ForegroundColor Green
+        Write-Host "[+] РАСШИРЕННАЯ НАСТРОЙКА ВЫПОЛНЕНА!" -ForegroundColor Green  
+        Write-Host "[+] ========================================" -ForegroundColor Green
+        Write-Host "[+] Обновления отложены на: $days дней" -ForegroundColor White
+        Write-Host "[+] Дата окончания отсрочки: $((Get-Date).AddDays($days).ToString('dd.MM.yyyy'))" -ForegroundColor White
+        
+        Write-Host "`n[+] Установленные параметры:" -ForegroundColor Cyan
+        foreach ($result in $verificationResults) {
+            Write-Host $result -ForegroundColor White
+        }
+        
+        Write-Host "`n[!] Примечания:" -ForegroundColor Yellow
+        Write-Host "    - Изменения вступят в силу после перезагрузки системы" -ForegroundColor Yellow
+        Write-Host "    - Обновления безопасности могут устанавливаться принудительно" -ForegroundColor Yellow
+        Write-Host "    - Для полной отмены удалите созданные ключи из реестра" -ForegroundColor Yellow
+        Write-Host "    - Рекомендуется периодически проверять критические обновления" -ForegroundColor Yellow
 
     } catch {
         Write-Host "`n[-] ОШИБКА: $_" -ForegroundColor Red
-        
-        # Очистка при ошибке
-        if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
-            Remove-LocalUser -Name $username -ErrorAction SilentlyContinue
-        }
-        if (Test-Path $targetUserPath) {
-            Remove-Item -Path $targetUserPath -Recurse -Force -ErrorAction SilentlyContinue
-        }
+        Write-Host "[-] Не удалось применить расширенные настройки реестра" -ForegroundColor Red
     }
 
     Pause
@@ -232,10 +304,10 @@ function Create-UserOnD {
 # Основной цикл
 while ($true) {
     Show-ScriptsMenu
-    $choice = Read-Host "Выберите опцию"
+    $choice = Read-Host
     
     switch ($choice) {
-        '1' { Create-UserOnD }
+        '1' { Postpone-WindowsUpdates }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
             try {
