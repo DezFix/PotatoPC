@@ -1,23 +1,46 @@
 # Функция отображения основного меню
 function Show-DiagnosticsMenu {
     Clear-Host
-    Write-Host "===========================================" -ForegroundColor Cyan
-    Write-Host "           WICKED RAVEN DIAGNOSTICS        " -ForegroundColor Magenta
-    Write-Host "===========================================" -ForegroundColor Cyan
+    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
+    Write-Host "║                       WICKED RAVEN DIAGNOSTICS                        ║" -ForegroundColor Yellow
+    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host " 1. Проверка системных файлов (SFC)"
-    Write-Host " 2. Восстановление компонентов Windows (DISM)"
-    Write-Host " 3. Проверка диска (CHKDSK)"
-    Write-Host " 4. Проверка оперативной памяти (RAM)"
-     Write-Host ""
-    Write-Host " 5. Сброс сетевых настроек"
-    Write-Host " 6. Быстрый просмотр системных ошибок"
-    Write-Host " 7. Информация о системе"
-    Write-Host " 8. Просмотр паролей Wi-Fi"
-     Write-Host ""
-    Write-Host " 0. Назад"
+    
+    Write-Host " 1. " -ForegroundColor Green -NoNewline
+    Write-Host "Проверка системных файлов (SFC)"
+    
+    Write-Host " 2. " -ForegroundColor Green -NoNewline
+    Write-Host "Восстановление компонентов Windows (DISM)"
+    
+    Write-Host " 3. " -ForegroundColor Green -NoNewline
+    Write-Host "Проверка диска (CHKDSK)"
+    
+    Write-Host " 4. " -ForegroundColor Green -NoNewline
+    Write-Host "Проверка оперативной памяти (RAM)"
+    
     Write-Host ""
+    Write-Host " 5. " -ForegroundColor Green -NoNewline
+    Write-Host "Сброс сетевых настроек"
+    
+    Write-Host " 6. " -ForegroundColor Green -NoNewline
+    Write-Host "Быстрый просмотр системных ошибок"
+    
+    Write-Host " 7. " -ForegroundColor Green -NoNewline
+    Write-Host "Информация о системе"
+    
+    Write-Host " 8. " -ForegroundColor Green -NoNewline
+    Write-Host "Просмотр паролей Wi-Fi"
+    
+    Write-Host ""
+    Write-Host " 0. " -ForegroundColor Red -NoNewline
+    Write-Host "Выход"
+    
+    Write-Host ""
+    Write-Host "Выберите опцию: " -NoNewline -ForegroundColor White
 }
+
+
+
 
 # Функция отображения системной информации
 function Show-SystemInfo {
@@ -325,7 +348,7 @@ $backToMain = $false
 
 while (-not $backToMain) {
     Show-DiagnosticsMenu
-    $choice = Read-Host "Выберите опцию (0-8)"
+    $choice = Read-Host
     switch ($choice) {
         '1' { Run-SFC }
         '2' { Run-DISM }
