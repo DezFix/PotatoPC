@@ -49,6 +49,7 @@ function Clear-System {
     Write-Host "`n[+] Очистка временных файлов..." -ForegroundColor Yellow
     
     try {
+        # Очистка стандартных временных папок
         Remove-Item "$env:TEMP\*" -Recurse -Force -ErrorAction Stop
         Remove-Item "C:\Windows\Temp\*" -Recurse -Force -ErrorAction Stop
         Clear-RecycleBin -Force -ErrorAction Stop
@@ -57,10 +58,38 @@ function Clear-System {
         Write-Host "[-] Ошибка при очистке: $_" -ForegroundColor Red
     }
 
+    # Очистка DNS кеша
     ipconfig /flushdns | Out-Null
+    
+    # Очистка Prefetch
     Remove-Item "C:\Windows\Prefetch\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+    # Очистка WinSxS
+    Write-Host "[+] Очистка WinSxS..." -ForegroundColor Yellow
+    try {
+        # Проверяем наличие DISM
+        if (Get-Command dism.exe -ErrorAction SilentlyContinue) {
+            Write-Host "[+] Анализ компонентов WinSxS..." -ForegroundColor Cyan
+            
+            # Очистка устаревших компонентов
+            Start-Process -FilePath "dism.exe" -ArgumentList "/online", "/cleanup-image", "/startcomponentcleanup" -Wait -NoNewWindow -PassThru | Out-Null
+            
+            # Анализ размера до и после (опционально)
+            $winsxsSize = (Get-ChildItem "C:\Windows\WinSxS" -Recurse -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum / 1GB
+            Write-Host "[+] Текущий размер WinSxS: $([math]::Round($winsxsSize, 2)) GB" -ForegroundColor Cyan
+            
+            Write-Host "[+] WinSxS очищен успешно" -ForegroundColor Green
+        } else {
+            Write-Host "[-] DISM не найден, пропускаем очистку WinSxS" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "[-] Ошибка при очистке WinSxS: $_" -ForegroundColor Red
+    }
+
     Start-Sleep -Seconds 2
+    Write-Host "[+] Очистка системы завершена" -ForegroundColor Green
 }
+
 
 # Расширенное отключение телеметрии
 function Disable-Telemetry {
@@ -115,6 +144,7 @@ function Disable-Telemetry {
     Start-Sleep -Seconds 2
 }
 
+
 # Расширенное отключение служб
 function Disable-Unused-Services {
     Write-Host "`n[+] Отключение ненужных служб..." -ForegroundColor Yellow
@@ -138,6 +168,7 @@ function Disable-Unused-Services {
     Write-Host "[+] Все ненужные службы отключены" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
+
 
 # Расширенная оптимизация производительности
 function Optimize-Performance {
@@ -215,6 +246,7 @@ function Optimize-Performance {
     Write-Host "[+] Оптимизации производительности применены" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
+
 
 # Расширенное удаление встроенного ПО
 function Remove-Bloatware {
@@ -302,6 +334,7 @@ function Remove-Bloatware {
         }
     }
     
+    
     # Дополнительные настройки панели задач
     Write-Host "[+] Дополнительная настройка панели задач..." -ForegroundColor Cyan
     
@@ -323,6 +356,7 @@ function Remove-Bloatware {
     Write-Host "[+] Все нежелательное ПО удалено" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
+
 
 # Основной цикл
 $backToMain = $false
