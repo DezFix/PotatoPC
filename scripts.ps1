@@ -31,7 +31,7 @@ function Postpone-WindowsUpdates {
         Pause
         return
     }
-
+}
     Write-Host "`n[+] Начинаем настройку отложения обновлений..." -ForegroundColor Green
 
     try {
