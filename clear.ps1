@@ -372,9 +372,8 @@ while (-not $backToMain) {
             try { Remove-Bloatware } catch {}
             try { Clear-System } catch {}
             Write-Host "[!] Перезагрузка ПК через 10 секунд...(Ctrl + C что бы отменить)" -ForegroundColor Red
-            Pause
-            #Start-Sleep -Seconds 10
-            #Restart-Computer
+            Start-Sleep -Seconds 10
+            Restart-Computer
         }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
