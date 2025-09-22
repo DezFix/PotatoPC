@@ -9,9 +9,9 @@ if (-not $isAdmin) {
 }
 function Show-Menu {
     Clear-Host
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║                    WICKED RAVEN SYSTEM TOOLKIT                        ║" -ForegroundColor Magenta
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
+    Write-Host "║                    WICKED RAVEN SYSTEM TOOLKIT                        ║" -ForegroundColor Yellow
+    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
     Write-Host ""
     
     Write-Host " 1. " -ForegroundColor Green -NoNewline
