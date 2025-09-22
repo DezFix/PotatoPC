@@ -11,20 +11,36 @@ if ($createRestore -eq 'y' -or $createRestore -eq 'Y') {
 
 # Функция отображения меню
 function Show-Menu {
-    Clear-Host
-    Write-Host "===================================" -ForegroundColor Cyan
-    Write-Host "     WICKED RAVEN SYSTEM CLEAR     " -ForegroundColor Magenta
-    Write-Host "===================================" -ForegroundColor Cyan
+    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║                      WICKED RAVEN SYSTEM CLEAR                        ║" -ForegroundColor Magenta
+    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host " 1. Отключение телеметрии Windows"
-    Write-Host " 2. Отключение ненужных служб"
-    Write-Host " 3. Повышение производительности"
-    Write-Host " 4. Удаление встроенного ПО"
-    Write-Host " 5. Очистка системы"
+    
+    Write-Host " 1. " -ForegroundColor Green -NoNewline
+    Write-Host "Отключение телеметрии Windows"
+    
+    Write-Host " 2. " -ForegroundColor Green -NoNewline
+    Write-Host "Отключение ненужных служб"
+    
+    Write-Host " 3. " -ForegroundColor Green -NoNewline
+    Write-Host "Повышение производительности"
+    
+    Write-Host " 4. " -ForegroundColor Green -NoNewline
+    Write-Host "Удаление встроенного ПО'"
+    
+    Write-Host " 5. " -ForegroundColor Green -NoNewline
+    Write-Host "Очистка системы"
+    
     Write-Host ""
-    Write-Host " 6. Выполнить всё"
-    Write-Host " 0. Назад"
+    Write-Host " A. " -ForegroundColor Magenta -NoNewline
+    Write-Host "Применить ВСЕ оптимизации"
+    
+    Write-Host " 0. " -ForegroundColor Red -NoNewline
+    Write-Host "Выход"
+
     Write-Host ""
+    Write-Host "Выберите опцию: " -NoNewline -ForegroundColor White
+
 }
 
 # Расширенная очистка системы
@@ -312,14 +328,14 @@ $backToMain = $false
 
 while (-not $backToMain) {
     Show-Menu
-    $choice = Read-Host "Выберите опцию (0-7):"
+    $choice = Read-Host
     switch ($choice) {
         '1' { Disable-Telemetry }
         '2' { Disable-Unused-Services }
         '3' { Optimize-Performance }
         '4' { Remove-Bloatware }
         '5' { Clear-System }
-        '6' {
+        'А' {
             try { Disable-Telemetry } catch {}
             try { Disable-Unused-Services } catch {}
             try { Optimize-Performance } catch {}
