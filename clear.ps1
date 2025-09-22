@@ -73,11 +73,6 @@ function Clear-System {
             
             # Очистка устаревших компонентов
             Start-Process -FilePath "dism.exe" -ArgumentList "/online", "/cleanup-image", "/startcomponentcleanup" -Wait -NoNewWindow -PassThru | Out-Null
-            
-            # Анализ размера до и после (опционально)
-            $winsxsSize = (Get-ChildItem "C:\Windows\WinSxS" -Recurse -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum / 1GB
-            Write-Host "[+] Текущий размер WinSxS: $([math]::Round($winsxsSize, 2)) GB" -ForegroundColor Cyan
-            
             Write-Host "[+] WinSxS очищен успешно" -ForegroundColor Green
         } else {
             Write-Host "[-] DISM не найден, пропускаем очистку WinSxS" -ForegroundColor Yellow
@@ -377,8 +372,9 @@ while (-not $backToMain) {
             try { Remove-Bloatware } catch {}
             try { Clear-System } catch {}
             Write-Host "[!] Перезагрузка ПК через 10 секунд...(Ctrl + C что бы отменить)" -ForegroundColor Red
-            Start-Sleep -Seconds 10
-            Restart-Computer
+            Pause
+            #Start-Sleep -Seconds 10
+            #Restart-Computer
         }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
