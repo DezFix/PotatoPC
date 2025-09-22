@@ -27,7 +27,7 @@ function Show-Menu {
     Write-Host "Повышение производительности"
     
     Write-Host " 4. " -ForegroundColor Green -NoNewline
-    Write-Host "Удаление встроенного ПО'"
+    Write-Host "Удаление встроенного ПО"
     
     Write-Host " 5. " -ForegroundColor Green -NoNewline
     Write-Host "Очистка системы"
