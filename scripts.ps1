@@ -33,9 +33,9 @@ function Show-ScriptsMenu {
 
 # Функция отложения обновлений Windows
 function Postpone-WindowsUpdates {
-    Write-Host "`n[!] Отложение обновлений Windows" -ForegroundColor Yellow
+    Write-Host "[!] Отложение обновлений Windows" -ForegroundColor Yellow
     Write-Host "[!] Изменение настроек реестра для приостановки обновлений" -ForegroundColor Yellow
-    Write-Host "`n[+] Начинаем настройку отложения обновлений..." -ForegroundColor Green
+    Write-Host "[+] Начинаем настройку отложения обновлений..." -ForegroundColor Green
 
     try {
         # Путь к реестру для настроек Windows Update
@@ -50,7 +50,7 @@ function Postpone-WindowsUpdates {
 
         # Ввод количества дней для отложения
         do {
-            Write-Host "`n[*] Введите количество дней для отложения обновлений:" -ForegroundColor Cyan
+            Write-Host "[*] Введите количество дней для отложения обновлений:" -ForegroundColor Cyan
             Write-Host "[*] Минимум: 1 день, Максимум: 365 дней" -ForegroundColor Cyan
             
             $daysInput = Read-Host "Количество дней"
@@ -77,7 +77,7 @@ function Postpone-WindowsUpdates {
         } while ($true)
 
         # Установка параметра в реестре
-        Write-Host "`n[*] Установка параметра FlightSettingsMaxPauseDays = $days..." -ForegroundColor Cyan
+        Write-Host "[*] Установка параметра FlightSettingsMaxPauseDays = $days..." -ForegroundColor Cyan
         
         Set-ItemProperty -Path $registryPath -Name "FlightSettingsMaxPauseDays" -Value $days -Type DWord -Force
         Write-Host "[+] Параметр успешно установлен" -ForegroundColor Green
@@ -96,7 +96,7 @@ function Postpone-WindowsUpdates {
         Write-Host "[+] Дополнительные настройки применены" -ForegroundColor Green
 
         # Проверка установленных значений
-        Write-Host "`n[*] Проверка установленных настроек..." -ForegroundColor Cyan
+        Write-Host "[*] Проверка установленных настроек..." -ForegroundColor Cyan
         
         try {
             $maxPauseDays = Get-ItemProperty -Path $registryPath -Name "FlightSettingsMaxPauseDays" -ErrorAction Stop
@@ -110,19 +110,19 @@ function Postpone-WindowsUpdates {
         }
 
         # Информация о результате
-        Write-Host "`n[+] ========================================" -ForegroundColor Green
-        Write-Host "[+] НАСТРОЙКА ВЫПОЛНЕНА УСПЕШНО!" -ForegroundColor Green
+        Write-Host "[+] ========================================" -ForegroundColor Green
+        Write-Host "[+]       НАСТРОЙКА ВЫПОЛНЕНА УСПЕШНО!"       -ForegroundColor Green
         Write-Host "[+] ========================================" -ForegroundColor Green
         Write-Host "[+] Обновления отложены на: $days дней" -ForegroundColor White
         Write-Host "[+] Дата окончания: $((Get-Date).AddDays($days).ToString('dd.MM.yyyy'))" -ForegroundColor White
         Write-Host "[+] Путь в реестре: $registryPath" -ForegroundColor White
         
-        Write-Host "`n[!] Примечание:" -ForegroundColor Yellow
+        Write-Host "[!] Примечание:" -ForegroundColor Yellow
         Write-Host "    - Настройки вступят в силу после перезагрузки" -ForegroundColor Yellow
         Write-Host "    - Для отмены отложения удалите созданные записи из реестра" -ForegroundColor Yellow
 
     } catch {
-        Write-Host "`n[-] ОШИБКА: $_" -ForegroundColor Red
+        Write-Host "[-] ОШИБКА: $_" -ForegroundColor Red
         Write-Host "[-] Не удалось применить настройки отложения обновлений" -ForegroundColor Red
     }
 
