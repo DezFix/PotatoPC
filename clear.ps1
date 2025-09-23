@@ -236,7 +236,7 @@ function Disable-Unused-Services {
     foreach ($svc in $manualList) {
         if (Get-Service $svc -ErrorAction SilentlyContinue) {
             Set-Service -Name $svc -StartupType Manual -ErrorAction SilentlyContinue
-            Write-Host "[~] Служба $svc переведена в Manual" -ForegroundColor DarkYellow
+            Write-Host "[~] Служба $svc переведена в Manual" -ForegroundColor DarkCyan
         }
     }
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\WSearch" -Name "Start" -Value 4 -Type DWord -Force
