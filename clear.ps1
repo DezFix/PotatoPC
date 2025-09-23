@@ -403,6 +403,8 @@ function Remove-Bloatware {
         "Microsoft.MixedReality.Portal",
         "Microsoft.MSPaint",
         "Microsoft.Office.OneNote",
+        "Microsoft.windowscommunicationsapps",
+        "Microsoft.OutlookForWindows",
         "Microsoft.People",
         "Microsoft.ScreenSketch",
         "Microsoft.SkypeApp",
