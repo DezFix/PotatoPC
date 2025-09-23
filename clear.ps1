@@ -211,27 +211,42 @@ function Disable-Telemetry {
 
 # Расширенное отключение служб
 function Disable-Unused-Services {
-    Write-Host "[+] Отключение ненужных служб..." -ForegroundColor Yellow
+    Write-Host "[+] Настройка служб..." -ForegroundColor Yellow
     
-    $svcList = @(
+    $disableList = @(
         "XblGameSave", "XboxNetApiSvc", "Fax", "MapsBroker", 
-        "RetailDemo", "WSearch", "PcaSvc", "DiagSvcs", 
-        "TrkWks", "SysMain", "WMPNetworkSvc", "XboxGipSvc",
+        "RetailDemo", "SysMain", "WMPNetworkSvc", "XboxGipSvc",
         "OneSyncSvc", "UnistoreSvc", "MessagingService", 
         "PrintNotify", "TabletInputService", "BthAvctpSvc"
     )
-    foreach ($svc in $svcList) {
+
+    $manualList = @(
+        "WSearch", "PcaSvc", "DiagSvcs", "TrkWks"      
+    )
+
+    # Отключаем ненужные
+    foreach ($svc in $disableList) {
         if (Get-Service $svc -ErrorAction SilentlyContinue) {
             Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
-            Write-Host "[+] Служба $svc отключена" -ForegroundColor Cyan
+            Write-Host "[−] Служба $svc отключена" -ForegroundColor Cyan
+        }
+    }
+
+    # Переводим в ручной запуск
+    foreach ($svc in $manualList) {
+        if (Get-Service $svc -ErrorAction SilentlyContinue) {
+            Set-Service -Name $svc -StartupType Manual -ErrorAction SilentlyContinue
+            Write-Host "[~] Служба $svc переведена в Manual" -ForegroundColor DarkYellow
         }
     }
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\WSearch" -Name "Start" -Value 4 -Type DWord -Force
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\OneSyncSvc" -Name "Start" -Value 4 -Type DWord -Force
-    
-    Write-Host "[+] Все ненужные службы отключены" -ForegroundColor Green
+
+    Write-Host "[+] Все службы обработаны" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
+
+
 
 
 # Расширенная оптимизация производительности
