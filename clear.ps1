@@ -174,11 +174,10 @@ function Disable-Telemetry {
         }
     }
 
-    # --- Задачи планировщика на отключение ---
+    # --- Задачи планировщика (телеметрия + диагностика) ---
     $tasks = @(
         "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
         "\Microsoft\Windows\Application Experience\ProgramDataUpdater",
-        "\Microsoft\Windows\Autochk\Proxy",
         "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
         "\Microsoft\Windows\Customer Experience Improvement Program\KernelCeipTask",
         "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
@@ -193,7 +192,7 @@ function Disable-Telemetry {
         Write-Host "[−] Задача $task отключена" -ForegroundColor DarkCyan
     }
 
-    # --- Реестр: вырубание телеметрии и рекламы ---
+    # --- Реестр: AllowTelemetry, Cortana, реклама, WER ---
     $regPaths = @(
         "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection",
         "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection",
@@ -206,15 +205,21 @@ function Disable-Telemetry {
         if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
     }
 
-    # Основные параметры
+    # AllowTelemetry в политиках (Group Policy)
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -Value 0 -Type DWord -Force
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection" -Name "AllowTelemetry" -Value 0 -Type DWord -Force
+
+    # Отключение Cortana
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "AllowCortana" -Value 0 -Type DWord -Force
+
+    # Отключение рекламы/контента
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-338387Enabled" -Value 0 -Type DWord -Force
+
+    # Отключение сбора рукописного ввода и текста
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\InputPersonalization" -Name "RestrictImplicitTextCollection" -Value 1 -Type DWord -Force
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\InputPersonalization" -Name "RestrictImplicitInkCollection" -Value 1 -Type DWord -Force
 
-    # Отключение Windows Error Reporting через реестр
+    # Отключение Windows Error Reporting
     if (-not (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting")) {
         New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Force | Out-Null
     }
@@ -223,6 +228,7 @@ function Disable-Telemetry {
     Write-Host "[+] Телеметрия и диагностика отключены" -ForegroundColor Green
     Start-Sleep -Seconds 2
 }
+
 
 
 # Расширенное отключение служб
