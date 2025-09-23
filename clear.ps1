@@ -115,7 +115,7 @@ function Show-Menu {
 
 # Расширенная очистка системы
 function Clear-System {
-    Write-Host "`n[+] Очистка временных файлов..." -ForegroundColor Yellow
+    Write-Host "[+] Очистка временных файлов..." -ForegroundColor Yellow
     
     try {
         # Очистка стандартных временных папок
@@ -157,7 +157,7 @@ function Clear-System {
 
 # Расширенное отключение телеметрии
 function Disable-Telemetry {
-    Write-Host "`n[+] Расширенное отключение телеметрии..." -ForegroundColor Yellow
+    Write-Host "[+] Расширенное отключение телеметрии..." -ForegroundColor Yellow
     
     $services = @(
         "DiagTrack", "dmwappushservice", "DPS", "WdiServiceHost", 
@@ -211,7 +211,7 @@ function Disable-Telemetry {
 
 # Расширенное отключение служб
 function Disable-Unused-Services {
-    Write-Host "`n[+] Отключение ненужных служб..." -ForegroundColor Yellow
+    Write-Host "[+] Отключение ненужных служб..." -ForegroundColor Yellow
     
     $svcList = @(
         "XblGameSave", "XboxNetApiSvc", "Fax", "MapsBroker", 
@@ -236,7 +236,7 @@ function Disable-Unused-Services {
 
 # Расширенная оптимизация производительности
 function Optimize-Performance {
-    Write-Host "`n[+] Применение оптимизаций производительности..." -ForegroundColor Yellow
+    Write-Host "[+] Применение оптимизаций производительности..." -ForegroundColor Yellow
     
     powercfg -setactive SCHEME_MIN
     powercfg /change standby-timeout-ac 0
@@ -314,7 +314,7 @@ function Optimize-Performance {
 
 # Расширенное удаление встроенного ПО
 function Remove-Bloatware {
-    Write-Host "`n[+] Расширенное удаление встроенного ПО..." -ForegroundColor Yellow
+    Write-Host "[+] Расширенное удаление встроенного ПО..." -ForegroundColor Yellow
     
     # Удаление Copilot
     Write-Host "[+] Удаление Microsoft Copilot..." -ForegroundColor Cyan
