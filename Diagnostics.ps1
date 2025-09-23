@@ -260,15 +260,26 @@ function Show-SystemErrors {
 }
 function Show-WiFiMenu {
     Clear-Host
-    Write-Host "===========================================" -ForegroundColor Cyan
-    Write-Host "         WICKED RAVEN WI-FI PASSWORDS      " -ForegroundColor Magenta
-    Write-Host "===========================================" -ForegroundColor Cyan
+    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
+    Write-Host "║                       W R WI-FI PASSWORDS                             ║" -ForegroundColor Yellow
+    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host " 1. Показать все Wi-Fi профили"
-    Write-Host " 2. Показать пароль конкретного Wi-Fi профиля"
-    Write-Host " 3. Экспортировать все пароли в файл"
-    Write-Host " 4. Назад"
+    
+    Write-Host " 1. " -ForegroundColor Green -NoNewline
+    Write-Host "Показать все Wi-Fi профили"
+    
+    Write-Host " 2. " -ForegroundColor Green -NoNewline
+    Write-Host "Показать пароль конкретного Wi-Fi профиля"
+    
+    Write-Host " 3. " -ForegroundColor Green -NoNewline
+    Write-Host "Экспортировать все пароли в файл"
+    
     Write-Host ""
+    Write-Host " 0. " -ForegroundColor Red -NoNewline
+    Write-Host "Назад"
+    
+    Write-Host ""
+    Write-Host "Выберите опцию: " -NoNewline -ForegroundColor White
 }
 
 function Get-WiFiProfiles {
@@ -298,7 +309,7 @@ function Get-WiFiPassword {
 function WiFi-Passwords-Menu {
     while ($true) {
         Show-WiFiMenu
-        $choice = Read-Host "Выберите опцию (1-4)"
+        $choice = Read-Host
 
         switch ($choice) {
             '1' {
@@ -350,7 +361,7 @@ function WiFi-Passwords-Menu {
                 return
             }
             default {
-                Write-Host "Неверный выбор. Пожалуйста, выберите 1-4." -ForegroundColor Red
+                Write-Host "Неверный выбор." -ForegroundColor Red
                 Read-Host "Нажмите Enter для продолжения..."
             }
         }
