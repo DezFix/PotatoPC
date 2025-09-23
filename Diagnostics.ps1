@@ -245,7 +245,7 @@ function Show-SystemErrors {
     }
     
     # Проверка системных журналов
-    Write-Host "`n[+] Проверка системных журналов..." -ForegroundColor Cyan
+    Write-Host "[+] Проверка системных журналов..." -ForegroundColor Cyan
     $criticalEvents = Get-WinEvent -FilterHashtable @{LogName='System'; Level=1,2} -MaxEvents 5
     if ($criticalEvents) {
         Write-Host "Найдены критические события:" -ForegroundColor Red
@@ -304,29 +304,29 @@ function WiFi-Passwords-Menu {
             '1' {
                 $profiles = Get-WiFiProfiles
                 if ($profiles) {
-                    Write-Host "`nСписок Wi-Fi профилей:" -ForegroundColor Green
+                    Write-Host "Список Wi-Fi профилей:" -ForegroundColor Green
                     $profiles | ForEach-Object { Write-Host $_ }
                 } else {
                     Write-Host "Wi-Fi профили не найдены." -ForegroundColor Yellow
                 }
-                Read-Host "`nНажмите Enter для продолжения..."
+                Read-Host "Нажмите Enter для продолжения..."
             }
             '2' {
                 $profiles = Get-WiFiProfiles
                 if ($profiles) {
-                    Write-Host "`nДоступные Wi-Fi профили:" -ForegroundColor Green
+                    Write-Host "Доступные Wi-Fi профили:" -ForegroundColor Green
                     $profiles | ForEach-Object { Write-Host $_ }
-                    $profileName = Read-Host "`nВведите имя Wi-Fi профиля"
+                    $profileName = Read-Host "Введите имя Wi-Fi профиля"
                     $password = Get-WiFiPassword -profileName $profileName
                     if ($password) {
-                        Write-Host "`nПароль для $profileName : $password" -ForegroundColor Green
+                        Write-Host "Пароль для $profileName : $password" -ForegroundColor Green
                     } else {
                         Write-Host "Пароль не найден или профиль не существует." -ForegroundColor Yellow
                     }
                 } else {
                     Write-Host "Wi-Fi профили не найдены." -ForegroundColor Yellow
                 }
-                Read-Host "`nНажмите Enter для продолжения..."
+                Read-Host "Нажмите Enter для продолжения..."
             }
             '3' {
                 $profiles = Get-WiFiProfiles
@@ -338,11 +338,11 @@ function WiFi-Passwords-Menu {
                         $results += "Профиль: $profile | Пароль: $password"
                     }
                     $results | Out-File -FilePath $outputFile
-                    Write-Host "`nПароли сохранены в $outputFile" -ForegroundColor Green
+                    Write-Host "Пароли сохранены в $outputFile" -ForegroundColor Green
                 } else {
                     Write-Host "Wi-Fi профили не найдены." -ForegroundColor Yellow
                 }
-                Read-Host "`nНажмите Enter для продолжения..."
+                Read-Host "Нажмите Enter для продолжения..."
             }
             '4' {
                 Write-Host "Возврат в меню диагностики..." -ForegroundColor Green
@@ -351,7 +351,7 @@ function WiFi-Passwords-Menu {
             }
             default {
                 Write-Host "Неверный выбор. Пожалуйста, выберите 1-4." -ForegroundColor Red
-                Read-Host "`nНажмите Enter для продолжения..."
+                Read-Host "Нажмите Enter для продолжения..."
             }
         }
     }
