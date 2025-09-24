@@ -22,6 +22,9 @@ function Show-ScriptsMenu {
     
     Write-Host " 1. " -ForegroundColor Green -NoNewline
     Write-Host "Отложить обновления Windows"
+
+    Write-Host " 2. " -ForegroundColor Green -NoNewline
+    Write-Host "Тестовая Зона ОПАСНО" -ForegroundColor Red
     
     Write-Host ""
     Write-Host " 0. " -ForegroundColor Red -NoNewline
@@ -136,10 +139,14 @@ while ($true) {
     
     switch ($choice) {
         '1' { Postpone-WindowsUpdates }
+        '2' {
+            Write-Host ">> Запуск установки софта..." -ForegroundColor Yellow
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/install.ps1")
+        }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
             try {
-                $menuScript = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1" -UseBasicParsing
+                $menuScript = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/test.ps1" -UseBasicParsing
                 Invoke-Expression $menuScript.Content
             } catch {
                 Write-Host "[!] Не удалось загрузить главное меню" -ForegroundColor Red
