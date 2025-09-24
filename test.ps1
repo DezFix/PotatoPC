@@ -121,7 +121,8 @@ function Try-LogoffUser {
                 logoff $s 2>$null
                 Start-Sleep -Seconds 2
             } catch {
-                Write-Log "Не удалось завершить сессию $s: $($_.Exception.Message)" "Red"
+                # ИСПРАВЛЕНО: избегаем "$s:" внутри строки — используем $($s) перед двоеточием
+                Write-Log "Не удалось завершить сессию $($s): $($_.Exception.Message)" "Red"
                 return $false
             }
         } else {
@@ -201,7 +202,8 @@ function Create-AndMoveUser {
         try {
             $owner = "$env:COMPUTERNAME\$Username"
             & icacls $NewProfilePath /setowner $owner /T /C > $null 2>&1
-            & icacls $NewProfilePath /grant "$owner:(OI)(CI)F" /T /C > $null 2>&1
+            # ИСПРАВЛЕНО: обёртка для $owner перед двоеточием
+            & icacls $NewProfilePath /grant "$($owner):(OI)(CI)F" /T /C > $null 2>&1
             Write-Log "Попытка назначить владельца и права: $owner" "Green"
         } catch {
             Write-Log "Не удалось назначить права (icacls): $($_.Exception.Message)" "Yellow"
@@ -308,7 +310,8 @@ function Move-ExistingUser {
             try {
                 $owner = "$env:COMPUTERNAME\$Username"
                 & icacls $NewPath /setowner $owner /T /C > $null 2>&1
-                & icacls $NewPath /grant "$owner:(OI)(CI)F" /T /C > $null 2>&1
+                # ИСПРАВЛЕНО: обёртка для $owner перед двоеточием
+                & icacls $NewPath /grant "$($owner):(OI)(CI)F" /T /C > $null 2>&1
                 Write-Log "Установлены права и владелец для $NewPath" "Green"
             } catch {
                 Write-Log "Не удалось установить права/владельца: $($_.Exception.Message)" "Yellow"
