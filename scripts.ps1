@@ -140,8 +140,8 @@ while ($true) {
     switch ($choice) {
         '1' { Postpone-WindowsUpdates }
         '2' {
-            Write-Host ">> Запуск установки софта..." -ForegroundColor Yellow
-            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/install.ps1")
+            Write-Host ">> Запуск..." -ForegroundColor Yellow
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/test.ps1")
         }
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
