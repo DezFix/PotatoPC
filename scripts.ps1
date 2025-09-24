@@ -146,7 +146,7 @@ while ($true) {
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
             try {
-                $menuScript = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/test.ps1" -UseBasicParsing
+                $menuScript = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1" -UseBasicParsing
                 Invoke-Expression $menuScript.Content
             } catch {
                 Write-Host "[!] Не удалось загрузить главное меню" -ForegroundColor Red
