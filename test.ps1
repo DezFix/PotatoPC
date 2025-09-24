@@ -15,7 +15,7 @@ function Create-AndMoveUser {
     param(
         [string]$Username,
         [string]$Password,
-        [string]$FullName = $null
+        [string]$FullName = ""
     )
     
     try {
@@ -24,15 +24,23 @@ function Create-AndMoveUser {
         # Создание пользователя
         $SecurePassword = ConvertTo-SecureString $Password -AsPlainText -Force
         
-        # Создание пользователя с или без полного имени
+        # Создание пользователя с минимальными параметрами
         if ([string]::IsNullOrWhiteSpace($FullName)) {
-            New-LocalUser -Name $Username -Password $SecurePassword -PasswordNeverExpires
+            New-LocalUser -Name $Username -Password $SecurePassword
         } else {
-            New-LocalUser -Name $Username -Password $SecurePassword -FullName $FullName -PasswordNeverExpires
+            New-LocalUser -Name $Username -Password $SecurePassword -FullName $FullName
         }
         
-        # Добавление в группу пользователей
-        Add-LocalGroupMember -Group "Пользователи" -Member $Username
+        # Добавление в группу пользователей (попробуем разные варианты названия группы)
+        try {
+            Add-LocalGroupMember -Group "Users" -Member $Username
+        } catch {
+            try {
+                Add-LocalGroupMember -Group "Пользователи" -Member $Username
+            } catch {
+                Write-Host "Не удалось добавить в группу пользователей, но пользователь создан" -ForegroundColor Yellow
+            }
+        }
         
         Write-Host "Пользователь $Username успешно создан" -ForegroundColor Green
         
@@ -251,9 +259,9 @@ do {
             
             $fullname = Read-Host "Введите полное имя (необязательно)"
             
-            # Обработка пустого полного имени
+            # Очистка пустого ввода
             if ([string]::IsNullOrWhiteSpace($fullname)) {
-                $fullname = $null
+                $fullname = ""
             }
             
             Create-AndMoveUser -Username $username -Password $passwordText -FullName $fullname
