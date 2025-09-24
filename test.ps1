@@ -90,58 +90,50 @@ function Try-LogoffUser {
 function Create-AndMoveUser {
     param(
         [string]$Username,
-        [string]$Password = "",
+        [string]$Password,
         [string]$FullName = ""
     )
-
+    
     try {
-        Write-Log "Создание пользователя: $Username" "Yellow"
+        Write-Host "`nСоздание пользователя: $Username" -ForegroundColor Yellow
 
-        # Создание пользователя с учётом пустого пароля и полного имени
+        # === Создание пользователя ===
         if ([string]::IsNullOrWhiteSpace($Password)) {
             if ([string]::IsNullOrWhiteSpace($FullName)) {
-                New-LocalUser -Name $Username -NoPassword -ErrorAction Stop
+                New-LocalUser -Name $Username -NoPassword
             } else {
-                New-LocalUser -Name $Username -NoPassword -FullName $FullName -ErrorAction Stop
+                New-LocalUser -Name $Username -NoPassword -FullName $FullName
             }
         } else {
             $SecurePassword = ConvertTo-SecureString $Password -AsPlainText -Force
             if ([string]::IsNullOrWhiteSpace($FullName)) {
-                New-LocalUser -Name $Username -Password $SecurePassword -ErrorAction Stop
+                New-LocalUser -Name $Username -Password $SecurePassword
             } else {
-                New-LocalUser -Name $Username -Password $SecurePassword -FullName $FullName -ErrorAction Stop
+                New-LocalUser -Name $Username -Password $SecurePassword -FullName $FullName
             }
         }
 
-        # Добавление в группу пользователей
+        # Добавление в группу Users (или Пользователи)
         try {
-            Add-LocalGroupMember -Group "Users" -Member $Username -ErrorAction Stop
-            Write-Log "Пользователь добавлен в группу Users" "Green"
+            Add-LocalGroupMember -Group "Users" -Member $Username
         } catch {
-            try { 
-                Add-LocalGroupMember -Group "Пользователи" -Member $Username -ErrorAction Stop
-                Write-Log "Пользователь добавлен в группу Пользователи" "Green"
+            try {
+                Add-LocalGroupMember -Group "Пользователи" -Member $Username
             } catch {
-                Write-Log "Не удалось добавить в группу пользователей (не критично)" "Yellow"
+                Write-Host "Не удалось добавить в группу пользователей, но пользователь создан" -ForegroundColor Yellow
             }
         }
 
-        # Получение SID пользователя
-        $User = Get-LocalUser -Name $Username -ErrorAction Stop
+        Write-Host "Пользователь $Username успешно создан" -ForegroundColor Green
+
+        # === Получение SID и изменение пути профиля ===
+        $User = Get-LocalUser -Name $Username
         $UserSID = $User.SID.Value
         $NewProfilePath = "D:\Users\$Username"
+
         $RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$UserSID"
 
-        Write-Log "SID пользователя: $UserSID"
-
-        # Создание папки профиля на диске D
-        if (!(Test-Path "D:\Users")) {
-            New-Item -ItemType Directory -Path "D:\Users" -Force | Out-Null
-            Write-Log "Создана папка D:\Users"
-        }
-
-        # Ожидание создания записи в реестре и её изменение
-        Write-Log "Ожидание создания записи профиля в реестре..."
+        # Ожидание появления записи
         $timeout = 30
         $count = 0
         while (!(Test-Path $RegistryPath) -and $count -lt $timeout) {
@@ -150,19 +142,42 @@ function Create-AndMoveUser {
         }
 
         if (Test-Path $RegistryPath) {
-            Set-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -Value $NewProfilePath -Force
-            Write-Log "Путь профиля в реестре установлен: $NewProfilePath" "Green"
+            Set-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -Value $NewProfilePath
+            Write-Host "Путь профиля изменён на: $NewProfilePath" -ForegroundColor Green
         } else {
-            # Создаем запись вручную, если система не создала
-            New-Item -Path $RegistryPath -Force | Out-Null
-            Set-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -Value $NewProfilePath -Force
-            Write-Log "Создана и настроена запись в реестре вручную" "Green"
+            Write-Host "Не удалось найти запись профиля в реестре" -ForegroundColor Red
+            return
         }
 
-        Write-Log "Пользователь $Username успешно создан и настроен для диска D" "Green"
+        # === Создание папки и копирование Default Profile ===
+        if (!(Test-Path "D:\Users")) {
+            New-Item -ItemType Directory -Path "D:\Users" -Force | Out-Null
+        }
+        if (!(Test-Path $NewProfilePath)) {
+            New-Item -ItemType Directory -Path $NewProfilePath -Force | Out-Null
+        }
+
+        $DefaultProfile = "C:\Users\Default"
+        if (Test-Path $DefaultProfile) {
+            Write-Host "Копирование стандартного профиля..." -ForegroundColor Yellow
+            robocopy $DefaultProfile $NewProfilePath /E /COPYALL /R:3 /W:1 /NFL /NDL | Out-Null
+        }
+
+        # === Удаление профиля на диске C ===
+        $OldProfilePath = "C:\Users\$Username"
+        if (Test-Path $OldProfilePath) {
+            try {
+                Remove-Item -Path $OldProfilePath -Recurse -Force
+                Write-Host "Старый профиль удалён: $OldProfilePath" -ForegroundColor Green
+            } catch {
+                Write-Host "Не удалось удалить $OldProfilePath (возможно, используется)" -ForegroundColor Red
+            }
+        }
+
+        Write-Host "Пользователь $Username создан и перенесён на диск D" -ForegroundColor Green
 
     } catch {
-        Write-Log "Ошибка при создании пользователя: $($_.Exception.Message)" "Red"
+        Write-Host "Ошибка при создании пользователя: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
