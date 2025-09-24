@@ -1,208 +1,208 @@
-# ==========================
-# Скрипт управления пользователями (C -> D)
-# ==========================
-# Требует запуск от имени администратора!
+# Скрипт управления локальными пользователями и их профилями
+# Требует запуск от имени администратора
 
 # Проверка прав администратора
-if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
-    [Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "Скрипт должен быть запущен от имени администратора!" -ForegroundColor Red
-    Pause
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
+).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Host "⚠️ Запустите скрипт от имени администратора!" -ForegroundColor Red
+    pause
     exit
 }
 
-# --- Функция: Создание пользователя на диске D ---
+# === Утилиты ===
+function Pause {
+    Write-Host "`nНажмите любую клавишу для продолжения..."
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
+
+# === 1. Создание нового пользователя на диске D ===
 function Create-User {
-    param(
-        [string]$Username,
-        [string]$Password,
-        [string]$FullName = ""
-    )
     try {
-        Write-Host "`n[+] Создание пользователя: $Username" -ForegroundColor Yellow
+        $username = Read-Host "Введите имя пользователя"
+        if ([string]::IsNullOrWhiteSpace($username)) {
+            Write-Host "❌ Имя пользователя не может быть пустым." -ForegroundColor Red
+            Pause
+            return
+        }
 
-        # === Создание пользователя ===
-        if ([string]::IsNullOrWhiteSpace($Password)) {
-            if ([string]::IsNullOrWhiteSpace($FullName)) {
-                New-LocalUser -Name $Username -NoPassword
-            } else {
-                New-LocalUser -Name $Username -NoPassword -FullName $FullName
-            }
+        # Проверка, существует ли уже
+        if (Get-LocalUser -Name $username -ErrorAction SilentlyContinue) {
+            Write-Host "❌ Пользователь $username уже существует." -ForegroundColor Red
+            Pause
+            return
+        }
+
+        $password = Read-Host "Введите пароль (можно оставить пустым)"
+        $fullname = Read-Host "Введите полное имя (можно оставить пустым)"
+
+        $SecurePassword = if ([string]::IsNullOrWhiteSpace($password)) {
+            (ConvertTo-SecureString " " -AsPlainText -Force)  # заглушка
         } else {
-            $SecurePassword = ConvertTo-SecureString $Password -AsPlainText -Force
-            if ([string]::IsNullOrWhiteSpace($FullName)) {
-                New-LocalUser -Name $Username -Password $SecurePassword
-            } else {
-                New-LocalUser -Name $Username -Password $SecurePassword -FullName $FullName
-            }
+            (ConvertTo-SecureString $password -AsPlainText -Force)
         }
 
-        # Добавление в группу Users
-        try {
-            Add-LocalGroupMember -Group "Users" -Member $Username
-        } catch {
-            Add-LocalGroupMember -Group "Пользователи" -Member $Username -ErrorAction SilentlyContinue
+        if ([string]::IsNullOrWhiteSpace($fullname)) {
+            New-LocalUser -Name $username -Password $SecurePassword
+        } else {
+            New-LocalUser -Name $username -Password $SecurePassword -FullName $fullname
         }
 
-        # === Перенос профиля ===
-        $User = Get-LocalUser -Name $Username
+        Add-LocalGroupMember -Group "Users" -Member $username -ErrorAction SilentlyContinue
+
+        $User = Get-LocalUser -Name $username
         $SID = $User.SID.Value
-        $NewProfilePath = "D:\Users\$Username"
         $RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$SID"
+        $NewProfilePath = "D:\Users\$username"
 
-        # Ждём появления записи в реестре
+        if (!(Test-Path "D:\Users")) { New-Item -ItemType Directory -Path "D:\Users" -Force | Out-Null }
+        if (!(Test-Path $NewProfilePath)) { New-Item -ItemType Directory -Path $NewProfilePath -Force | Out-Null }
+
+        # Ждём, пока Windows создаст запись в реестре
         $timeout = 30
-        while (!(Test-Path $RegistryPath) -and $timeout -gt 0) {
+        $count = 0
+        while (!(Test-Path $RegistryPath) -and $count -lt $timeout) {
             Start-Sleep -Seconds 1
-            $timeout--
+            $count++
         }
 
         if (Test-Path $RegistryPath) {
             Set-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -Value $NewProfilePath
         }
 
-        # Создаём папку и копируем Default
-        if (!(Test-Path "D:\Users")) { New-Item -Path "D:\Users" -ItemType Directory | Out-Null }
-        if (!(Test-Path $NewProfilePath)) { New-Item -Path $NewProfilePath -ItemType Directory | Out-Null }
-
-        $DefaultProfile = "C:\Users\Default"
-        if (Test-Path $DefaultProfile) {
-            robocopy $DefaultProfile $NewProfilePath /E /COPYALL /R:2 /W:1 /NFL /NDL | Out-Null
-        }
-
-        # Удаляем C:\Users\Username если создался
-        $OldProfile = "C:\Users\$Username"
-        if (Test-Path $OldProfile) {
-            try {
-                Remove-Item -Path $OldProfile -Recurse -Force
-                Write-Host "[+] Удалён старый профиль: $OldProfile" -ForegroundColor Green
-            } catch {
-                Write-Host "[!] Не удалось удалить $OldProfile (возможно, используется)" -ForegroundColor Red
-            }
-        }
-
-        Write-Host "[+] Пользователь $Username создан и перенесён на диск D" -ForegroundColor Green
-    } catch {
-        Write-Host "[Ошибка] $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "✅ Пользователь $username создан. Профиль будет размещён в $NewProfilePath" -ForegroundColor Green
     }
+    catch {
+        Write-Host "❌ Ошибка: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    Pause
 }
 
-# --- Функция: Перенос существующего пользователя ---
-function Move-User {
-    param([string]$Username)
-
+# === 2. Перенос профиля пользователя на диск D ===
+function Move-UserProfile {
     try {
+        $users = Get-LocalUser | Where-Object { -not $_.Disabled }
+        if ($users.Count -eq 0) {
+            Write-Host "❌ Нет доступных пользователей для переноса." -ForegroundColor Red
+            Pause
+            return
+        }
+
+        Write-Host "`n📋 Список локальных пользователей:" -ForegroundColor Cyan
+        for ($i = 0; $i -lt $users.Count; $i++) {
+            Write-Host "[$($i+1)] $($users[$i].Name)"
+        }
+
+        $choice = Read-Host "`nВведите номер пользователя для переноса"
+        if ($choice -match '^\d+$' -and $choice -ge 1 -and $choice -le $users.Count) {
+            $Username = $users[$choice-1].Name
+        } else {
+            Write-Host "❌ Неверный выбор." -ForegroundColor Red
+            Pause
+            return
+        }
+
         $User = Get-LocalUser -Name $Username -ErrorAction Stop
         $SID = $User.SID.Value
         $RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$SID"
+        $NewProfilePath = "D:\Users\$Username"
 
         if (!(Test-Path $RegistryPath)) {
-            Write-Host "Не найдена запись в реестре для $Username" -ForegroundColor Red
+            Write-Host "❌ Запись профиля для $Username не найдена. Нужно хотя бы раз войти под пользователем." -ForegroundColor Red
+            Pause
             return
         }
 
-        $CurrentPath = (Get-ItemProperty -Path $RegistryPath -Name "ProfileImagePath").ProfileImagePath
-        $NewPath = "D:\Users\$Username"
+        if (!(Test-Path "D:\Users")) { New-Item -ItemType Directory -Path "D:\Users" -Force | Out-Null }
+        if (!(Test-Path $NewProfilePath)) { New-Item -ItemType Directory -Path $NewProfilePath -Force | Out-Null }
 
-        if ($CurrentPath -like "D:*") {
-            Write-Host "[!] Пользователь уже на диске D" -ForegroundColor Yellow
-            return
+        $OldProfilePath = "C:\Users\$Username"
+
+        if (Test-Path $OldProfilePath) {
+            Write-Host "➡️ Копирование профиля..." -ForegroundColor Yellow
+            robocopy $OldProfilePath $NewProfilePath /E /COPYALL /R:3 /W:1 /NFL /NDL | Out-Null
         }
 
-        # Проверяем активность
-        $ActiveSessions = quser 2>$null | Where-Object {$_ -match $Username}
-        if ($ActiveSessions) {
-            Write-Host "[!] Пользователь $Username сейчас активен. Завершите сеанс и повторите." -ForegroundColor Red
-            return
+        Set-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -Value $NewProfilePath
+
+        if (Test-Path $OldProfilePath) {
+            Remove-Item -Path $OldProfilePath -Recurse -Force -ErrorAction SilentlyContinue
         }
 
-        if (!(Test-Path "D:\Users")) { New-Item -Path "D:\Users" -ItemType Directory | Out-Null }
-
-        # Меняем путь в реестре
-        Set-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -Value $NewPath
-
-        # Копируем файлы
-        robocopy $CurrentPath $NewPath /E /COPYALL /R:2 /W:1 /NFL /NDL
-        if ($LASTEXITCODE -le 7) {
-            Write-Host "[+] Файлы перенесены" -ForegroundColor Green
-            try {
-                Remove-Item -Path $CurrentPath -Recurse -Force
-                Write-Host "[+] Удалён старый профиль: $CurrentPath" -ForegroundColor Green
-            } catch {
-                Write-Host "[!] Не удалось удалить $CurrentPath" -ForegroundColor Red
-            }
-        } else {
-            Write-Host "[Ошибка] robocopy завершился с кодом $LASTEXITCODE" -ForegroundColor Red
-        }
-    } catch {
-        Write-Host "[Ошибка] $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "✅ Профиль $Username перенесён в $NewProfilePath" -ForegroundColor Green
     }
+    catch {
+        Write-Host "❌ Ошибка: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    Pause
 }
 
-# --- Функция: Удаление пользователя ---
+# === 3. Удаление пользователя и его профиля ===
 function Remove-User {
-    param([string]$Username)
-
     try {
-        $User = Get-LocalUser -Name $Username -ErrorAction Stop
-        Remove-LocalUser -Name $Username
-        Write-Host "[+] Пользователь $Username удалён" -ForegroundColor Green
+        $users = Get-LocalUser
+        if ($users.Count -eq 0) {
+            Write-Host "❌ Нет доступных пользователей для удаления." -ForegroundColor Red
+            Pause
+            return
+        }
 
-        $ProfileC = "C:\Users\$Username"
-        $ProfileD = "D:\Users\$Username"
+        Write-Host "`n📋 Список локальных пользователей:" -ForegroundColor Cyan
+        for ($i = 0; $i -lt $users.Count; $i++) {
+            Write-Host "[$($i+1)] $($users[$i].Name)"
+        }
 
-        foreach ($path in @($ProfileC,$ProfileD)) {
-            if (Test-Path $path) {
-                try {
-                    Remove-Item -Path $path -Recurse -Force
-                    Write-Host "[+] Папка профиля удалена: $path" -ForegroundColor Green
-                } catch {
-                    Write-Host "[!] Не удалось удалить $path" -ForegroundColor Red
-                }
+        $choice = Read-Host "`nВведите номер пользователя для удаления"
+        if ($choice -match '^\d+$' -and $choice -ge 1 -and $choice -le $users.Count) {
+            $Username = $users[$choice-1].Name
+        } else {
+            Write-Host "❌ Неверный выбор." -ForegroundColor Red
+            Pause
+            return
+        }
+
+        Remove-LocalUser -Name $Username -ErrorAction Stop
+
+        $Paths = @("C:\Users\$Username", "D:\Users\$Username")
+        foreach ($p in $Paths) {
+            if (Test-Path $p) {
+                Remove-Item -Path $p -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
-    } catch {
-        Write-Host "[Ошибка] $($_.Exception.Message)" -ForegroundColor Red
+
+        Write-Host "✅ Пользователь $Username и его профиль удалены." -ForegroundColor Green
     }
+    catch {
+        Write-Host "❌ Ошибка: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    Pause
 }
 
-# --- Главное меню ---
+# === Главное меню ===
 function Show-Menu {
     Clear-Host
-    Write-Host "====================================" -ForegroundColor Cyan
-    Write-Host "   УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ" -ForegroundColor Cyan
-    Write-Host "====================================" -ForegroundColor Cyan
-    Write-Host "1. Создать пользователя" -ForegroundColor Yellow
-    Write-Host "2. Перенести существующего пользователя" -ForegroundColor Yellow
+    Write-Host "=============================================" -ForegroundColor Cyan
+    Write-Host "   МЕНЮ УПРАВЛЕНИЯ ПОЛЬЗОВАТЕЛЯМИ Windows" -ForegroundColor Cyan
+    Write-Host "=============================================" -ForegroundColor Cyan
+    Write-Host "1. Создать нового пользователя" -ForegroundColor Yellow
+    Write-Host "2. Перенести существующего пользователя на диск D" -ForegroundColor Yellow
     Write-Host "3. Удалить пользователя" -ForegroundColor Yellow
     Write-Host "0. Выход" -ForegroundColor Red
-    Write-Host "====================================" -ForegroundColor Cyan
+    Write-Host ""
 }
 
-# --- Основной цикл ---
+# === Основной цикл ===
 do {
     Show-Menu
     $choice = Read-Host "Выберите действие"
 
     switch ($choice) {
-        "1" {
-            $u = Read-Host "Имя пользователя"
-            $p = Read-Host "Пароль (можно пусто)"
-            $f = Read-Host "Полное имя (можно пусто)"
-            Create-User -Username $u -Password $p -FullName $f
-            Pause
-        }
-        "2" {
-            $u = Read-Host "Имя пользователя для переноса"
-            Move-User -Username $u
-            Pause
-        }
-        "3" {
-            $u = Read-Host "Имя пользователя для удаления"
-            Remove-User -Username $u
-            Pause
-        }
+        "1" { Create-User }
+        "2" { Move-UserProfile }
+        "3" { Remove-User }
         "0" { Write-Host "Выход..." -ForegroundColor Green }
-        default { Write-Host "Неверный выбор!" -ForegroundColor Red; Pause }
+        default {
+            Write-Host "❌ Неверный выбор!" -ForegroundColor Red
+            Pause
+        }
     }
 } while ($choice -ne "0")
