@@ -15,7 +15,7 @@ function Create-AndMoveUser {
     param(
         [string]$Username,
         [string]$Password,
-        [string]$FullName = ""
+        [string]$FullName = $null
     )
     
     try {
@@ -23,7 +23,13 @@ function Create-AndMoveUser {
         
         # Создание пользователя
         $SecurePassword = ConvertTo-SecureString $Password -AsPlainText -Force
-        New-LocalUser -Name $Username -Password $SecurePassword -FullName $FullName -PasswordNeverExpires
+        
+        # Создание пользователя с или без полного имени
+        if ([string]::IsNullOrWhiteSpace($FullName)) {
+            New-LocalUser -Name $Username -Password $SecurePassword -PasswordNeverExpires
+        } else {
+            New-LocalUser -Name $Username -Password $SecurePassword -FullName $FullName -PasswordNeverExpires
+        }
         
         # Добавление в группу пользователей
         Add-LocalGroupMember -Group "Пользователи" -Member $Username
@@ -244,6 +250,11 @@ do {
             $passwordText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password))
             
             $fullname = Read-Host "Введите полное имя (необязательно)"
+            
+            # Обработка пустого полного имени
+            if ([string]::IsNullOrWhiteSpace($fullname)) {
+                $fullname = $null
+            }
             
             Create-AndMoveUser -Username $username -Password $passwordText -FullName $fullname
             
