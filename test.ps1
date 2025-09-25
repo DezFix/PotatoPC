@@ -41,6 +41,12 @@ function New-UserOnDrive {
         return
     }
     
+    # Проверка корректности имени пользователя
+    if ($Username -match '[\\/:*?"<>|]' -or $Username.Length -gt 20) {
+        Write-Host "Некорректное имя пользователя! Избегайте специальных символов и длинных имен." -ForegroundColor Red
+        return
+    }
+    
     # Проверка существования пользователя
     if (Get-LocalUser -Name $Username -ErrorAction SilentlyContinue) {
         Write-Host "Пользователь '$Username' уже существует!" -ForegroundColor Red
@@ -50,8 +56,8 @@ function New-UserOnDrive {
     $Password = Read-Host "Введите пароль" -AsSecureString
     $PlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password))
     
-    if ([string]::IsNullOrWhiteSpace($PlainPassword)) {
-        Write-Host "Пароль не может быть пустым!" -ForegroundColor Red
+    if ([string]::IsNullOrWhiteSpace($PlainPassword) -or $PlainPassword.Length -lt 4) {
+        Write-Host "Пароль не может быть пустым и должен содержать минимум 4 символа!" -ForegroundColor Red
         return
     }
     
@@ -64,73 +70,229 @@ function New-UserOnDrive {
     $IsAdmin = Read-Host "Добавить в группу администраторов? (y/N)"
     $AddToAdministrators = $IsAdmin -eq 'y' -or $IsAdmin -eq 'Y'
     
+    $ProfilePath = "D:\Users\$Username"
+    
     try {
-        Write-Host "`nСоздание пользователя $Username..." -ForegroundColor Green
+        Write-Host "`n=== НАЧАЛО СОЗДАНИЯ ПОЛЬЗОВАТЕЛЯ ===" -ForegroundColor Yellow
         
-        # Создание пользователя
+        # Шаг 1: Создание пользователя в системе
+        Write-Host "Шаг 1: Создание пользователя в системе..." -ForegroundColor Cyan
         $SecurePassword = ConvertTo-SecureString $PlainPassword -AsPlainText -Force
-        New-LocalUser -Name $Username -Password $SecurePassword -FullName $FullName -Description $Description
         
-        Write-Host "Пользователь $Username создан успешно!" -ForegroundColor Green
-        
-        # Добавление в группу администраторов
-        if ($AddToAdministrators) {
-            Add-LocalGroupMember -Group "Администраторы" -Member $Username
-            Write-Host "Пользователь добавлен в группу Администраторов" -ForegroundColor Yellow
+        $UserParams = @{
+            Name = $Username
+            Password = $SecurePassword
+            Description = $Description
+            PasswordNeverExpires = $true
+            UserMayNotChangePassword = $false
         }
         
-        # Создание директории профиля на диске D
-        $ProfilePath = "D:\Users\$Username"
-        Write-Host "Создание директории профиля: $ProfilePath" -ForegroundColor Green
+        if (-not [string]::IsNullOrWhiteSpace($FullName)) {
+            $UserParams.FullName = $FullName
+        }
+        
+        New-LocalUser @UserParams
+        
+        # Проверка создания пользователя
+        Start-Sleep -Seconds 2
+        $CreatedUser = Get-LocalUser -Name $Username -ErrorAction SilentlyContinue
+        if (-not $CreatedUser) {
+            throw "Не удалось создать пользователя в системе"
+        }
+        
+        Write-Host "✓ Пользователь создан в системе: $($CreatedUser.Name)" -ForegroundColor Green
+        Write-Host "  SID: $($CreatedUser.SID.Value)" -ForegroundColor Gray
+        Write-Host "  Статус: $($CreatedUser.Enabled)" -ForegroundColor Gray
+        
+        # Шаг 2: Добавление в группу администраторов
+        if ($AddToAdministrators) {
+            Write-Host "Шаг 2: Добавление в группу администраторов..." -ForegroundColor Cyan
+            try {
+                # Попробуем разные варианты названия группы
+                $AdminGroups = @("Administrators", "Администраторы")
+                $GroupAdded = $false
+                
+                foreach ($GroupName in $AdminGroups) {
+                    try {
+                        Add-LocalGroupMember -Group $GroupName -Member $Username -ErrorAction Stop
+                        Write-Host "✓ Пользователь добавлен в группу $GroupName" -ForegroundColor Green
+                        $GroupAdded = $true
+                        break
+                    } catch {
+                        continue
+                    }
+                }
+                
+                if (-not $GroupAdded) {
+                    Write-Host "⚠ Не удалось добавить в группу администраторов" -ForegroundColor Yellow
+                }
+            } catch {
+                Write-Host "⚠ Ошибка при добавлении в группу: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+        
+        # Шаг 3: Создание структуры папок
+        Write-Host "Шаг 3: Создание структуры папок..." -ForegroundColor Cyan
         
         if (-not (Test-Path "D:\Users")) {
-            New-Item -Path "D:\Users" -ItemType Directory -Force
+            New-Item -Path "D:\Users" -ItemType Directory -Force | Out-Null
+            Write-Host "✓ Создана папка D:\Users" -ForegroundColor Green
         }
         
-        New-Item -Path $ProfilePath -ItemType Directory -Force
+        if (-not (Test-Path $ProfilePath)) {
+            New-Item -Path $ProfilePath -ItemType Directory -Force | Out-Null
+            Write-Host "✓ Создана папка профиля: $ProfilePath" -ForegroundColor Green
+        }
         
-        # Получение SID пользователя
-        $User = Get-LocalUser -Name $Username
-        $SID = $User.SID.Value
-        Write-Host "SID пользователя: $SID" -ForegroundColor Cyan
-        
-        # Модификация реестра
+        # Шаг 4: Настройка реестра
+        Write-Host "Шаг 4: Настройка реестра..." -ForegroundColor Cyan
+        $SID = $CreatedUser.SID.Value
         $RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$SID"
         
+        # Создаем ключ реестра если не существует
         if (-not (Test-Path $RegistryPath)) {
             New-Item -Path $RegistryPath -Force | Out-Null
+            Write-Host "✓ Создан ключ реестра: $RegistryPath" -ForegroundColor Green
         }
         
-        Set-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -Value $ProfilePath
-        Write-Host "Путь профиля установлен в реестре: $ProfilePath" -ForegroundColor Green
+        # Устанавливаем путь профиля
+        Set-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -Value $ProfilePath -Type String
         
-        # Установка прав доступа
-        $Acl = Get-Acl $ProfilePath
-        $AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($Username, "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")
-        $Acl.SetAccessRule($AccessRule)
-        Set-Acl -Path $ProfilePath -AclObject $Acl
+        # Устанавливаем дополнительные параметры
+        Set-ItemProperty -Path $RegistryPath -Name "State" -Value 0 -Type DWord
+        Set-ItemProperty -Path $RegistryPath -Name "RefCount" -Value 0 -Type DWord
         
-        Write-Host "Права доступа установлены" -ForegroundColor Green
-        Write-Host "`nПользователь $Username успешно создан!" -ForegroundColor Green
+        # Проверяем установку
+        $CheckValue = Get-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -ErrorAction SilentlyContinue
+        if ($CheckValue -and $CheckValue.ProfileImagePath -eq $ProfilePath) {
+            Write-Host "✓ Путь профиля установлен в реестре: $ProfilePath" -ForegroundColor Green
+        } else {
+            throw "Не удалось установить путь профиля в реестре"
+        }
+        
+        # Шаг 5: Настройка прав доступа
+        Write-Host "Шаг 5: Настройка прав доступа..." -ForegroundColor Cyan
+        try {
+            $Acl = Get-Acl $ProfilePath
+            
+            # Добавляем права для пользователя
+            $UserAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                $Username, 
+                "FullControl", 
+                "ContainerInherit,ObjectInherit", 
+                "None", 
+                "Allow"
+            )
+            $Acl.SetAccessRule($UserAccessRule)
+            
+            # Добавляем права для системы
+            $SystemAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                "SYSTEM", 
+                "FullControl", 
+                "ContainerInherit,ObjectInherit", 
+                "None", 
+                "Allow"
+            )
+            $Acl.SetAccessRule($SystemAccessRule)
+            
+            Set-Acl -Path $ProfilePath -AclObject $Acl
+            Write-Host "✓ Права доступа настроены" -ForegroundColor Green
+            
+        } catch {
+            Write-Host "⚠ Проблема с настройкой прав доступа: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+        
+        Write-Host "`n=== ПОЛЬЗОВАТЕЛЬ СОЗДАН УСПЕШНО ===" -ForegroundColor Green
+        Write-Host "Имя: $Username" -ForegroundColor White
         Write-Host "Профиль: $ProfilePath" -ForegroundColor Cyan
+        Write-Host "SID: $SID" -ForegroundColor Gray
+        
+        # Финальная проверка
+        Write-Host "`n--- Финальная проверка ---" -ForegroundColor Cyan
+        Test-UserCreationResult -Username $Username
         
     } catch {
-        Write-Host "Ошибка: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "`nОШИБКА ПРИ СОЗДАНИИ: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Детали ошибки: $($_.Exception.GetType().FullName)" -ForegroundColor Red
         
-        # Очистка при ошибке
+        # Подробная очистка при ошибке
+        Write-Host "`nВыполняется откат изменений..." -ForegroundColor Yellow
         try {
-            if (Get-LocalUser -Name $Username -ErrorAction SilentlyContinue) {
-                Remove-LocalUser -Name $Username
-                Write-Host "Пользователь удален из-за ошибки" -ForegroundColor Yellow
+            # Удаляем пользователя если создался
+            $UserToCleanup = Get-LocalUser -Name $Username -ErrorAction SilentlyContinue
+            if ($UserToCleanup) {
+                Remove-LocalUser -Name $Username -ErrorAction SilentlyContinue
+                Write-Host "- Пользователь удален из системы" -ForegroundColor Yellow
             }
             
+            # Удаляем папку профиля
             if (Test-Path $ProfilePath) {
-                Remove-Item -Path $ProfilePath -Recurse -Force
-                Write-Host "Папка профиля удалена" -ForegroundColor Yellow
+                Remove-Item -Path $ProfilePath -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Host "- Папка профиля удалена" -ForegroundColor Yellow
             }
+            
+            # Удаляем запись из реестра
+            if ($SID -and (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$SID")) {
+                Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$SID" -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Host "- Запись реестра удалена" -ForegroundColor Yellow
+            }
+            
+            Write-Host "Откат завершен" -ForegroundColor Yellow
+            
         } catch {
-            Write-Host "Предупреждение: Не удалось выполнить полную очистку" -ForegroundColor Yellow
+            Write-Host "Внимание: Не удалось выполнить полный откат: $($_.Exception.Message)" -ForegroundColor Red
         }
+    }
+}
+
+# Функция для детальной проверки созданного пользователя
+function Test-UserCreationResult {
+    param([string]$Username)
+    
+    $AllGood = $true
+    
+    # Проверка 1: Пользователь в системе
+    $User = Get-LocalUser -Name $Username -ErrorAction SilentlyContinue
+    if ($User) {
+        Write-Host "✓ Пользователь найден в системе" -ForegroundColor Green
+    } else {
+        Write-Host "✗ Пользователь НЕ найден в системе" -ForegroundColor Red
+        $AllGood = $false
+    }
+    
+    # Проверка 2: Папка профиля
+    $ProfilePath = "D:\Users\$Username"
+    if (Test-Path $ProfilePath) {
+        Write-Host "✓ Папка профиля существует" -ForegroundColor Green
+    } else {
+        Write-Host "✗ Папка профиля НЕ существует" -ForegroundColor Red
+        $AllGood = $false
+    }
+    
+    # Проверка 3: Запись в реестре
+    if ($User) {
+        $SID = $User.SID.Value
+        $RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$SID"
+        
+        if (Test-Path $RegistryPath) {
+            $RegValue = Get-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -ErrorAction SilentlyContinue
+            if ($RegValue -and $RegValue.ProfileImagePath -eq $ProfilePath) {
+                Write-Host "✓ Запись в реестре корректна" -ForegroundColor Green
+            } else {
+                Write-Host "✗ Запись в реестре некорректна" -ForegroundColor Red
+                $AllGood = $false
+            }
+        } else {
+            Write-Host "✗ Запись в реестре НЕ найдена" -ForegroundColor Red
+            $AllGood = $false
+        }
+    }
+    
+    if ($AllGood) {
+        Write-Host "`n🎉 Все проверки пройдены! Пользователь готов к использованию." -ForegroundColor Green
+        Write-Host "При первом входе Windows создаст структуру профиля." -ForegroundColor Cyan
+    } else {
+        Write-Host "`n⚠ Есть проблемы с созданием пользователя!" -ForegroundColor Red
     }
 }
 
@@ -298,55 +460,113 @@ function Test-UserProfile {
         return
     }
     
-    Write-Host "`n--- Результаты проверки ---" -ForegroundColor Cyan
+    Write-Host "`n--- Подробная информация о пользователе ---" -ForegroundColor Cyan
     
     Write-Host "✓ Пользователь найден в системе" -ForegroundColor Green
     Write-Host "  Имя: $($User.Name)" -ForegroundColor White
     Write-Host "  Полное имя: $($User.FullName)" -ForegroundColor White
     Write-Host "  Описание: $($User.Description)" -ForegroundColor White
     Write-Host "  Активен: $($User.Enabled)" -ForegroundColor White
+    Write-Host "  SID: $($User.SID.Value)" -ForegroundColor Gray
     Write-Host "  Последний вход: $($User.LastLogon)" -ForegroundColor White
+    
+    # Проверка групп пользователя
+    try {
+        $UserGroups = Get-LocalGroup | Where-Object { 
+            (Get-LocalGroupMember -Group $_.Name -ErrorAction SilentlyContinue).Name -contains $User.Name 
+        }
+        Write-Host "  Группы: $($UserGroups.Name -join ', ')" -ForegroundColor Cyan
+    } catch {
+        Write-Host "  Группы: Не удалось определить" -ForegroundColor Yellow
+    }
     
     # Проверка профиля на диске D
     $ProfilePath = "D:\Users\$Username"
+    Write-Host "`n--- Проверка профиля ---" -ForegroundColor Cyan
+    
     if (Test-Path $ProfilePath) {
         Write-Host "✓ Папка профиля найдена: $ProfilePath" -ForegroundColor Green
         
         # Проверка содержимого папки
-        $Items = Get-ChildItem -Path $ProfilePath -ErrorAction SilentlyContinue
-        Write-Host "  Содержимое папки: $($Items.Count) элементов" -ForegroundColor Cyan
+        try {
+            $Items = Get-ChildItem -Path $ProfilePath -Force -ErrorAction SilentlyContinue
+            Write-Host "  Содержимое: $($Items.Count) элементов" -ForegroundColor Cyan
+            
+            # Показываем основные папки профиля если они есть
+            $ProfileFolders = @("Desktop", "Documents", "Downloads", "Pictures", "Music", "Videos")
+            $ExistingFolders = $Items | Where-Object { $_.PSIsContainer -and $ProfileFolders -contains $_.Name }
+            if ($ExistingFolders) {
+                Write-Host "  Папки профиля: $($ExistingFolders.Name -join ', ')" -ForegroundColor Cyan
+            }
+            
+            # Проверяем права доступа
+            $Acl = Get-Acl $ProfilePath
+            $UserAccess = $Acl.Access | Where-Object { $_.IdentityReference -like "*$Username*" }
+            if ($UserAccess) {
+                Write-Host "✓ Права доступа пользователя настроены" -ForegroundColor Green
+            } else {
+                Write-Host "⚠ Права доступа пользователя не найдены" -ForegroundColor Yellow
+            }
+            
+        } catch {
+            Write-Host "  Проблема с доступом к содержимому папки" -ForegroundColor Yellow
+        }
     } else {
-        Write-Host "✗ Папка профиля не найдена на диске D" -ForegroundColor Red
+        Write-Host "✗ Папка профиля НЕ найдена на диске D" -ForegroundColor Red
         
         # Проверка стандартного местоположения
         $StandardPath = "C:\Users\$Username"
         if (Test-Path $StandardPath) {
             Write-Host "! Профиль найден в стандартном месте: $StandardPath" -ForegroundColor Yellow
+            $Items = Get-ChildItem -Path $StandardPath -Force -ErrorAction SilentlyContinue
+            Write-Host "  Содержимое стандартного профиля: $($Items.Count) элементов" -ForegroundColor Gray
+        } else {
+            Write-Host "! Профиль не найден ни в одном из стандартных мест" -ForegroundColor Red
         }
     }
     
     # Проверка реестра
+    Write-Host "`n--- Проверка реестра ---" -ForegroundColor Cyan
     $SID = $User.SID.Value
     $RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$SID"
     
     if (Test-Path $RegistryPath) {
-        $RegValue = Get-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -ErrorAction SilentlyContinue
+        Write-Host "✓ Ключ реестра найден: $RegistryPath" -ForegroundColor Green
+        
+        $RegValue = Get-ItemProperty -Path $RegistryPath -ErrorAction SilentlyContinue
         if ($RegValue) {
-            $RegProfilePath = $RegValue.ProfileImagePath
-            Write-Host "✓ Запись в реестре найдена: $RegProfilePath" -ForegroundColor Green
+            Write-Host "  ProfileImagePath: $($RegValue.ProfileImagePath)" -ForegroundColor Cyan
+            Write-Host "  State: $($RegValue.State)" -ForegroundColor Gray
+            Write-Host "  RefCount: $($RegValue.RefCount)" -ForegroundColor Gray
             
-            if ($RegProfilePath -eq $ProfilePath) {
-                Write-Host "✓ Путь в реестре соответствует ожидаемому" -ForegroundColor Green
+            if ($RegValue.ProfileImagePath -eq $ProfilePath) {
+                Write-Host "✓ Путь в реестре соответствует D:\Users\$Username" -ForegroundColor Green
             } else {
-                Write-Host "⚠ Путь в реестре не соответствует D:\Users\$Username" -ForegroundColor Yellow
+                Write-Host "⚠ Путь в реестре: $($RegValue.ProfileImagePath)" -ForegroundColor Yellow
+                Write-Host "   Ожидался: $ProfilePath" -ForegroundColor Yellow
             }
         } else {
-            Write-Host "✗ ProfileImagePath не найден в реестре" -ForegroundColor Red
+            Write-Host "✗ Не удалось прочитать данные из реестра" -ForegroundColor Red
         }
     } else {
-        Write-Host "✗ Запись в реестре не найдена" -ForegroundColor Red
+        Write-Host "✗ Ключ реестра НЕ найден" -ForegroundColor Red
+        Write-Host "   Это означает, что пользователь еще не входил в систему" -ForegroundColor Yellow
     }
-}
+    
+    # Итоговая оценка
+    Write-Host "`n--- ЗАКЛЮЧЕНИЕ ---" -ForegroundColor Cyan
+    $Issues = 0
+    
+    if (-not (Test-Path $ProfilePath)) { $Issues++ }
+    if (-not (Test-Path $RegistryPath)) { 
+        Write-Host "ℹ Пользователь еще не входил в систему - это нормально для нового пользователя" -ForegroundColor Blue
+    } else {
+        $RegCheck = Get-ItemProperty -Path $RegistryPath -Name "ProfileImagePath" -ErrorAction SilentlyContinue
+        if (-not $RegCheck -or $RegCheck.ProfileImagePath -ne $ProfilePath) { $Issues++ }
+    }
+    
+    if ($Issues -eq 0) {
+        Write-Host
 
 # Главный цикл программы
 do {
