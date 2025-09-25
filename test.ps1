@@ -566,7 +566,13 @@ function Test-UserProfile {
     }
     
     if ($Issues -eq 0) {
-        Write-Host
+        Write-Host "🎉 Пользователь настроен корректно!" -ForegroundColor Green
+    } elseif ($Issues -eq 1) {
+        Write-Host "⚠ Найдена 1 проблема - требует внимания" -ForegroundColor Yellow
+    } else {
+        Write-Host "❌ Найдено $Issues проблем - требуется исправление" -ForegroundColor Red
+    }
+}
 
 # Главный цикл программы
 do {
