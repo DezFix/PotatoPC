@@ -1,5 +1,3 @@
-# Скрипт создания пользователя с профилем на диске D
-
 function Create-UserOnDrive {
     param (
         [Parameter(Mandatory=$true)]
@@ -11,8 +9,8 @@ function Create-UserOnDrive {
         [string]$Drive = "D:"
     )
 
-    # Проверка наличия диска D
-    if (!(Test-Path $Drive)) {
+    # Проверка наличия диска D с использованием Get-PSDrive
+    if (!(Get-PSDrive -Name ($Drive -replace ':','') -ErrorAction SilentlyContinue)) {
         Write-Host "<b>Ошибка: Диск $Drive не существует!</b>"
         return
     }
@@ -48,18 +46,6 @@ function Create-UserOnDrive {
     catch {
         Write-Host "<b>Ошибка при создании папки профиля: $($_.Exception.Message)</b>"
         return
-    }
-
-    # Настройка профиля пользователя
-    try {
-        # Регистрация нового пути профиля в реестре
-        $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList"
-        $ProfileImagePath = "$UserProfilePath\NTUSER.DAT"
-        
-        New-ItemProperty -Path "$RegPath\$UserSid" -Name "ProfileImagePath" -Value $ProfileImagePath -PropertyType "String" -Force | Out-Null
-    }
-    catch {
-        Write-Host "<b>Ошибка при настройке профиля в реестре: $($_.Exception.Message)</b>"
     }
 
     Write-Host "<b>Пользователь $Username успешно создан с профилем на диске $Drive</b>"
