@@ -37,7 +37,7 @@ function Show-MainMenu {
     Write-Host ""
     
     Write-Host " ┌─ ДОПОЛНИТЕЛЬНО ────────────────────────────────────────────┐" -ForegroundColor Yellow
-    Write-Host " │ 7. " -ForegroundColor Green -NoNewline
+    Write-Host " │ 5. " -ForegroundColor Green -NoNewline
     Write-Host "Тест Зона" -ForegroundColor Red
     Write-Host " └────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
     Write-Host ""
@@ -318,127 +318,6 @@ function Postpone-WindowsUpdates {
 }
 
 
-# Функция информации о системе защиты
-function Show-SecurityInfo {
-    Clear-Host
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║          ИНФОРМАЦИЯ О СИСТЕМЕ ЗАЩИТЫ                                  ║" -ForegroundColor Cyan
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
-    Write-Host ""
-
-    try {
-        $defenderStatus = Get-MpComputerStatus
-        $updateService = Get-Service wuauserv
-
-        # Windows Defender
-        Write-Host "┌─ WINDOWS DEFENDER ─────────────────────────────────────────┐" -ForegroundColor Yellow
-        Write-Host "│" -ForegroundColor Yellow
-        Write-Host "│ Статус защиты:" -ForegroundColor White
-        Write-Host "│   • Защита в реальном времени: " -NoNewline -ForegroundColor White
-        if ($defenderStatus.RealTimeProtectionEnabled) {
-            Write-Host "✓ Активна" -ForegroundColor Green
-        } else {
-            Write-Host "✗ Отключена" -ForegroundColor Red
-        }
-        
-        Write-Host "│   • Защита от вирусов: " -NoNewline -ForegroundColor White
-        if ($defenderStatus.AntivirusEnabled) {
-            Write-Host "✓ Активна" -ForegroundColor Green
-        } else {
-            Write-Host "✗ Отключена" -ForegroundColor Red
-        }
-        
-        Write-Host "│   • Защита от шпионских программ: " -NoNewline -ForegroundColor White
-        if ($defenderStatus.AntispywareEnabled) {
-            Write-Host "✓ Активна" -ForegroundColor Green
-        } else {
-            Write-Host "✗ Отключена" -ForegroundColor Red
-        }
-        
-        Write-Host "│" -ForegroundColor Yellow
-        Write-Host "│ Базы данных:" -ForegroundColor White
-        Write-Host "│   • Версия антивируса: $($defenderStatus.AntivirusSignatureVersion)" -ForegroundColor Gray
-        Write-Host "│   • Последнее обновление: $($defenderStatus.AntivirusSignatureLastUpdated)" -ForegroundColor Gray
-        Write-Host "│" -ForegroundColor Yellow
-        Write-Host "│ Последнее сканирование:" -ForegroundColor White
-        if ($defenderStatus.QuickScanStartTime) {
-            Write-Host "│   • Быстрое: $($defenderStatus.QuickScanStartTime)" -ForegroundColor Gray
-        }
-        if ($defenderStatus.FullScanStartTime) {
-            Write-Host "│   • Полное: $($defenderStatus.FullScanStartTime)" -ForegroundColor Gray
-        }
-        Write-Host "└────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
-        Write-Host ""
-
-        # Windows Update
-        Write-Host "┌─ WINDOWS UPDATE ───────────────────────────────────────────┐" -ForegroundColor Yellow
-        Write-Host "│" -ForegroundColor Yellow
-        Write-Host "│ Служба обновлений:" -ForegroundColor White
-        Write-Host "│   • Статус: $($updateService.Status)" -ForegroundColor $(if ($updateService.Status -eq 'Running') { 'Green' } else { 'Yellow' })
-        Write-Host "│   • Тип запуска: $($updateService.StartType)" -ForegroundColor Gray
-        Write-Host "│" -ForegroundColor Yellow
-        
-        # Проверка отложенных обновлений
-        $registryPath = "HKLM:\Software\Microsoft\WindowsUpdate\UX\Settings"
-        if (Test-Path $registryPath) {
-            $pauseEnd = Get-ItemProperty -Path $registryPath -Name "PauseQualityUpdatesEndTime" -ErrorAction SilentlyContinue
-            if ($pauseEnd) {
-                $endDate = [DateTime]::Parse($pauseEnd.PauseQualityUpdatesEndTime)
-                Write-Host "│ Статус обновлений:" -ForegroundColor White
-                Write-Host "│   • Обновления отложены до: $($endDate.ToString('dd.MM.yyyy HH:mm'))" -ForegroundColor Yellow
-                
-                $daysLeft = ($endDate - (Get-Date)).Days
-                if ($daysLeft -gt 0) {
-                    Write-Host "│   • Осталось дней: $daysLeft" -ForegroundColor Cyan
-                } else {
-                    Write-Host "│   • Срок отложения истёк" -ForegroundColor Red
-                }
-            }
-            
-            $activeStart = Get-ItemProperty -Path $registryPath -Name "ActiveHoursStart" -ErrorAction SilentlyContinue
-            $activeEnd = Get-ItemProperty -Path $registryPath -Name "ActiveHoursEnd" -ErrorAction SilentlyContinue
-            if ($activeStart -and $activeEnd) {
-                Write-Host "│" -ForegroundColor Yellow
-                Write-Host "│ Активные часы:" -ForegroundColor White
-                Write-Host "│   • С $($activeStart.ActiveHoursStart):00 до $($activeEnd.ActiveHoursEnd):00" -ForegroundColor Gray
-            }
-        } else {
-            Write-Host "│   • Обновления активны" -ForegroundColor Green
-        }
-        
-        Write-Host "└────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
-        Write-Host ""
-
-        # Общая оценка безопасности
-        Write-Host "┌─ ОБЩАЯ ОЦЕНКА ─────────────────────────────────────────────┐" -ForegroundColor Cyan
-        Write-Host "│" -ForegroundColor Cyan
-        
-        $securityScore = 0
-        if ($defenderStatus.RealTimeProtectionEnabled) { $securityScore += 25 }
-        if ($defenderStatus.AntivirusEnabled) { $securityScore += 25 }
-        if ($defenderStatus.AntispywareEnabled) { $securityScore += 25 }
-        if ($updateService.Status -eq 'Running') { $securityScore += 25 }
-        
-        Write-Host "│ Уровень защиты: " -NoNewline -ForegroundColor White
-        if ($securityScore -ge 90) {
-            Write-Host "Отличный ($securityScore%)" -ForegroundColor Green
-        } elseif ($securityScore -ge 70) {
-            Write-Host "Хороший ($securityScore%)" -ForegroundColor Yellow
-        } else {
-            Write-Host "Требует внимания ($securityScore%)" -ForegroundColor Red
-        }
-        
-        Write-Host "│" -ForegroundColor Cyan
-        Write-Host "└────────────────────────────────────────────────────────────┘" -ForegroundColor Cyan
-
-    } catch {
-        Write-Host "[-] ОШИБКА при получении информации: $_" -ForegroundColor Red
-    }
-
-    Write-Host ""
-    Pause
-}
-
 # Функция паузы
 function Pause {
     Write-Host ""
@@ -456,8 +335,7 @@ while ($true) {
         '2' { Configure-ScanSchedule }
         '3' { Show-DefenderSettings }
         '4' { Postpone-WindowsUpdates }
-        '5' { Show-SecurityInfo }
-		'6' {
+		'5' {
 			Write-Host ">> Запуск..." -ForegroundColor Yellow
             iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/test.ps1")
 		}
