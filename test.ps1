@@ -26,23 +26,19 @@ function Show-MainMenu {
     Write-Host " │ 2. " -ForegroundColor Green -NoNewline
     Write-Host "Просмотр текущих настроек Defender" -ForegroundColor White
     Write-Host " │ 3. " -ForegroundColor Green -NoNewline
-    Write-Host "Настроить расписание сканирования" -ForegroundColor White
+    Write-Host "Информация о системе защиты" -ForegroundColor White
     Write-Host " └────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
     Write-Host ""
     
     Write-Host " ┌─ WINDOWS UPDATES ──────────────────────────────────────────┐" -ForegroundColor Yellow
     Write-Host " │ 4. " -ForegroundColor Green -NoNewline
     Write-Host "Отложить обновления Windows" -ForegroundColor White
-    Write-Host " │ 5. " -ForegroundColor Green -NoNewline
-    Write-Host "Настроить службу обновлений" -ForegroundColor White
     Write-Host " └────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
     Write-Host ""
     
     Write-Host " ┌─ ДОПОЛНИТЕЛЬНО ────────────────────────────────────────────┐" -ForegroundColor Yellow
-    Write-Host " │ 6. " -ForegroundColor Green -NoNewline
-    Write-Host "Применить все рекомендуемые настройки" -ForegroundColor Cyan
     Write-Host " │ 7. " -ForegroundColor Green -NoNewline
-    Write-Host "Информация о системе защиты" -ForegroundColor White
+    Write-Host "Тест Зона" -ForegroundColor Red
     Write-Host " └────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
     Write-Host ""
     
@@ -187,59 +183,6 @@ function Show-DefenderSettings {
     Pause
 }
 
-# Функция добавления исключений
-function Add-DefenderExclusions {
-    Clear-Host
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
-    Write-Host "║          ДОБАВЛЕНИЕ ИСКЛЮЧЕНИЙ В WINDOWS DEFENDER                     ║" -ForegroundColor Yellow
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "[!] Добавляйте в исключения ТОЛЬКО проверенные и безопасные файлы/папки!" -ForegroundColor Red
-    Write-Host ""
-
-    Write-Host "Выберите тип исключения:" -ForegroundColor Cyan
-    Write-Host "1. Исключить папку" -ForegroundColor White
-    Write-Host "2. Исключить процесс (exe файл)" -ForegroundColor White
-    Write-Host "3. Исключить файл/расширение" -ForegroundColor White
-    Write-Host "0. Назад" -ForegroundColor Red
-    Write-Host ""
-    
-    $choice = Read-Host "Ваш выбор"
-
-    try {
-        switch ($choice) {
-            '1' {
-                $path = Read-Host "Введите полный путь к папке (например, C:\Games)"
-                if (Test-Path $path) {
-                    Add-MpPreference -ExclusionPath $path
-                    Write-Host "[+] Папка '$path' добавлена в исключения" -ForegroundColor Green
-                } else {
-                    Write-Host "[-] Указанная папка не существует!" -ForegroundColor Red
-                }
-            }
-            '2' {
-                $process = Read-Host "Введите имя процесса (например, game.exe)"
-                Add-MpPreference -ExclusionProcess $process
-                Write-Host "[+] Процесс '$process' добавлен в исключения" -ForegroundColor Green
-            }
-            '3' {
-                $extension = Read-Host "Введите расширение (например, *.tmp или C:\file.dll)"
-                Add-MpPreference -ExclusionExtension $extension
-                Write-Host "[+] '$extension' добавлено в исключения" -ForegroundColor Green
-            }
-            '0' { return }
-            default {
-                Write-Host "[-] Неверный выбор" -ForegroundColor Red
-            }
-        }
-    } catch {
-        Write-Host "[-] ОШИБКА: $_" -ForegroundColor Red
-    }
-
-    Write-Host ""
-    Pause
-}
-
 # Функция настройки расписания сканирования
 function Configure-ScanSchedule {
     Clear-Host
@@ -374,194 +317,6 @@ function Postpone-WindowsUpdates {
     Pause
 }
 
-# Функция настройки активных часов
-function Configure-ActiveHours {
-    Clear-Host
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
-    Write-Host "║          НАСТРОЙКА АКТИВНЫХ ЧАСОВ                                     ║" -ForegroundColor Yellow
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "[*] Активные часы - это время, когда обновления НЕ будут устанавливаться" -ForegroundColor Cyan
-    Write-Host ""
-
-    try {
-        $startHour = Read-Host "Введите начальный час (0-23, например 8 для 8:00)"
-        $endHour = Read-Host "Введите конечный час (0-23, например 23 для 23:00)"
-
-        if ($startHour -ge 0 -and $startHour -le 23 -and $endHour -ge 0 -and $endHour -le 23) {
-            $registryPath = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings"
-            
-            if (-not (Test-Path $registryPath)) {
-                New-Item -Path $registryPath -Force | Out-Null
-            }
-
-            Set-ItemProperty -Path $registryPath -Name "ActiveHoursStart" -Value $startHour -Type DWord -Force
-            Set-ItemProperty -Path $registryPath -Name "ActiveHoursEnd" -Value $endHour -Type DWord -Force
-
-            Write-Host ""
-            Write-Host "[+] Активные часы установлены!" -ForegroundColor Green
-            Write-Host "[+] С $startHour:00 до $endHour:00 обновления не будут устанавливаться" -ForegroundColor White
-        } else {
-            Write-Host "[-] Неверное значение часов!" -ForegroundColor Red
-        }
-
-    } catch {
-        Write-Host "[-] ОШИБКА: $_" -ForegroundColor Red
-    }
-
-    Write-Host ""
-    Pause
-}
-
-# Функция настройки службы обновлений
-function Configure-UpdateService {
-    Clear-Host
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
-    Write-Host "║          НАСТРОЙКА СЛУЖБЫ ОБНОВЛЕНИЙ                                  ║" -ForegroundColor Yellow
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
-    Write-Host ""
-
-    try {
-        $service = Get-Service wuauserv
-        Write-Host "[*] Текущий статус службы обновлений:" -ForegroundColor Cyan
-        Write-Host "    Состояние: $($service.Status)" -ForegroundColor White
-        Write-Host "    Тип запуска: $($service.StartType)" -ForegroundColor White
-        Write-Host ""
-
-        Write-Host "Выберите действие:" -ForegroundColor Cyan
-        Write-Host "1. Установить отложенный запуск (рекомендуется)" -ForegroundColor White
-        Write-Host "2. Установить автоматический запуск" -ForegroundColor White
-        Write-Host "3. Установить ручной запуск (не рекомендуется)" -ForegroundColor Yellow
-        Write-Host "4. Остановить службу временно" -ForegroundColor Yellow
-        Write-Host "5. Запустить службу" -ForegroundColor White
-        Write-Host "0. Назад" -ForegroundColor Red
-        Write-Host ""
-
-        $choice = Read-Host "Ваш выбор"
-
-        switch ($choice) {
-            '1' {
-                Set-Service wuauserv -StartupType Automatic
-                # Отложенный запуск через реестр
-                Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\wuauserv" -Name "DelayedAutostart" -Value 1 -Type DWord
-                Write-Host "[+] Служба настроена на отложенный автоматический запуск" -ForegroundColor Green
-            }
-            '2' {
-                Set-Service wuauserv -StartupType Automatic
-                Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\wuauserv" -Name "DelayedAutostart" -Value 0 -Type DWord
-                Write-Host "[+] Служба настроена на автоматический запуск" -ForegroundColor Green
-            }
-            '3' {
-                Set-Service wuauserv -StartupType Manual
-                Write-Host "[+] Служба настроена на ручной запуск" -ForegroundColor Yellow
-                Write-Host "[!] ВНИМАНИЕ: Обновления не будут устанавливаться автоматически!" -ForegroundColor Red
-            }
-            '4' {
-                Stop-Service wuauserv -Force
-                Write-Host "[+] Служба остановлена" -ForegroundColor Yellow
-                Write-Host "[!] НЕ ЗАБУДЬТЕ ЗАПУСТИТЬ ЕЁ ОБРАТНО!" -ForegroundColor Red
-            }
-            '5' {
-                Start-Service wuauserv
-                Write-Host "[+] Служба запущена" -ForegroundColor Green
-            }
-            '0' { return }
-        }
-
-    } catch {
-        Write-Host "[-] ОШИБКА: $_" -ForegroundColor Red
-    }
-
-    Write-Host ""
-    Pause
-}
-
-# Функция применения всех рекомендуемых настроек
-function Apply-AllRecommended {
-    Clear-Host
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║          ПРИМЕНЕНИЕ ВСЕХ РЕКОМЕНДУЕМЫХ НАСТРОЕК                       ║" -ForegroundColor Cyan
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "[!] Это применит оптимальные настройки для баланса безопасности и производительности" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "Будут применены:" -ForegroundColor Cyan
-    Write-Host "  • Оптимизация Windows Defender" -ForegroundColor White
-    Write-Host "  • Отложение обновлений на 30 дней" -ForegroundColor White
-    Write-Host "  • Активные часы 8:00-23:00" -ForegroundColor White
-    Write-Host "  • Отложенный запуск службы обновлений" -ForegroundColor White
-    Write-Host "  • Расписание сканирования в 3:00 ночи" -ForegroundColor White
-    Write-Host ""
-    
-    $confirm = Read-Host "Применить все настройки? (Y/N)"
-    
-    if ($confirm -eq 'Y' -or $confirm -eq 'y') {
-        Write-Host ""
-        Write-Host "[+] Начинаем применение настроек..." -ForegroundColor Green
-        Write-Host ""
-        
-        try {
-            # 1. Оптимизация Defender
-            Write-Host "[1/5] Оптимизация Windows Defender..." -ForegroundColor Cyan
-            Set-MpPreference -ScanAvgCPULoadFactor 20 -ErrorAction SilentlyContinue
-            Set-MpPreference -DisableArchiveScanning $true -ErrorAction SilentlyContinue
-            Set-MpPreference -DisableScanningMappedNetworkDrivesForFullScan $true -ErrorAction SilentlyContinue
-            Set-MpPreference -MAPSReporting Advanced -ErrorAction SilentlyContinue
-            Set-MpPreference -SubmitSamplesConsent 2 -ErrorAction SilentlyContinue
-            Set-MpPreference -DisableEnhancedNotifications $true -ErrorAction SilentlyContinue
-            Set-MpPreference -EnableLowCpuPriority $true -ErrorAction SilentlyContinue
-            Write-Host "    ✓ Defender оптимизирован" -ForegroundColor Green
-            
-            # 2. Расписание сканирования
-            Write-Host "[2/5] Настройка расписания сканирования..." -ForegroundColor Cyan
-            Set-MpPreference -ScanScheduleDay 0 -ErrorAction SilentlyContinue
-            Set-MpPreference -ScanScheduleTime "03:00:00" -ErrorAction SilentlyContinue
-            Write-Host "    ✓ Сканирование настроено на 3:00 каждую ночь" -ForegroundColor Green
-            
-            # 3. Отложение обновлений
-            Write-Host "[3/5] Отложение обновлений на 30 дней..." -ForegroundColor Cyan
-            $registryPath = "HKLM:\Software\Microsoft\WindowsUpdate\UX\Settings"
-            if (-not (Test-Path $registryPath)) {
-                New-Item -Path $registryPath -Force | Out-Null
-            }
-            Set-ItemProperty -Path $registryPath -Name "FlightSettingsMaxPauseDays" -Value 30 -Type DWord -Force
-            Set-ItemProperty -Path $registryPath -Name "PauseQualityUpdatesStartTime" -Value (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ") -Force
-            Set-ItemProperty -Path $registryPath -Name "PauseQualityUpdatesEndTime" -Value (Get-Date).AddDays(30).ToString("yyyy-MM-ddTHH:mm:ssZ") -Force
-            Set-ItemProperty -Path $registryPath -Name "PauseFeatureUpdatesStartTime" -Value (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ") -Force
-            Set-ItemProperty -Path $registryPath -Name "PauseFeatureUpdatesEndTime" -Value (Get-Date).AddDays(30).ToString("yyyy-MM-ddTHH:mm:ssZ") -Force
-            Write-Host "    ✓ Обновления отложены до $((Get-Date).AddDays(30).ToString('dd.MM.yyyy'))" -ForegroundColor Green
-            
-            # 4. Активные часы
-            Write-Host "[4/5] Настройка активных часов..." -ForegroundColor Cyan
-            Set-ItemProperty -Path $registryPath -Name "ActiveHoursStart" -Value 8 -Type DWord -Force
-            Set-ItemProperty -Path $registryPath -Name "ActiveHoursEnd" -Value 23 -Type DWord -Force
-            Write-Host "    ✓ Активные часы: 8:00-23:00" -ForegroundColor Green
-            
-            # 5. Служба обновлений
-            Write-Host "[5/5] Настройка службы обновлений..." -ForegroundColor Cyan
-            Set-Service wuauserv -StartupType Automatic -ErrorAction SilentlyContinue
-            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\wuauserv" -Name "DelayedAutostart" -Value 1 -Type DWord -ErrorAction SilentlyContinue
-            Write-Host "    ✓ Служба настроена на отложенный запуск" -ForegroundColor Green
-            
-            Write-Host ""
-            Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-            Write-Host "║                  ВСЕ НАСТРОЙКИ ПРИМЕНЕНЫ УСПЕШНО!                     ║" -ForegroundColor Green
-            Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "[✓] Ваша система теперь оптимизирована!" -ForegroundColor Green
-            Write-Host "[✓] Защита активна, производительность улучшена!" -ForegroundColor Green
-            
-        } catch {
-            Write-Host ""
-            Write-Host "[-] ОШИБКА: $_" -ForegroundColor Red
-        }
-    } else {
-        Write-Host "[*] Операция отменена" -ForegroundColor Yellow
-    }
-    
-    Write-Host ""
-    Pause
-}
 
 # Функция информации о системе защиты
 function Show-SecurityInfo {
@@ -647,6 +402,8 @@ function Show-SecurityInfo {
                 Write-Host "│ Активные часы:" -ForegroundColor White
                 Write-Host "│   • С $($activeStart.ActiveHoursStart):00 до $($activeEnd.ActiveHoursEnd):00" -ForegroundColor Gray
             }
+        } else {
+            Write-Host "│   • Обновления активны" -ForegroundColor Green
         }
         
         Write-Host "└────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
@@ -697,24 +454,16 @@ while ($true) {
     switch ($choice) {
         '1' { Optimize-WindowsDefender }
         '2' { Show-DefenderSettings }
-        '3' { Add-DefenderExclusions }
-        '4' { Configure-ScanSchedule }
-        '5' { Postpone-WindowsUpdates }
-        '6' { Configure-ActiveHours }
-        '7' { Configure-UpdateService }
-        '8' { Apply-AllRecommended }
-        '9' { Show-SecurityInfo }
+        '3' { Configure-ScanSchedule }
+        '4' { Postpone-WindowsUpdates }
+        '5' { Show-SecurityInfo }
+		'6' {
+			Write-Host ">> Запуск..." -ForegroundColor Yellow
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/test.ps1")
+		}
         '0' {
-            Clear-Host
-            Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-            Write-Host "║                                                                       ║" -ForegroundColor Green
-            Write-Host "║                     Спасибо за использование!                         ║" -ForegroundColor Green
-            Write-Host "║                                                                       ║" -ForegroundColor Green
-            Write-Host "║              Оставайтесь в безопасности! 🛡️                          ║" -ForegroundColor Green
-            Write-Host "║                                                                       ║" -ForegroundColor Green
-            Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Green
-            Write-Host ""
-            exit 0
+            Write-Host ">> Запуск..." -ForegroundColor Yellow
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/scripts.ps1")
         }
         default {
             Write-Host ""
