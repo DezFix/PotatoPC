@@ -24,9 +24,9 @@ function Show-MainMenu {
     Write-Host " │ 1. " -ForegroundColor Green -NoNewline
     Write-Host "Настроить Windows Defender (оптимизация)" -ForegroundColor White
     Write-Host " │ 2. " -ForegroundColor Green -NoNewline
-    Write-Host "Просмотр текущих настроек Defender" -ForegroundColor White
+	Write-Host "Установка даты и времени для сканирования" -ForegroundColor White
     Write-Host " │ 3. " -ForegroundColor Green -NoNewline
-    Write-Host "Информация о системе защиты" -ForegroundColor White
+    Write-Host "Просмотр текущих настроек Defender" -ForegroundColor White
     Write-Host " └────────────────────────────────────────────────────────────┘" -ForegroundColor Yellow
     Write-Host ""
     
@@ -453,8 +453,8 @@ while ($true) {
     
     switch ($choice) {
         '1' { Optimize-WindowsDefender }
-        '2' { Show-DefenderSettings }
-        '3' { Configure-ScanSchedule }
+        '2' { Configure-ScanSchedule }
+        '3' { Show-DefenderSettings }
         '4' { Postpone-WindowsUpdates }
         '5' { Show-SecurityInfo }
 		'6' {
