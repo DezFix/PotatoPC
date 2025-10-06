@@ -162,7 +162,7 @@ function Show-DefenderSettings {
     Pause
 }
 
-# Функция настройки расписания сканирования
+function Configure-ScanSchedule {
     Clear-Host
     Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
     Write-Host "║          НАСТРОЙКА РАСПИСАНИЯ СКАНИРОВАНИЯ                            ║" -ForegroundColor Yellow
@@ -221,7 +221,8 @@ function Show-DefenderSettings {
     } else {
         Write-Host "[-] Неверный выбор!" -ForegroundColor Red
     }
-
+    Pause
+}
 	
 
 # Функция отложения обновлений Windows
