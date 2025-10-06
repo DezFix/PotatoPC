@@ -77,18 +77,13 @@ function Optimize-WindowsDefender {
 
         # Настройка облачной защиты
         Write-Host "[*] Настройка облачной защиты (расширенная)..." -ForegroundColor Cyan
-        Set-MpPreference -MAPSReporting Advanced
+        Set-MpPreference -MAPSReporting Basic
         Write-Host "[+] Облачная защита настроена" -ForegroundColor Green
 
         # Настройка отправки образцов (не отправлять)
         Write-Host "[*] Настройка политики отправки образцов..." -ForegroundColor Cyan
         Set-MpPreference -SubmitSamplesConsent 2
         Write-Host "[+] Автоматическая отправка образцов отключена" -ForegroundColor Green
-
-        # Отключение расширенных уведомлений
-        Write-Host "[*] Отключение расширенных уведомлений..." -ForegroundColor Cyan
-        Set-MpPreference -DisableEnhancedNotifications $true
-        Write-Host "[+] Расширенные уведомления отключены" -ForegroundColor Green
 
         # Настройка приоритета сканирования
         Write-Host "[*] Настройка низкого приоритета для фоновых проверок..." -ForegroundColor Cyan
@@ -184,13 +179,11 @@ function Show-DefenderSettings {
 }
 
 # Функция настройки расписания сканирования
-function Configure-ScanSchedule {
     Clear-Host
     Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
     Write-Host "║          НАСТРОЙКА РАСПИСАНИЯ СКАНИРОВАНИЯ                            ║" -ForegroundColor Yellow
     Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
     Write-Host ""
-
     Write-Host "[*] Выберите день недели для сканирования:" -ForegroundColor Cyan
     Write-Host "0 - Каждый день" -ForegroundColor White
     Write-Host "1 - Воскресенье" -ForegroundColor White
@@ -203,42 +196,49 @@ function Configure-ScanSchedule {
     Write-Host "8 - Никогда" -ForegroundColor Red
     Write-Host ""
     
-    $day = Read-Host "День недели"
-    
+    $day = Read-Host "День недели (0-8)"
+
     if ($day -eq "8") {
         try {
-            Set-MpPreference -DisableScheduledScanMaintenance $true
-            Write-Host "[+] Запланированное сканирование отключено" -ForegroundColor Green
-            Write-Host "[!] ВНИМАНИЕ: Рекомендуется периодически запускать сканирование вручную!" -ForegroundColor Yellow
+            # Устанавливаем "Never" для запланированных сканов и отключаем catch-up сканы
+            Set-MpPreference -ScanScheduleDay 8 -DisableCatchupQuickScan $true -DisableCatchupFullScan $true
+
+            Write-Host "[+] Запланированное сканирование отключено (ScanScheduleDay = 8 — Never)." -ForegroundColor Green
+            Write-Host "[!] Совет: некоторые фоновые/idle-сканы могут запускаться отдельно — если нужно, покажу, как отключить задачу в Планировщике." -ForegroundColor Yellow
         } catch {
             Write-Host "[-] ОШИБКА: $_" -ForegroundColor Red
         }
-    } elseif ($day -ge 0 -and $day -le 7) {
+    } elseif ($day -match '^[0-7]$') {
         Write-Host ""
-        Write-Host "[*] Введите время сканирования (0-23 часов):" -ForegroundColor Cyan
+        Write-Host "[*] Введите время сканирования (0–23 часов):" -ForegroundColor Cyan
         $hour = Read-Host "Час"
-        
-        if ($hour -ge 0 -and $hour -le 23) {
+
+        if ($hour -match '^\d+$' -and [int]$hour -ge 0 -and [int]$hour -le 23) {
             try {
-                Set-MpPreference -ScanScheduleDay $day
-                Set-MpPreference -ScanScheduleTime "$($hour):00:00"
-                Write-Host "[+] Расписание установлено!" -ForegroundColor Green
-                
+                $dayInt = [int]$day
+                $hourInt = [int]$hour
+
+                # Формируем корректный TimeSpan (подходит для Set-MpPreference -ScanScheduleTime)
+                $scanTime = New-TimeSpan -Hours $hourInt
+
+                # Включаем расписание и устанавливаем время/день
+                Set-MpPreference -ScanScheduleDay $dayInt -ScanScheduleTime $scanTime -DisableCatchupQuickScan $false -DisableCatchupFullScan $false
+
                 $dayName = @("Каждый день", "Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота")
-                Write-Host "[+] Сканирование будет выполняться: $($dayName[$day]) в $hour:00" -ForegroundColor White
+                Write-Host ""
+                Write-Host "[+] Расписание установлено!" -ForegroundColor Green
+                Write-Host "[+] Сканирование будет выполняться: $($dayName[$dayInt]) в $hourInt:00" -ForegroundColor White
             } catch {
                 Write-Host "[-] ОШИБКА: $_" -ForegroundColor Red
             }
         } else {
-            Write-Host "[-] Неверное время!" -ForegroundColor Red
+            Write-Host "[-] Неверное значение времени!" -ForegroundColor Red
         }
     } else {
         Write-Host "[-] Неверный выбор!" -ForegroundColor Red
     }
 
-    Write-Host ""
-    Pause
-}
+	
 
 # Функция отложения обновлений Windows
 function Postpone-WindowsUpdates {
