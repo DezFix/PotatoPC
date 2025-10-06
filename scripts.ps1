@@ -90,22 +90,6 @@ function Optimize-WindowsDefender {
         Set-MpPreference -EnableLowCpuPriority $true
         Write-Host "[+] Низкий приоритет установлен" -ForegroundColor Green
 
-        Write-Host ""
-        Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-        Write-Host "║                  ОПТИМИЗАЦИЯ ЗАВЕРШЕНА УСПЕШНО!                       ║" -ForegroundColor Green
-        Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Green
-        Write-Host ""
-        Write-Host "[!] Применённые настройки:" -ForegroundColor Yellow
-        Write-Host "    ✓ Снижена нагрузка на CPU (20%)" -ForegroundColor White
-        Write-Host "    ✓ Отключено сканирование архивов" -ForegroundColor White
-        Write-Host "    ✓ Отключено сканирование сетевых дисков" -ForegroundColor White
-        Write-Host "    ✓ Включена расширенная облачная защита" -ForegroundColor White
-        Write-Host "    ✓ Отключена автоотправка образцов файлов" -ForegroundColor White
-        Write-Host "    ✓ Отключены расширенные уведомления" -ForegroundColor White
-        Write-Host "    ✓ Установлен низкий приоритет для фоновых проверок" -ForegroundColor White
-        Write-Host ""
-        Write-Host "[✓] Defender остаётся активным и защищает вашу систему!" -ForegroundColor Green
-
     } catch {
         Write-Host ""
         Write-Host "[-] ОШИБКА: $_" -ForegroundColor Red
@@ -341,7 +325,7 @@ while ($true) {
 		}
         '0' {
             Write-Host ">> Запуск..." -ForegroundColor Yellow
-            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/scripts.ps1")
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1")
         }
         default {
             Write-Host ""
