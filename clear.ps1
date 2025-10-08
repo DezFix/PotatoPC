@@ -134,25 +134,25 @@ function Clear-System {
     Remove-Item "C:\Windows\Prefetch\*" -Recurse -Force -ErrorAction SilentlyContinue
 
     # Очистка WinSxS
-    Write-Host "[+] Очистка WinSxS..." -ForegroundColor Yellow
-    try {
+#    Write-Host "[+] Очистка WinSxS..." -ForegroundColor Yellow
+#   try {
         # Проверяем наличие DISM
-        if (Get-Command dism.exe -ErrorAction SilentlyContinue) {
-            Write-Host "[+] Анализ компонентов WinSxS..." -ForegroundColor Cyan
+ #       if (Get-Command dism.exe -ErrorAction SilentlyContinue) {
+  #          Write-Host "[+] Анализ компонентов WinSxS..." -ForegroundColor Cyan
             
             # Очистка устаревших компонентов
-            Start-Process -FilePath "dism.exe" -ArgumentList "/online", "/cleanup-image", "/startcomponentcleanup" -Wait -NoNewWindow -PassThru | Out-Null
-            Write-Host "[+] WinSxS очищен успешно" -ForegroundColor Green
-        } else {
-            Write-Host "[-] DISM не найден, пропускаем очистку WinSxS" -ForegroundColor Yellow
-        }
-    } catch {
-        Write-Host "[-] Ошибка при очистке WinSxS: $_" -ForegroundColor Red
-    }
+   #         Start-Process -FilePath "dism.exe" -ArgumentList "/online", "/cleanup-image", "/startcomponentcleanup" -Wait -NoNewWindow -PassThru | Out-Null
+    #        Write-Host "[+] WinSxS очищен успешно" -ForegroundColor Green
+    #    } else {
+    #        Write-Host "[-] DISM не найден, пропускаем очистку WinSxS" -ForegroundColor Yellow
+    #    }
+  #  } catch {
+   #     Write-Host "[-] Ошибка при очистке WinSxS: $_" -ForegroundColor Red
+  #  }
 
-    Start-Sleep -Seconds 2
-    Write-Host "[+] Очистка системы завершена" -ForegroundColor Green
-}
+  #  Start-Sleep -Seconds 2
+  #  Write-Host "[+] Очистка системы завершена" -ForegroundColor Green
+#}
 
 
 # Расширенное отключение телеметрии
