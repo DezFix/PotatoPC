@@ -1,3 +1,4 @@
 # PotatoPC
 
-```irm "https://kutt.it/potatopc" | iex ```
+```powershell
+redme.md irm "[https://kutt.it/potatopc](https://kutt.it/potatopc)" | iex
