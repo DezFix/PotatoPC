@@ -1,0 +1,24 @@
+{
+  "ManualCategories": {
+    "Browsers": [
+      { "Name": "Google Chrome", "Id": "Google.Chrome", "Description": "Популярный браузер" },
+      { "Name": "Firefox", "Id": "Mozilla.Firefox", "Description": "Приватный браузер" },
+      { "Name": "Brave", "Id": "Brave.Brave", "Description": "Браузер без рекламы" }
+    ],
+    "Gaming": [
+      { "Name": "Steam", "Id": "Valve.Steam", "Description": "Игры" },
+      { "Name": "Epic Games", "Id": "EpicGames.EpicGamesLauncher", "Description": "Игры" },
+      { "Name": "Discord", "Id": "Discord.Discord", "Description": "Чат" },
+      { "Name": "OBS Studio", "Id": "OBSProject.OBSStudio", "Description": "Стриминг" }
+    ],
+    "Runtimes (Fix Errors)": [
+      { "Name": "Visual C++ AIO", "Id": "Abbott.VCRedistAIO", "Description": "Исправляет ошибки игр" },
+      { "Name": "DirectX", "Id": "Microsoft.DirectX", "Description": "Графика" }
+    ],
+    "Tools": [
+      { "Name": "7-Zip", "Id": "7zip.7zip", "Description": "Архиватор" },
+      { "Name": "Notepad++", "Id": "Notepad++.Notepad++", "Description": "Редактор" },
+      { "Name": "VLC Player", "Id": "VideoLAN.VLC", "Description": "Видео плеер" }
+    ]
+  }
+}
