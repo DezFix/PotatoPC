@@ -1,5 +1,5 @@
 # ==========================================
-# POTATO PC OPTIMIZER v11.0 (MODULAR)
+# POTATO PC OPTIMIZER v11.5 (FONT FIX)
 # ==========================================
 
 # 1. ПРОВЕРКА АДМИНА
@@ -9,9 +9,15 @@ Add-Type -AssemblyName System.Drawing
 $currentPrincipal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (!($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
     $frm = New-Object System.Windows.Forms.Form
-    $frm.Text="ERROR"; $frm.Size="400,200"; $frm.StartPosition="CenterScreen"; $frm.BackColor="DarkRed"
-    $lbl = New-Object System.Windows.Forms.Label; $lbl.Text="ЗАПУСТИТЕ ОТ АДМИНИСТРАТОРА!"; $lbl.ForeColor="White"; $lbl.AutoSize=$true; $lbl.Location="50,50"; $lbl.Font="Arial,12,Bold"
-    $btn = New-Object System.Windows.Forms.Button; $btn.Text="OK"; $btn.Location="140,100"; $btn.Add_Click({$frm.Close()})
+    $frm.Text="ERROR"; $frm.Size=New-Object System.Drawing.Size(400,200); $frm.StartPosition="CenterScreen"; $frm.BackColor="DarkRed"
+    
+    $lbl = New-Object System.Windows.Forms.Label
+    $lbl.Text="ЗАПУСТИТЕ ОТ АДМИНИСТРАТОРА!"
+    $lbl.ForeColor="White"; $lbl.AutoSize=$true; $lbl.Location=New-Object System.Drawing.Point(50,50)
+    # ИСПРАВЛЕНИЕ ШРИФТА 1
+    $lbl.Font = New-Object System.Drawing.Font("Arial", 12, [System.Drawing.FontStyle]::Bold)
+    
+    $btn = New-Object System.Windows.Forms.Button; $btn.Text="OK"; $btn.Location=New-Object System.Drawing.Point(140,100); $btn.Add_Click({$frm.Close()})
     $frm.Controls.AddRange(@($lbl,$btn)); $frm.ShowDialog(); exit
 }
 
@@ -20,24 +26,20 @@ $WorkDir = "C:\PotatoPC"; $TempDir = "$WorkDir\Temp"; $BackupDir = "$WorkDir\Bac
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 
-# --- ССЫЛКИ (ПОМЕНЯЙ LogicUrl НА СВОЮ!) ---
+# ССЫЛКИ
 $LogicUrl   = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/Logic.ps1" 
 $AppsJsonUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/apps.json"
 $LogicFile  = "$TempDir\Logic.ps1"
 
-# Скачиваем и подключаем логику
+# Скачиваем и подключаем логику (С ЗАЩИТОЙ КОДИРОВКИ)
 try {
     $wc = New-Object System.Net.WebClient
     $wc.Encoding = [System.Text.Encoding]::UTF8
     $LogicCode = $wc.DownloadString($LogicUrl)
-    
-    # Сохраняем с BOM
     [System.IO.File]::WriteAllText($LogicFile, $LogicCode, [System.Text.Encoding]::UTF8)
-    
-    # Подключаем
     . $LogicFile 
 } catch {
-    [System.Windows.Forms.MessageBox]::Show("Не удалось загрузить Logic.ps1. Ошибка кодировки или интернета.")
+    [System.Windows.Forms.MessageBox]::Show("Не удалось загрузить Logic.ps1. Проверьте интернет!")
     exit
 }
 
@@ -47,53 +49,55 @@ $Global:ToolTip.AutoPopDelay = 15000; $Global:ToolTip.InitialDelay = 100
 
 function Add-Item($panel, $text, $desc, $yRaw, $varName) {
     $y = [int]$yRaw
-    $chk = New-Object System.Windows.Forms.CheckBox; $chk.Text=$text; $chk.Location="15,$y"; $chk.AutoSize=$true
+    $chk = New-Object System.Windows.Forms.CheckBox; $chk.Text=$text; $chk.Location=New-Object System.Drawing.Point(15,$y); $chk.AutoSize=$true
     $panel.Controls.Add($chk)
-    $lbl = New-Object System.Windows.Forms.Label; $lbl.Text="[?]"; $lbl.ForeColor="DodgerBlue"; $lbl.Cursor="Hand"; $lbl.Location="235,$($y+3)"; $lbl.AutoSize=$true
+    $lbl = New-Object System.Windows.Forms.Label; $lbl.Text="[?]"; $lbl.ForeColor="DodgerBlue"; $lbl.Cursor="Hand"; $lbl.Location=New-Object System.Drawing.Point(235,($y+3)); $lbl.AutoSize=$true
     $Global:ToolTip.SetToolTip($lbl, $desc)
     $panel.Controls.Add($lbl)
     Set-Variable -Name $varName -Value $chk -Scope Script
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "PotatoPC Optimizer v11.0"; $form.Size = "950,700"; $form.StartPosition = "CenterScreen"; $form.FormBorderStyle="FixedSingle"; $form.MaximizeBox=$false; $form.BackColor="WhiteSmoke"
+$form.Text = "PotatoPC Optimizer v11.5"; $form.Size = New-Object System.Drawing.Size(950,700); $form.StartPosition = "CenterScreen"; $form.FormBorderStyle="FixedSingle"; $form.MaximizeBox=$false; $form.BackColor="WhiteSmoke"
 
-$tabs = New-Object System.Windows.Forms.TabControl; $tabs.Location="10,10"; $tabs.Size="915,500"
-$log = New-Object System.Windows.Forms.RichTextBox; $log.Location="10,560"; $log.Size="915,90"; $log.ReadOnly=$true; $log.BackColor="White"
+$tabs = New-Object System.Windows.Forms.TabControl; $tabs.Location=New-Object System.Drawing.Point(10,10); $tabs.Size=New-Object System.Drawing.Size(915,500)
+$log = New-Object System.Windows.Forms.RichTextBox; $log.Location=New-Object System.Drawing.Point(10,560); $log.Size=New-Object System.Drawing.Size(915,90); $log.ReadOnly=$true; $log.BackColor="White"
 
 # --- TAB 1: PRESETS ---
 $tp1 = New-Object System.Windows.Forms.TabPage; $tp1.Text=" [1] ПРЕСЕТЫ "
-$l1 = New-Object System.Windows.Forms.Label; $l1.Text="Выберите режим:"; $l1.Location="20,20"; $l1.AutoSize=$true; $l1.Font="Arial,12,Bold"
+$l1 = New-Object System.Windows.Forms.Label; $l1.Text="Выберите режим:"; $l1.Location=New-Object System.Drawing.Point(20,20); $l1.AutoSize=$true
+# ИСПРАВЛЕНИЕ ШРИФТА 2
+$l1.Font = New-Object System.Drawing.Font("Arial", 12, [System.Drawing.FontStyle]::Bold)
 
-$bp1 = New-Object System.Windows.Forms.Button; $bp1.Text="[ SAFE ]`nБезопасный"; $bp1.Location="50,60"; $bp1.Size="200,60"; $bp1.BackColor="SeaGreen"; $bp1.ForeColor="White"
-$lp1 = New-Object System.Windows.Forms.Label; $lp1.Text="Только мусор. Безопасно."; $lp1.Location="270,70"; $lp1.AutoSize=$true
+$bp1 = New-Object System.Windows.Forms.Button; $bp1.Text="[ SAFE ]`nБезопасный"; $bp1.Location=New-Object System.Drawing.Point(50,60); $bp1.Size=New-Object System.Drawing.Size(200,60); $bp1.BackColor="SeaGreen"; $bp1.ForeColor="White"
+$lp1 = New-Object System.Windows.Forms.Label; $lp1.Text="Только мусор. Безопасно."; $lp1.Location=New-Object System.Drawing.Point(270,70); $lp1.AutoSize=$true
 
-$bp2 = New-Object System.Windows.Forms.Button; $bp2.Text="[ OFFICE ]`nОфисный"; $bp2.Location="50,140"; $bp2.Size="200,60"; $bp2.BackColor="SteelBlue"; $bp2.ForeColor="White"
-$lp2 = New-Object System.Windows.Forms.Label; $lp2.Text="Без игр. Оставляет Почту."; $lp2.Location="270,150"; $lp2.AutoSize=$true
+$bp2 = New-Object System.Windows.Forms.Button; $bp2.Text="[ OFFICE ]`nОфисный"; $bp2.Location=New-Object System.Drawing.Point(50,140); $bp2.Size=New-Object System.Drawing.Size(200,60); $bp2.BackColor="SteelBlue"; $bp2.ForeColor="White"
+$lp2 = New-Object System.Windows.Forms.Label; $lp2.Text="Без игр. Оставляет Почту."; $lp2.Location=New-Object System.Drawing.Point(270,150); $lp2.AutoSize=$true
 
-$bp3 = New-Object System.Windows.Forms.Button; $bp3.Text="[ GAMER ]`nИгровой"; $bp3.Location="50,220"; $bp3.Size="200,60"; $bp3.BackColor="DarkOrange"; $bp3.ForeColor="White"
-$lp3 = New-Object System.Windows.Forms.Label; $lp3.Text="С играми. Оптимизация FPS."; $lp3.Location="270,230"; $lp3.AutoSize=$true
+$bp3 = New-Object System.Windows.Forms.Button; $bp3.Text="[ GAMER ]`nИгровой"; $bp3.Location=New-Object System.Drawing.Point(50,220); $bp3.Size=New-Object System.Drawing.Size(200,60); $bp3.BackColor="DarkOrange"; $bp3.ForeColor="White"
+$lp3 = New-Object System.Windows.Forms.Label; $lp3.Text="С играми. Оптимизация FPS."; $lp3.Location=New-Object System.Drawing.Point(270,230); $lp3.AutoSize=$true
 
-$bp4 = New-Object System.Windows.Forms.Button; $bp4.Text="[ POTATO ]`nМаксимум"; $bp4.Location="50,300"; $bp4.Size="200,60"; $bp4.BackColor="Maroon"; $bp4.ForeColor="White"
-$lp4 = New-Object System.Windows.Forms.Label; $lp4.Text="Отключает всё. Для слабых ПК."; $lp4.Location="270,310"; $lp4.AutoSize=$true
+$bp4 = New-Object System.Windows.Forms.Button; $bp4.Text="[ POTATO ]`nМаксимум"; $bp4.Location=New-Object System.Drawing.Point(50,300); $bp4.Size=New-Object System.Drawing.Size(200,60); $bp4.BackColor="Maroon"; $bp4.ForeColor="White"
+$lp4 = New-Object System.Windows.Forms.Label; $lp4.Text="Отключает всё. Для слабых ПК."; $lp4.Location=New-Object System.Drawing.Point(270,310); $lp4.AutoSize=$true
 
 $tp1.Controls.AddRange(@($l1, $bp1, $lp1, $bp2, $lp2, $bp3, $lp3, $bp4, $lp4))
 
 # --- TAB 2: TWEAKS ---
 $tp2 = New-Object System.Windows.Forms.TabPage; $tp2.Text=" [2] ТВИКИ "
-$g1 = New-Object System.Windows.Forms.GroupBox; $g1.Text="Приватность"; $g1.Location="10,10"; $g1.Size="280,400"
+$g1 = New-Object System.Windows.Forms.GroupBox; $g1.Text="Приватность"; $g1.Location=New-Object System.Drawing.Point(10,10); $g1.Size=New-Object System.Drawing.Size(280,400)
 Add-Item $g1 "Откл. Телеметрию" "Слежка." 25 "chkTel"
 Add-Item $g1 "Убрать Copilot" "ИИ." 55 "chkCop"
 Add-Item $g1 "Убрать Bing" "Поиск." 85 "chkBing"
 
-$g2 = New-Object System.Windows.Forms.GroupBox; $g2.Text="Удаление"; $g2.Location="300,10"; $g2.Size="280,400"
+$g2 = New-Object System.Windows.Forms.GroupBox; $g2.Text="Удаление"; $g2.Location=New-Object System.Drawing.Point(300,10); $g2.Size=New-Object System.Drawing.Size(280,400)
 Add-Item $g2 "Удалить Xbox" "Ломает Store!" 25 "chkXbox"
 Add-Item $g2 "Удалить Почту" "Почта." 55 "chkMail"
 Add-Item $g2 "Удалить Новости" "Погода." 85 "chkNews"
 Add-Item $g2 "Удалить Cortana" "Голос." 115 "chkCort"
 Add-Item $g2 "Удалить Office" "My Office." 145 "chkOff"
 
-$g3 = New-Object System.Windows.Forms.GroupBox; $g3.Text="Скорость"; $g3.Location="590,10"; $g3.Size="280,400"
+$g3 = New-Object System.Windows.Forms.GroupBox; $g3.Text="Скорость"; $g3.Location=New-Object System.Drawing.Point(590,10); $g3.Size=New-Object System.Drawing.Size(280,400)
 Add-Item $g3 "SysMain (SSD)" "Superfetch." 25 "chkSysMain"
 Add-Item $g3 "Откл. Анимации" "Визуал." 55 "chkAnim"
 Add-Item $g3 "Откл. GameDVR" "Запись экрана." 85 "chkDVR"
@@ -102,16 +106,16 @@ Add-Item $g3 "Откл. Гибернацию" "Место на диске." 145 
 Add-Item $g3 "Показ расширений" ".exe" 175 "chkExt"
 Add-Item $g3 "Fix Мыши" "Акселерация." 205 "chkMouse"
 
-$brst = New-Object System.Windows.Forms.Button; $brst.Text="Сброс"; $brst.Location="10,420"; $brst.Size="200,30"
+$brst = New-Object System.Windows.Forms.Button; $brst.Text="Сброс"; $brst.Location=New-Object System.Drawing.Point(10,420); $brst.Size=New-Object System.Drawing.Size(200,30)
 $tp2.Controls.AddRange(@($g1, $g2, $g3, $brst))
 
 # --- TAB 3: APPS ---
 $tp3 = New-Object System.Windows.Forms.TabPage; $tp3.Text=" [3] МАГАЗИН "
-$cc = New-Object System.Windows.Forms.ComboBox; $cc.Location="10,10"; $cc.Size="200,25"; $cc.DropDownStyle="DropDownList"; $cc.Items.Add("ВСЕ (All)")
-$ts = New-Object System.Windows.Forms.TextBox; $ts.Location="220,10"; $ts.Size="380,25"; $ts.Text="Поиск..."
-$la = New-Object System.Windows.Forms.CheckedListBox; $la.Location="10,45"; $la.Size="590,400"; $la.CheckOnClick=$true
-$bi = New-Object System.Windows.Forms.Button; $bi.Text="Установить"; $bi.Location="620,45"; $bi.Size="250,50"; $bi.BackColor="Green"; $bi.ForeColor="White"
-$bu = New-Object System.Windows.Forms.Button; $bu.Text="Обновить ВСЁ"; $bu.Location="620,110"; $bu.Size="250,50"; $bu.BackColor="DarkBlue"; $bu.ForeColor="White"
+$cc = New-Object System.Windows.Forms.ComboBox; $cc.Location=New-Object System.Drawing.Point(10,10); $cc.Size=New-Object System.Drawing.Size(200,25); $cc.DropDownStyle="DropDownList"; $cc.Items.Add("ВСЕ (All)")
+$ts = New-Object System.Windows.Forms.TextBox; $ts.Location=New-Object System.Drawing.Point(220,10); $ts.Size=New-Object System.Drawing.Size(380,25); $ts.Text="Поиск..."
+$la = New-Object System.Windows.Forms.CheckedListBox; $la.Location=New-Object System.Drawing.Point(10,45); $la.Size=New-Object System.Drawing.Size(590,400); $la.CheckOnClick=$true
+$bi = New-Object System.Windows.Forms.Button; $bi.Text="Установить"; $bi.Location=New-Object System.Drawing.Point(620,45); $bi.Size=New-Object System.Drawing.Size(250,50); $bi.BackColor="Green"; $bi.ForeColor="White"
+$bu = New-Object System.Windows.Forms.Button; $bu.Text="Обновить ВСЁ"; $bu.Location=New-Object System.Drawing.Point(620,110); $bu.Size=New-Object System.Drawing.Size(250,50); $bu.BackColor="DarkBlue"; $bu.ForeColor="White"
 $tp3.Controls.AddRange(@($cc, $ts, $la, $bi, $bu))
 
 # --- TAB 4: CLEAN ---
@@ -125,9 +129,12 @@ Add-Item $tp4 "DISM Очистка" "Образ Windows." 180 "chkDism"
 $tabs.Controls.AddRange(@($tp1, $tp2, $tp3, $tp4))
 
 # FOOTER
-$brun = New-Object System.Windows.Forms.Button; $brun.Text="ЗАПУСТИТЬ ВЫБРАННОЕ"; $brun.Location="400,515"; $brun.Size="325,40"; $brun.BackColor="DarkSlateGray"; $brun.ForeColor="White"; $brun.Font="Arial,10,Bold"
-$crest = New-Object System.Windows.Forms.CheckBox; $crest.Text="Точка восстановления"; $crest.Location="20,525"; $crest.AutoSize=$true; $crest.Checked=$true
-$breboot = New-Object System.Windows.Forms.Button; $breboot.Text="Перезагрузка"; $breboot.Location="740,515"; $breboot.Size="180,40"; $breboot.BackColor="Maroon"; $breboot.ForeColor="White"
+$brun = New-Object System.Windows.Forms.Button; $brun.Text="ЗАПУСТИТЬ ВЫБРАННОЕ"; $brun.Location=New-Object System.Drawing.Point(400,515); $brun.Size=New-Object System.Drawing.Size(325,40); $brun.BackColor="DarkSlateGray"; $brun.ForeColor="White"
+# ИСПРАВЛЕНИЕ ШРИФТА 3
+$brun.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+
+$crest = New-Object System.Windows.Forms.CheckBox; $crest.Text="Точка восстановления"; $crest.Location=New-Object System.Drawing.Point(20,525); $crest.AutoSize=$true; $crest.Checked=$true
+$breboot = New-Object System.Windows.Forms.Button; $breboot.Text="Перезагрузка"; $breboot.Location=New-Object System.Drawing.Point(740,515); $breboot.Size=New-Object System.Drawing.Size(180,40); $breboot.BackColor="Maroon"; $breboot.ForeColor="White"
 $form.Controls.AddRange(@($tabs, $log, $brun, $crest, $breboot))
 
 # --- LOGIC CONNECTION ---
@@ -136,7 +143,9 @@ $Global:Apps = @()
 
 # Load Apps
 try { 
-    $json = Invoke-RestMethod $AppsJsonUrl -UseBasicParsing -TimeoutSec 5
+    $wcApps = New-Object System.Net.WebClient; $wcApps.Encoding = [System.Text.Encoding]::UTF8
+    $jsonContent = $wcApps.DownloadString($AppsJsonUrl)
+    $json = $jsonContent | ConvertFrom-Json
     if ($json.ManualCategories) { 
         foreach ($catObj in $json.ManualCategories) { 
             $catName = $catObj.Name; $cc.Items.Add($catName)
@@ -147,7 +156,7 @@ try {
             }
         }
     }
-} catch { Log $log "Error loading Apps JSON" "Red" }
+} catch { Log $log "Error loading Apps JSON: $($_.Exception.Message)" "Red" }
 $cc.SelectedIndex = 0
 
 # App Events
@@ -206,5 +215,3 @@ $brun.Add_Click({
 $breboot.Add_Click({ Restart-Computer -Force })
 
 $form.ShowDialog()
-
-
