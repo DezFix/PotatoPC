@@ -1,5 +1,5 @@
 # ==========================================
-# POTATO PC OPTIMIZER v5.0
+# POTATO PC OPTIMIZER v5.5 (RESEARCH ED.)
 # ==========================================
 
 # --- 1. AUTO-ELEVATE (Запуск от Админа) ---
@@ -17,23 +17,25 @@ New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 # --- HELPER: Надежное отключение службы ---
 function Helper-KillService {
     param($Name)
-    $service = Get-Service $Name -ErrorAction SilentlyContinue
-    if ($service -and $service.Status -ne 'Stopped') {
-        # Бэкап
-        $state = [PSCustomObject]@{Name = $service.Name; StartType = $service.StartType; Status = $service.Status; Date = Get-Date}
-        $state | Export-Csv -Path "$BackupDir\Services_Backup.csv" -Append -NoTypeInformation -Force
+    # Ищем службу (поддерживает wildcard, например BcastDVR*)
+    $services = Get-Service $Name -ErrorAction SilentlyContinue
+    foreach ($service in $services) {
+        if ($service.Status -ne 'Stopped' -or $service.StartType -ne 'Disabled') {
+            # Бэкап
+            $state = [PSCustomObject]@{Name = $service.Name; StartType = $service.StartType; Status = $service.Status; Date = Get-Date}
+            $state | Export-Csv -Path "$BackupDir\Services_Backup.csv" -Append -NoTypeInformation -Force
 
-        Write-Host " [STOP] Служба: $Name" -ForegroundColor DarkCyan
-        Stop-Service -Name $Name -Force -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$Name" -Name "Start" -Value 4 -Type DWord -Force -ErrorAction SilentlyContinue
+            Write-Host " [STOP] Служба: $($service.Name)" -ForegroundColor DarkCyan
+            Stop-Service -Name $service.Name -Force -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$($service.Name)" -Name "Start" -Value 4 -Type DWord -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 
 # --- HELPER: Надежное удаление Appx ---
 function Helper-KillApp {
     param($NamePattern)
-    # Белый список (НЕ УДАЛЯТЬ ЭТО)
-    $WhiteList = @("Microsoft.WindowsStore", "Microsoft.DesktopAppInstaller", "Microsoft.Windows.Photos", "Microsoft.WindowsCalculator") 
+    $WhiteList = @("Microsoft.WindowsStore", "Microsoft.DesktopAppInstaller", "Microsoft.Windows.Photos", "Microsoft.WindowsCalculator", "Microsoft.VP9VideoExtensions") 
     
     $apps = Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "*$NamePattern*" -and $_.Name -notin $WhiteList}
     if ($apps) {
@@ -42,14 +44,13 @@ function Helper-KillApp {
             Remove-AppxPackage -Package $app.PackageFullName -AllUsers -ErrorAction SilentlyContinue
         }
     }
-    # Удаление из образа (чтобы не вернулось)
     Get-AppxProvisionedPackage -Online | Where-Object {$_.DisplayName -like "*$NamePattern*" -and $_.DisplayName -notin $WhiteList} | ForEach-Object {
         Write-Host "    -> [IMG] Образ: $($_.DisplayName)" -ForegroundColor Magenta
         Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue | Out-Null
     }
 }
 
-# --- HELPER: Реестр (Твики) ---
+# --- HELPER: Реестр ---
 function Helper-RegSet {
     param($Path, $Name, $Value, $Type="DWord")
     if (!(Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
@@ -62,18 +63,18 @@ function Show-MainMenu {
     while ($true) {
         Clear-Host
         Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-        Write-Host "║              POTATO PC OPTIMIZER v5.0                      ║" -ForegroundColor Cyan
+        Write-Host "║           POTATO PC OPTIMIZER v5.5 (RESEARCH ED.)          ║" -ForegroundColor Cyan
         Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
         Write-Host " Backups: $BackupDir" -ForegroundColor DarkGray
         Write-Host ""
         
-        Write-Host " [1] " -NoNewline -ForegroundColor Green; Write-Host "Очистка Bloatware " -NoNewline; Write-Host "(Почта, Новости, Xbox)" -ForegroundColor Gray
-        Write-Host " [2] " -NoNewline -ForegroundColor Green; Write-Host "Отключение Служб " -NoNewline; Write-Host "(Телеметрия, SysMain)" -ForegroundColor Gray
-        Write-Host " [3] " -NoNewline -ForegroundColor Green; Write-Host "Очистка Мусора " -NoNewline; Write-Host "(Temp, Update Cache)" -ForegroundColor Gray
+        Write-Host " [1] " -NoNewline -ForegroundColor Green; Write-Host "Очистка Bloatware " -NoNewline; Write-Host "(Список из исследования)" -ForegroundColor Gray
+        Write-Host " [2] " -NoNewline -ForegroundColor Green; Write-Host "Отключение Служб " -NoNewline; Write-Host "(Безопасный список + SysMain Logic)" -ForegroundColor Gray
+        Write-Host " [3] " -NoNewline -ForegroundColor Green; Write-Host "Очистка Мусора " -NoNewline; Write-Host "(Temp, Logs, Updates)" -ForegroundColor Gray
         Write-Host " [4] " -NoNewline -ForegroundColor Green; Write-Host "Магазин Приложений " -NoNewline; Write-Host "(Установка/Обновление)" -ForegroundColor Gray
-        Write-Host " [5] " -NoNewline -ForegroundColor Green; Write-Host "Твики Windows " -NoNewline; Write-Host "(Визуал, Проводник)" -ForegroundColor Gray
+        Write-Host " [5] " -NoNewline -ForegroundColor Green; Write-Host "Твики Windows " -NoNewline; Write-Host "(Меню, Проводник, Принтер)" -ForegroundColor Gray
         Write-Host ""
-        Write-Host " [6] " -NoNewline -ForegroundColor Yellow; Write-Host "🔥 АВТО-РАЗГОН (PRESET)" -NoNewline; Write-Host " -> Делает [1]+[2]+[3]+Твики" -ForegroundColor Gray
+        Write-Host " [6] " -NoNewline -ForegroundColor Yellow; Write-Host "🔥 АВТО-РАЗГОН (PRESET)" -NoNewline; Write-Host " -> Максимальное ускорение" -ForegroundColor Gray
         Write-Host ""
         Write-Host " [9] " -NoNewline -ForegroundColor Magenta; Write-Host "Создать точку восстановления"
         Write-Host " [R] " -NoNewline -ForegroundColor DarkGray; Write-Host "Восстановить службы"
@@ -94,79 +95,72 @@ function Show-MainMenu {
     }
 }
 
-# --- MODULE 6: PRESET (АВТОМАТИЗАЦИЯ) ---
+# --- MODULE 6: PRESET ---
 function Module-AutoPreset {
     Clear-Host
-    Write-Host "=== ЗАПУСК АВТОМАТИЧЕСКОЙ ОПТИМИЗАЦИИ ===" -ForegroundColor Yellow
-    Write-Host "Система будет оптимизирована для максимальной производительности." -ForegroundColor Gray
+    Write-Host "=== АВТОМАТИЧЕСКАЯ ОПТИМИЗАЦИЯ ===" -ForegroundColor Yellow
+    Write-Host "На основе исследования безопасных служб." -ForegroundColor Gray
     $c = Read-Host "Нажми Enter для старта (или 'n' для отмены)"
     if ($c -eq 'n') { return }
 
     Module-CreateRestorePoint -Auto $true
-    
-    # Запуск модулей в тихом режиме
     Module-RemoveBloatware -Auto $true
     Module-DisableServices -Auto $true
     Module-SystemCleanup -Auto $true
     
-    # Применение важных твиков автоматически
-    Write-Host "`n[TWEAK] Отключение анимаций и эффектов..." -ForegroundColor Cyan
-    # VisualFX: Adjust for best performance (Reg Tweak)
+    Write-Host "`n[TWEAK] Максимальная производительность питания..." -ForegroundColor Cyan
+    powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 2>$null | Out-Null # Ultimate Perf
+    powercfg -setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null # High Perf fallback
+    
+    Write-Host "`n[TWEAK] Отключение анимаций..." -ForegroundColor Cyan
     Helper-RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2
     
-    Write-Host "`n[DONE] Авто-разгон завершен! Перезагрузи ПК для эффекта." -ForegroundColor Green
+    Write-Host "`n[DONE] Готово! Перезагрузи ПК." -ForegroundColor Green
     Pause
 }
 
-# --- MODULE 1: BLOATWARE REMOVAL (Обновленный список) ---
+# --- MODULE 1: BLOATWARE REMOVAL ---
 function Module-RemoveBloatware {
     param($Auto = $false)
     Write-Host "`n=== УДАЛЕНИЕ ВСТРОЕННОГО ПО ===" -ForegroundColor Yellow
     if (!$Auto) {
-        Write-Host "ВНИМАНИЕ: Удалится Почта, Xbox, Новости, OneNote и прочее." -ForegroundColor Red
-        $conf = Read-Host "Напишите 'y' для продолжения"
-        if ($conf -ne 'y') { return }
+        Write-Host "Будут удалены: Почта, Xbox, Новости, Wallet, People, Cortana и др." -ForegroundColor Red
+        if ((Read-Host "Продолжить? (y/n)") -ne 'y') { return }
         Module-CreateRestorePoint -Auto $true
     }
 
-    # Расширенный список для слабых ПК
+    # Список составлен на основе твоего исследования
     $BloatList = @(
-        "Microsoft.WindowsCommunicationsApps", # Почта и Календарь
+        "Microsoft.WindowsCommunicationsApps", # Почта/Календарь
         "Microsoft.BingNews",                 # Новости
         "Microsoft.BingWeather",              # Погода
         "Microsoft.XboxApp",                  # Xbox Hub
         "Microsoft.GamingApp",                # Xbox Gaming App
+        "Microsoft.XboxGamingOverlay",        # Game Bar
         "Microsoft.Xbox.TCUI",                # Xbox UI
-        "Microsoft.XboxGameOverlay",          # Xbox Overlay
-        "Microsoft.XboxGamingOverlay",        # Еще оверлей
         "Microsoft.XboxSpeechToTextOverlay",
         "Microsoft.YourPhone",                # Связь с телефоном
         "Microsoft.GetHelp",                  # Техподдержка
-        "Microsoft.MicrosoftOfficeHub",       # Office (My Office)
-        "Microsoft.Office.OneNote",           # OneNote
-        "Microsoft.People",                   # Люди
-        "Microsoft.SkypeApp",                 # Skype
-        "Microsoft.WindowsFeedbackHub",       # Отзывы
-        "Microsoft.ZuneMusic",                # Groove Music
-        "Microsoft.ZuneVideo",                # Кино и ТВ
-        "Microsoft.Windows.DevHome",          # DevHome (Win11)
-        "Microsoft.PowerAutomateDesktop",     # Power Automate
-        "Microsoft.Todos",                    # To Do
-        "Microsoft.MicrosoftSolitaireCollection", # Косынка
+        "Microsoft.People",                   # Люди (People) - Из исследования
+        "Microsoft.SkypeApp",                 # Skype - Из исследования
+        "Microsoft.Wallet",                   # Wallet - Из исследования
+        "Microsoft.549981C3F5F10",            # Cortana - Из исследования
+        "Microsoft.MicrosoftOfficeHub",       # Office Hub
+        "Microsoft.Office.OneNote",
+        "Microsoft.WindowsFeedbackHub",
+        "Microsoft.ZuneMusic",
+        "Microsoft.ZuneVideo",
+        "Microsoft.Todos",
+        "Microsoft.MicrosoftSolitaireCollection",
         "Microsoft.MixedReality.Portal",
         "Microsoft.WindowsSoundRecorder",
         "Microsoft.WindowsMaps"
     )
 
-    foreach ($app in $BloatList) {
-        Helper-KillApp $app
-    }
+    foreach ($app in $BloatList) { Helper-KillApp $app }
     
-    # Убираем кнопку "Виджеты/Новости" с панели задач
-    Write-Host " [REG] Скрытие новостей (Widgets)..." -ForegroundColor Cyan
+    Write-Host " [REG] Скрытие виджетов новостей..." -ForegroundColor Cyan
     Helper-RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "TaskbarDa" 0
-
-    # Отключение Copilot
     Write-Host " [REG] Отключение Copilot..." -ForegroundColor Cyan
     Helper-RegSet "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot" "TurnOffWindowsCopilot" 1
 
@@ -174,38 +168,51 @@ function Module-RemoveBloatware {
     if (!$Auto) { Pause }
 }
 
-# --- MODULE 2: SERVICES (Для слабых ПК) ---
+# --- MODULE 2: SERVICES (SMART LOGIC) ---
 function Module-DisableServices {
     param($Auto = $false)
     Write-Host "`n=== ОТКЛЮЧЕНИЕ СЛУЖБ ===" -ForegroundColor Yellow
     
-    # Список служб, которые безопасно (и нужно) отключить на слабом ПК
+    # 1. Безусловное отключение (Телеметрия и явный мусор)
     $ServicesToKill = @(
-        "DiagTrack",          # Телеметрия
+        "DiagTrack",          # Телеметрия (Research: OK)
         "dmwappushservice",   # Телеметрия
         "WerSvc",             # Отчеты об ошибках
-        "SysMain",            # Superfetch (Грузит HDD/CPU на старых пк)
-        "WMPNetworkSvc",      # Windows Media Player Network
-        "XblGameSave",        # Xbox
-        "XboxNetApiSvc",      # Xbox
-        "XboxGipSvc",         # Xbox
-        "Fax",                # Факс
-        "MapsBroker",         # Карты
-        "RetailDemo",         # Демо режим
-        "WSearch",            # Windows Search (ОЧЕНЬ грузит диск, но отключает поиск файлов) - Решил пока не трогать по дефолту, слишком агрессивно.
-        "DPS"                 # Diagnostic Policy Service
+        "MapsBroker",         # Карты (Research: OK)
+        "RetailDemo",         # Демо
+        "Fax",                # Факс (Research: OK)
+        "TrkWks",             # Tracking Clients (Research: OK)
+        "WbioSrvc",           # Биометрия (Research: OK, если нет сканера)
+        "TabletInputService"  # Сенсорная клава (Research: OK для десктопа)
     )
-    
-    foreach ($svc in $ServicesToKill) {
-        Helper-KillService $svc
+
+    # 2. Xbox Services (Расширенный список из исследования)
+    $XboxServices = @("XblAuthManager", "XblGameSave", "XboxNetApiSvc", "XboxGipSvc", "BcastDVRUserService*")
+    $ServicesToKill += $XboxServices
+
+    foreach ($svc in $ServicesToKill) { Helper-KillService $svc }
+
+    # 3. SysMain (Superfetch) - УМНАЯ ПРОВЕРКА ДИСКА
+    Write-Host " [CHECK] Проверка типа диска для SysMain..." -ForegroundColor DarkGray
+    $isSSD = $false
+    try {
+        $disk = Get-PhysicalDisk | Where-Object { $_.MediaType -eq 'SSD' } | Select-Object -First 1
+        if ($disk) { $isSSD = $true }
+    } catch { Write-Host "Не удалось определить диск. Пропуск." -ForegroundColor Red }
+
+    if ($isSSD) {
+        Write-Host " -> Обнаружен SSD. Отключаем SysMain (Research Rec.)..." -ForegroundColor Green
+        Helper-KillService "SysMain"
+    } else {
+        Write-Host " -> Обнаружен HDD. SysMain оставлен включенным (Research Rec.)." -ForegroundColor Yellow
     }
 
-    # Отключение GameDVR (Запись игр) - жрет ресурсы
+    # 4. GameDVR (Реестр)
     Write-Host " [REG] Отключение GameDVR..." -ForegroundColor Cyan
     Helper-RegSet "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0
     Helper-RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" "AllowGameDVR" 0
 
-    Write-Host " [TASK] Отключение заданий планировщика..." -ForegroundColor Cyan
+    # 5. Планировщик (Телеметрия)
     $Tasks = @(
         "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
         "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator"
@@ -228,7 +235,7 @@ function Module-SystemCleanup {
     }
     Clear-RecycleBin -Force -ErrorAction SilentlyContinue
     
-    # Очистка логов событий (для параноиков и экономии места)
+    Write-Host " [LOGS] Очистка журналов событий..." -ForegroundColor DarkGray
     Get-WinEvent -ListLog * -ErrorAction SilentlyContinue | ForEach-Object { Wevtutil cl $_.LogName 2>$null }
 
     Write-Host "`n[OK] Мусор удален." -ForegroundColor Green
@@ -328,15 +335,6 @@ function Module-InstallerGUI {
 
 # --- MODULE 5: SYSTEM TWEAKS ---
 function Module-SystemTweaks {
-    param($Auto = $false)
-    
-    # Если авто-режим, применяем только безопасные твики
-    if ($Auto) {
-        Write-Host " [TWEAK] Отключение Bing в пуске..."
-        Helper-RegSet "HKCU:\Software\Policies\Microsoft\Windows\Explorer" "DisableSearchBoxSuggestions" 1
-        return
-    }
-
     function Get-Status($bool) { if($bool){return "[ON ]"}else{return "[OFF]"} }
     function Get-Color($bool) { if($bool){return "Green"}else{return "Gray"} }
 
@@ -346,34 +344,37 @@ function Module-SystemTweaks {
         
         $isClassic = Test-Path "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32"
         $isBingOff = (Get-ItemProperty "HKCU:\Software\Policies\Microsoft\Windows\Explorer" "DisableSearchBoxSuggestions" -EA SilentlyContinue).DisableSearchBoxSuggestions -eq 1
-        $isTransp = (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "EnableTransparency" -EA SilentlyContinue).EnableTransparency -eq 1
-        
+        $isSpooler = (Get-Service "Spooler").Status -eq 'Running'
+        $isBt = (Get-Service "bthserv").Status -eq 'Running'
+
         Write-Host " [1] " -NoNewline; Write-Host $(Get-Status $isClassic) -F $(Get-Color $isClassic) -NoNewline; Write-Host " Классическое меню (Win 11)"
         Write-Host " [2] " -NoNewline; Write-Host $(Get-Status $isBingOff) -F $(Get-Color $isBingOff) -NoNewline; Write-Host " Отключить Bing поиск в меню Пуск"
-        Write-Host " [3] " -NoNewline; Write-Host $(Get-Status $isTransp) -F $(Get-Color $isTransp) -NoNewline; Write-Host " Прозрачность Windows (Выкл = FPS)"
+        Write-Host " [3] " -NoNewline; Write-Host $(Get-Status $isSpooler) -F $(Get-Color $isSpooler) -NoNewline; Write-Host " Служба Принтера (Spooler)"
+        Write-Host " [4] " -NoNewline; Write-Host $(Get-Status $isBt) -F $(Get-Color $isBt) -NoNewline; Write-Host " Bluetooth Служба"
         Write-Host " [0] Назад"
 
         $c = Read-Host " >"
         switch ($c) {
             '1' { if($isClassic){reg delete "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f | Out-Null}else{reg add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /f /ve | Out-Null} }
             '2' { $v=if($isBingOff){0}else{1}; Helper-RegSet "HKCU:\Software\Policies\Microsoft\Windows\Explorer" "DisableSearchBoxSuggestions" $v }
-            '3' { $v=if($isTransp){0}else{1}; Helper-RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "EnableTransparency" $v }
+            '3' { if($isSpooler){Stop-Service Spooler -Force; Set-Service Spooler -StartupType Disabled}else{Set-Service Spooler -StartupType Automatic; Start-Service Spooler} }
+            '4' { if($isBt){Stop-Service bthserv -Force; Set-Service bthserv -StartupType Disabled}else{Set-Service bthserv -StartupType Manual; Start-Service bthserv} }
             '0' { return }
         }
-        if ($c -in '1','2','3') { Stop-Process -Name explorer -Force; Start-Sleep 1 }
+        if ($c -in '1','2') { Stop-Process -Name explorer -Force; Start-Sleep 1 }
     }
 }
 
-# --- RESTORE POINT & RESTORE ---
+# --- RESTORE ---
 function Module-CreateRestorePoint {
     param($Auto = $false)
     Write-Host "Создание точки восстановления..." -ForegroundColor Yellow
     Enable-ComputerRestore -Drive "C:\" -ErrorAction SilentlyContinue
     try {
-        Checkpoint-Computer -Description "PotatoPC_Auto" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
+        Checkpoint-Computer -Description "PotatoPC_Point" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
         Write-Host "[SUCCESS] Точка создана." -ForegroundColor Green
     } catch {
-        Write-Host "[FAIL] Ошибка создания точки." -ForegroundColor Red
+        Write-Host "[FAIL] Ошибка. (Возможно отключена защита системы)" -ForegroundColor Red
         if (!$Auto) { Pause }
     }
     if (!$Auto) { Pause }
