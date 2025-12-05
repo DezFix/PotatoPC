@@ -1,407 +1,285 @@
 # ==========================================
-# POTATO PC OPTIMIZER v6.5 (FIXED)
+# POTATO PC OPTIMIZER v7.0 (GUI EDITION)
 # ==========================================
 
-# --- 1. AUTO-ELEVATE (Надежный перезапуск) ---
+# --- 1. AUTO-ELEVATE ---
 $currentPrincipal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (!($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
     $scriptPath = $MyInvocation.MyCommand.Definition
-    if ([string]::IsNullOrWhiteSpace($scriptPath)) {
-        Write-Host "ОШИБКА: Сохраните скрипт в файл (например run.ps1) перед запуском!" -ForegroundColor Red
-        Read-Host "Нажмите Enter для выхода..."
-        exit
-    }
-    Write-Host "Перезапуск от имени Администратора..." -ForegroundColor Yellow
-    try {
-        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
-    } catch {
-        Write-Host "Не удалось получить права Администратора. Запустите вручную." -ForegroundColor Red
-        Read-Host "Enter..."
-    }
+    if ([string]::IsNullOrWhiteSpace($scriptPath)) { Write-Host "Сохраните файл!"; Read-Host; exit }
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
     exit
 }
 
-# --- НАСТРОЙКИ ---
-$AppsJsonUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/apps.json"
+# --- 2. LIBRARIES & SETUP ---
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 $BackupDir = "C:\PotatoPC_Backups"
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
+$AppsJsonUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/apps.json"
 
-# --- HELPER: Проверка служб перед работой ---
-function Helper-EnsureService {
-    param($Name)
-    $svc = Get-Service $Name -ErrorAction SilentlyContinue
-    if ($svc -and $svc.Status -ne 'Running') {
-        Write-Host " [FIX] Запуск службы $Name для корректной работы..." -ForegroundColor DarkGray
-        Set-Service $Name -StartupType Manual -ErrorAction SilentlyContinue
-        Start-Service $Name -ErrorAction SilentlyContinue
-    }
+# --- 3. CORE FUNCTIONS (ЛОГИКА) ---
+
+function Log($text, $color="Black") {
+    $txtLog.SelectionColor = [System.Drawing.Color]::FromName($color)
+    $txtLog.AppendText("[$([DateTime]::Now.ToString('HH:mm:ss'))] $text`r`n")
+    $txtLog.ScrollToCaret()
+    $form.Refresh()
 }
 
-# --- HELPER: Службы ---
-function Helper-KillService {
-    param($Name)
-    $services = Get-Service $Name -ErrorAction SilentlyContinue
-    foreach ($service in $services) {
-        if ($service.Status -ne 'Stopped' -or $service.StartType -ne 'Disabled') {
-            $state = [PSCustomObject]@{Name = $service.Name; StartType = $service.StartType; Status = $service.Status; Date = Get-Date}
-            $state | Export-Csv -Path "$BackupDir\Services_Backup.csv" -Append -NoTypeInformation -Force
-
-            Write-Host " [STOP] Служба: $($service.Name)" -ForegroundColor DarkCyan
-            Stop-Service -Name $service.Name -Force -ErrorAction SilentlyContinue
-            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$($service.Name)" -Name "Start" -Value 4 -Type DWord -Force -ErrorAction SilentlyContinue
-        }
-    }
-}
-
-# --- HELPER: Appx (С обработкой ошибок) ---
-function Helper-KillApp {
-    param($NamePattern)
-    $WhiteList = @("Microsoft.WindowsStore", "Microsoft.DesktopAppInstaller", "Microsoft.Windows.Photos", "Microsoft.WindowsCalculator", "Microsoft.VP9VideoExtensions") 
-    
-    try {
-        $apps = Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "*$NamePattern*" -and $_.Name -notin $WhiteList}
-        if ($apps) {
-            foreach ($app in $apps) {
-                Write-Host "    -> [DEL] Пакет: $($app.Name)" -ForegroundColor Red
-                Remove-AppxPackage -Package $app.PackageFullName -AllUsers -ErrorAction Stop
-            }
-        }
-        Get-AppxProvisionedPackage -Online | Where-Object {$_.DisplayName -like "*$NamePattern*" -and $_.DisplayName -notin $WhiteList} | ForEach-Object {
-            Write-Host "    -> [IMG] Образ: $($_.DisplayName)" -ForegroundColor Magenta
-            Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue | Out-Null
-        }
-    } catch {
-        Write-Host "    [!] Ошибка удаления $NamePattern. Возможно, нет прав или служба AppX отключена." -ForegroundColor DarkGray
-    }
-}
-
-# --- HELPER: Реестр ---
-function Helper-RegSet {
-    param($Path, $Name, $Value, $Type="DWord")
-    if (!(Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
-    Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force -ErrorAction SilentlyContinue
-}
-
-# --- MENU SYSTEM ---
-function Show-MainMenu {
-    $Host.UI.RawUI.BackgroundColor = "Black"
-    while ($true) {
-        Clear-Host
-        Write-Host "==============================================================" -ForegroundColor Cyan
-        Write-Host "               POTATO PC OPTIMIZER v6.5 (FIXED)               " -ForegroundColor Cyan
-        Write-Host "==============================================================" -ForegroundColor Cyan
-        Write-Host " Backups: $BackupDir" -ForegroundColor DarkGray
-        Write-Host ""
-        
-        Write-Host " [1] " -NoNewline -ForegroundColor Green; Write-Host "Очистка Bloatware " -NoNewline; Write-Host "(Список из исследования)" -ForegroundColor Gray
-        Write-Host " [2] " -NoNewline -ForegroundColor Green; Write-Host "Отключение Служб " -NoNewline; Write-Host "(Безопасный список + SysMain)" -ForegroundColor Gray
-        Write-Host " [3] " -NoNewline -ForegroundColor Green; Write-Host "Очистка Мусора " -NoNewline; Write-Host "(Temp, Logs, Updates)" -ForegroundColor Gray
-        Write-Host " [4] " -NoNewline -ForegroundColor Green; Write-Host "Магазин Приложений " -NoNewline; Write-Host "(WinGet GUI)" -ForegroundColor Gray
-        Write-Host " [5] " -NoNewline -ForegroundColor Green; Write-Host "Твики Windows " -NoNewline; Write-Host "(Интерфейс)" -ForegroundColor Gray
-        Write-Host ""
-        Write-Host " [6] " -NoNewline -ForegroundColor Yellow; Write-Host ">> АВТО-РАЗГОН (PRESET)" -NoNewline; Write-Host " -> Максимальное ускорение" -ForegroundColor Gray
-        Write-Host ""
-        Write-Host " [9] " -NoNewline -ForegroundColor Magenta; Write-Host "Создать точку восстановления"
-        Write-Host " [R] " -NoNewline -ForegroundColor DarkGray; Write-Host "Восстановить службы"
-        Write-Host " [0] " -NoNewline -ForegroundColor Red; Write-Host "Выход"
-        
-        $choice = Read-Host " > Выбор"
-        switch ($choice) {
-            '1' { Module-RemoveBloatware }
-            '2' { Module-DisableServices }
-            '3' { Module-SystemCleanup }
-            '4' { Module-InstallerGUI }
-            '5' { Module-SystemTweaks }
-            '6' { Module-AutoPreset }
-            '9' { Module-CreateRestorePoint }
-            'R' { Module-RestoreServices }
-            '0' { exit }
-        }
-    }
-}
-
-# --- MODULE 6: PRESET ---
-function Module-AutoPreset {
-    Clear-Host
-    Write-Host "=== АВТОМАТИЧЕСКАЯ ОПТИМИЗАЦИЯ ===" -ForegroundColor Yellow
-    $c = Read-Host "Нажми Enter для старта (или 'n' для отмены)"
-    if ($c -eq 'n') { return }
-
-    Module-CreateRestorePoint -Auto $true
-    Module-RemoveBloatware -Auto $true
-    Module-DisableServices -Auto $true
-    Module-SystemCleanup -Auto $true
-    
-    Write-Host "`n[TWEAK] Максимальная производительность..." -ForegroundColor Cyan
-    powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 2>$null | Out-Null
-    powercfg -setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null
-    
-    Write-Host "`n[TWEAK] Отключение анимаций..." -ForegroundColor Cyan
-    Helper-RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2
-    
-    Write-Host "`n[DONE] Готово! Перезагрузи ПК." -ForegroundColor Green
-    Pause
-}
-
-# --- MODULE 1: BLOATWARE ---
-function Module-RemoveBloatware {
-    param($Auto = $false)
-    Write-Host "`n=== УДАЛЕНИЕ ВСТРОЕННОГО ПО ===" -ForegroundColor Yellow
-    
-    # ПРОВЕРКА СЛУЖБЫ APPX (Критично для работы)
-    Helper-EnsureService "AppXSvc"
-
-    if (!$Auto) {
-        Write-Host "Будут удалены: Почта, Xbox, Новости, Wallet, People, Cortana и др." -ForegroundColor Red
-        $conf = Read-Host "Продолжить? (y/n)"
-        # ИСПРАВЛЕНИЕ: Теперь принимает и Y, и y, и Yes
-        if ($conf -notmatch '^[yY]') { return }
-        Module-CreateRestorePoint -Auto $true
-    }
-
-    $BloatList = @(
-        "Microsoft.WindowsCommunicationsApps", "Microsoft.BingNews", "Microsoft.BingWeather",
-        "Microsoft.XboxApp", "Microsoft.GamingApp", "Microsoft.XboxGamingOverlay",
-        "Microsoft.Xbox.TCUI", "Microsoft.XboxSpeechToTextOverlay", "Microsoft.YourPhone",
-        "Microsoft.GetHelp", "Microsoft.People", "Microsoft.SkypeApp", "Microsoft.Wallet",
-        "Microsoft.549981C3F5F10", "Microsoft.MicrosoftOfficeHub", "Microsoft.Office.OneNote",
-        "Microsoft.WindowsFeedbackHub", "Microsoft.ZuneMusic", "Microsoft.ZuneVideo",
-        "Microsoft.Todos", "Microsoft.MicrosoftSolitaireCollection", "Microsoft.MixedReality.Portal",
-        "Microsoft.WindowsSoundRecorder", "Microsoft.WindowsMaps"
-    )
-
-    foreach ($app in $BloatList) { Helper-KillApp $app }
-    
-    Write-Host " [REG] Скрытие виджетов новостей..." -ForegroundColor Cyan
-    Helper-RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "TaskbarDa" 0
-    Write-Host " [REG] Отключение Copilot..." -ForegroundColor Cyan
-    Helper-RegSet "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot" "TurnOffWindowsCopilot" 1
-
-    Write-Host "`n[OK] Очистка завершена." -ForegroundColor Green
-    if (!$Auto) { Pause }
-}
-
-# --- MODULE 2: SERVICES ---
-function Module-DisableServices {
-    param($Auto = $false)
-    Write-Host "`n=== ОТКЛЮЧЕНИЕ СЛУЖБ ===" -ForegroundColor Yellow
-    
-    $ServicesToKill = @(
-        "DiagTrack", "dmwappushservice", "WerSvc", "MapsBroker", "RetailDemo", "Fax",
-        "TrkWks", "WbioSrvc", "TabletInputService"
-    )
-    $ServicesToKill += @("XblAuthManager", "XblGameSave", "XboxNetApiSvc", "XboxGipSvc", "BcastDVRUserService*")
-
-    foreach ($svc in $ServicesToKill) { Helper-KillService $svc }
-
-    # SysMain Check
-    Write-Host " [CHECK] Проверка типа диска для SysMain..." -ForegroundColor DarkGray
-    $isSSD = $false
-    try {
-        $disk = Get-PhysicalDisk | Where-Object { $_.MediaType -eq 'SSD' } | Select-Object -First 1
-        if ($disk) { $isSSD = $true }
-    } catch { Write-Host "Не удалось определить диск." -ForegroundColor Red }
-
-    if ($isSSD) {
-        Write-Host " -> SSD обнаружен. Отключаем SysMain..." -ForegroundColor Green
-        Helper-KillService "SysMain"
-    } else {
-        Write-Host " -> HDD обнаружен. SysMain оставлен включенным." -ForegroundColor Yellow
-    }
-
-    Write-Host " [REG] Отключение GameDVR..." -ForegroundColor Cyan
-    Helper-RegSet "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0
-    Helper-RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" "AllowGameDVR" 0
-
-    $Tasks = @(
-        "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
-        "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator"
-    )
-    foreach ($t in $Tasks) { schtasks /Change /TN "$t" /Disable 2>$null }
-
-    Write-Host "`n[OK] Службы оптимизированы." -ForegroundColor Green
-    if (!$Auto) { Pause }
-}
-
-# --- MODULE 3: CLEANUP ---
-function Module-SystemCleanup {
-    param($Auto = $false)
-    Write-Host "`n=== ОЧИСТКА СИСТЕМЫ ===" -ForegroundColor Yellow
-    
-    $paths = @( "$env:TEMP\*", "C:\Windows\Temp\*", "$env:LOCALAPPDATA\Temp\*" )
-    foreach ($p in $paths) {
-        Write-Host " [CLEAN] $p" -ForegroundColor Gray
-        Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    Clear-RecycleBin -Force -ErrorAction SilentlyContinue
-    
-    Write-Host " [LOGS] Очистка журналов событий..." -ForegroundColor DarkGray
-    Get-WinEvent -ListLog * -ErrorAction SilentlyContinue | ForEach-Object { Wevtutil cl $_.LogName 2>$null }
-
-    Write-Host "`n[OK] Мусор удален." -ForegroundColor Green
-    if (!$Auto) { Pause }
-}
-
-# --- MODULE 4: GUI INSTALLER ---
-function Module-InstallerGUI {
-    # ПРОВЕРКА WINGET
-    if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
-        Write-Host "WinGet не найден! Установка..." -ForegroundColor Yellow
-        try {
-            $url = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-            Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\winget.msixbundle" -UseBasicParsing
-            Add-AppxPackage -Path "$env:TEMP\winget.msixbundle"
-            Write-Host "WinGet установлен." -ForegroundColor Green
-        } catch {
-            Write-Host "Ошибка установки WinGet. Проверьте интернет." -ForegroundColor Red
-            Pause; return
-        }
-    }
-
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
-    
-    Write-Host " [NET] Загрузка списка приложений..." -ForegroundColor Cyan
-    try { $Json = Invoke-RestMethod -Uri $AppsJsonUrl -UseBasicParsing -TimeoutSec 10 } 
-    catch { Write-Host "[ERROR] Нет интернета." -ForegroundColor Red; Pause; return }
-
-    $Global:CachedApps = @()
-    if ($Json.ManualCategories) {
-        $Json.ManualCategories.PSObject.Properties | ForEach-Object {
-            $cat = $_.Name
-            foreach ($a in $_.Value) {
-                $a | Add-Member -NotePropertyName "DisplayString" -NotePropertyValue "$($a.Name)  [$cat]" -Force
-                $Global:CachedApps += $a
-            }
-        }
-    }
-
-    $form = New-Object System.Windows.Forms.Form
-    $form.Text = "PotatoPC App Manager"
-    $form.Size = New-Object System.Drawing.Size(600, 600)
-    $form.StartPosition = "CenterScreen"
-    $form.FormBorderStyle = "FixedDialog"
-
-    $txtSearch = New-Object System.Windows.Forms.TextBox
-    $txtSearch.Location = New-Object System.Drawing.Point(10, 10)
-    $txtSearch.Size = New-Object System.Drawing.Size(560, 20)
-    $txtSearch.Text = "Поиск..."
-    $form.Controls.Add($txtSearch)
-
-    $list = New-Object System.Windows.Forms.CheckedListBox
-    $list.Location = New-Object System.Drawing.Point(10, 40)
-    $list.Size = New-Object System.Drawing.Size(560, 400)
-    $list.CheckOnClick = $true
-    $form.Controls.Add($list)
-
-    $PopulateList = {
-        param($filter)
-        $list.BeginUpdate()
-        $list.Items.Clear()
-        foreach ($app in $Global:CachedApps) {
-            if ([string]::IsNullOrWhiteSpace($filter) -or $filter -eq "Поиск..." -or $app.Name -match $filter) {
-                $list.Items.Add($app.DisplayString)
-            }
-        }
-        $list.EndUpdate()
-    }
-    & $PopulateList ""
-
-    $txtSearch.Add_TextChanged({ & $PopulateList $txtSearch.Text })
-    $txtSearch.Add_Click({ if($txtSearch.Text -eq "Поиск..."){$txtSearch.Text=""} })
-
-    $btnInstall = New-Object System.Windows.Forms.Button
-    $btnInstall.Text = "Установить (Install)"
-    $btnInstall.Location = New-Object System.Drawing.Point(10, 450)
-    $btnInstall.Size = New-Object System.Drawing.Size(275, 50)
-    $btnInstall.BackColor = "Green"
-    $btnInstall.ForeColor = "White"
-    $btnInstall.Add_Click({
-        $form.Hide()
-        foreach ($item in $list.CheckedItems) {
-            $name = $item.Split("[")[0].Trim()
-            $id = ($Global:CachedApps | Where-Object {$_.Name -eq $name} | Select -First 1).Id
-            Write-Host "Installing: $name..." -ForegroundColor Cyan
-            winget install --id $id -e --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
-        }
-        [System.Windows.Forms.MessageBox]::Show("Готово!")
-        $form.Close()
-    })
-    $form.Controls.Add($btnInstall)
-
-    $btnUpdate = New-Object System.Windows.Forms.Button
-    $btnUpdate.Text = "Обновить ВСЁ (Update All)"
-    $btnUpdate.Location = New-Object System.Drawing.Point(295, 450)
-    $btnUpdate.Size = New-Object System.Drawing.Size(275, 50)
-    $btnUpdate.BackColor = "DarkBlue"
-    $btnUpdate.ForeColor = "White"
-    $btnUpdate.Add_Click({
-        $form.Hide()
-        Write-Host "Обновление всех приложений..." -ForegroundColor Magenta
-        winget upgrade --all --include-unknown --accept-source-agreements --accept-package-agreements
-        [System.Windows.Forms.MessageBox]::Show("Обновление завершено!")
-        $form.Close()
-    })
-    $form.Controls.Add($btnUpdate)
-
-    [void]$form.ShowDialog()
-}
-
-# --- MODULE 5: SYSTEM TWEAKS ---
-function Module-SystemTweaks {
-    function Get-Status($bool) { if($bool){return "[ON ]"}else{return "[OFF]"} }
-    function Get-Color($bool) { if($bool){return "Green"}else{return "Gray"} }
-
-    while ($true) {
-        Clear-Host
-        Write-Host "--- TWEAKS ---" -ForegroundColor Cyan
-        
-        $isClassic = Test-Path "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32"
-        $isBingOff = (Get-ItemProperty "HKCU:\Software\Policies\Microsoft\Windows\Explorer" "DisableSearchBoxSuggestions" -EA SilentlyContinue).DisableSearchBoxSuggestions -eq 1
-        $isTransp = (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "EnableTransparency" -EA SilentlyContinue).EnableTransparency -eq 1
-        
-        Write-Host " [1] " -NoNewline; Write-Host $(Get-Status $isClassic) -F $(Get-Color $isClassic) -NoNewline; Write-Host " Классическое меню (Win 11)"
-        Write-Host " [2] " -NoNewline; Write-Host $(Get-Status $isBingOff) -F $(Get-Color $isBingOff) -NoNewline; Write-Host " Отключить Bing поиск в меню Пуск"
-        Write-Host " [3] " -NoNewline; Write-Host $(Get-Status $isTransp) -F $(Get-Color $isTransp) -NoNewline; Write-Host " Прозрачность Windows (Выкл = FPS)"
-        Write-Host " [0] Назад"
-
-        $c = Read-Host " >"
-        switch ($c) {
-            '1' { if($isClassic){reg delete "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f | Out-Null}else{reg add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /f /ve | Out-Null} }
-            '2' { $v=if($isBingOff){0}else{1}; Helper-RegSet "HKCU:\Software\Policies\Microsoft\Windows\Explorer" "DisableSearchBoxSuggestions" $v }
-            '3' { $v=if($isTransp){0}else{1}; Helper-RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "EnableTransparency" $v }
-            '0' { return }
-        }
-        if ($c -in '1','2','3') { Stop-Process -Name explorer -Force; Start-Sleep 1 }
-    }
-}
-
-# --- RESTORE ---
-function Module-CreateRestorePoint {
-    param($Auto = $false)
-    Write-Host "Создание точки восстановления..." -ForegroundColor Yellow
+function Core-CreateRestorePoint {
+    Log "Создание точки восстановления..." "DarkBlue"
     Enable-ComputerRestore -Drive "C:\" -ErrorAction SilentlyContinue
     try {
-        Checkpoint-Computer -Description "PotatoPC_Point" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
-        Write-Host "[SUCCESS] Точка создана." -ForegroundColor Green
+        Checkpoint-Computer -Description "PotatoPC_GUI" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
+        Log "Точка создана успешно." "Green"
     } catch {
-        Write-Host "[FAIL] Ошибка создания точки." -ForegroundColor Red
-        if (!$Auto) { Pause }
+        Log "ОШИБКА создания точки. Проверьте защиту системы." "Red"
     }
-    if (!$Auto) { Pause }
 }
 
-function Module-RestoreServices {
-    $csv = "$BackupDir\Services_Backup.csv"
-    if (!(Test-Path $csv)) { Write-Host "Бэкап не найден!" -ForegroundColor Red; Pause; return }
-    $backup = Import-Csv $csv
-    foreach ($row in $backup) {
-        Write-Host " [RESTORE] $($row.Name)" -ForegroundColor Cyan
-        Set-Service -Name $row.Name -StartupType $row.StartType -ErrorAction SilentlyContinue
-        if ($row.Status -eq "Running") { Start-Service -Name $row.Name -ErrorAction SilentlyContinue }
+function Core-KillService($Name) {
+    $services = Get-Service $Name -ErrorAction SilentlyContinue
+    foreach ($s in $services) {
+        if ($s.Status -ne 'Stopped' -or $s.StartType -ne 'Disabled') {
+            Log "Отключение службы: $($s.Name)" "DarkMagenta"
+            # Бэкап
+            [PSCustomObject]@{Name=$s.Name;Start=$s.StartType;Status=$s.Status} | Export-Csv "$BackupDir\Services.csv" -Append -NoType -Force
+            Stop-Service $s.Name -Force -ErrorAction SilentlyContinue
+            Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$($s.Name)" "Start" 4 -Type DWord -Force -EA 0
+        }
     }
-    Write-Host "Готово." -ForegroundColor Green; Pause
 }
+
+function Core-RemoveApp($Pattern) {
+    $White = @("Microsoft.WindowsStore", "Microsoft.DesktopAppInstaller", "Microsoft.Windows.Photos", "Microsoft.WindowsCalculator")
+    $apps = Get-AppxPackage -AllUsers | Where {$_.Name -like "*$Pattern*" -and $_.Name -notin $White}
+    foreach ($a in $apps) {
+        Log "Удаление Appx: $($a.Name)" "Red"
+        Remove-AppxPackage -Package $a.PackageFullName -AllUsers -EA SilentlyContinue
+    }
+}
+
+function Core-SysMain {
+    Log "Проверка диска для SysMain..." "Black"
+    $ssd = Get-PhysicalDisk | Where {$_.MediaType -eq 'SSD'}
+    if ($ssd) { Core-KillService "SysMain"; Log "SSD найден -> SysMain выключен." "Green" }
+    else { Log "HDD найден -> SysMain оставлен." "DarkGoldenrod" }
+}
+
+function Core-RegTweak($path, $name, $val) {
+    if (!(Test-Path $path)) { New-Item $path -Force | Out-Null }
+    Set-ItemProperty $path $name $val -Type DWord -Force -EA 0
+}
+
+# --- 4. GUI CONSTRUCTION ---
+
+# Form
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "PotatoPC Optimizer v7.0"
+$form.Size = New-Object System.Drawing.Size(900, 650)
+$form.StartPosition = "CenterScreen"
+$form.FormBorderStyle = "FixedSingle"
+$form.MaximizeBox = $false
+$form.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+# Tabs
+$tabControl = New-Object System.Windows.Forms.TabControl
+$tabControl.Location = New-Object System.Drawing.Point(10, 10)
+$tabControl.Size = New-Object System.Drawing.Size(865, 450)
+
+# --- TAB 1: TWEAKS ---
+$tabTweaks = New-Object System.Windows.Forms.TabPage
+$tabTweaks.Text = " 🛠️ Твики и Оптимизация "
+$tabTweaks.BackColor = "White"
+
+# Group: Privacy
+$grpPriv = New-Object System.Windows.Forms.GroupBox
+$grpPriv.Text = "Приватность и Телеметрия"
+$grpPriv.Location = New-Object System.Drawing.Point(10, 10)
+$grpPriv.Size = New-Object System.Drawing.Size(270, 400)
+
+$chkTelemetry = New-Object System.Windows.Forms.CheckBox; $chkTelemetry.Text = "Отключить Телеметрию"; $chkTelemetry.Location = New-Object System.Drawing.Point(10, 20); $chkTelemetry.AutoSize = $true
+$chkCopilot   = New-Object System.Windows.Forms.CheckBox; $chkCopilot.Text = "Убить Copilot (AI)"; $chkCopilot.Location = New-Object System.Drawing.Point(10, 50); $chkCopilot.AutoSize = $true
+$chkBing      = New-Object System.Windows.Forms.CheckBox; $chkBing.Text = "Убрать Bing из Поиска"; $chkBing.Location = New-Object System.Drawing.Point(10, 80); $chkBing.AutoSize = $true
+$chkLocation  = New-Object System.Windows.Forms.CheckBox; $chkLocation.Text = "Отключить отслеживание"; $chkLocation.Location = New-Object System.Drawing.Point(10, 110); $chkLocation.AutoSize = $true
+$grpPriv.Controls.AddRange(@($chkTelemetry, $chkCopilot, $chkBing, $chkLocation))
+
+# Group: Bloatware
+$grpBloat = New-Object System.Windows.Forms.GroupBox
+$grpBloat.Text = "Удаление Мусора"
+$grpBloat.Location = New-Object System.Drawing.Point(290, 10)
+$grpBloat.Size = New-Object System.Drawing.Size(270, 400)
+
+$chkXbox    = New-Object System.Windows.Forms.CheckBox; $chkXbox.Text = "Удалить Xbox (+Services)"; $chkXbox.Location = New-Object System.Drawing.Point(10, 20); $chkXbox.AutoSize = $true
+$chkMail    = New-Object System.Windows.Forms.CheckBox; $chkMail.Text = "Удалить Почту и Календарь"; $chkMail.Location = New-Object System.Drawing.Point(10, 50); $chkMail.AutoSize = $true
+$chkNews    = New-Object System.Windows.Forms.CheckBox; $chkNews.Text = "Удалить Новости/Погоду"; $chkNews.Location = New-Object System.Drawing.Point(10, 80); $chkNews.AutoSize = $true
+$chkCortana = New-Object System.Windows.Forms.CheckBox; $chkCortana.Text = "Удалить Cortana/People"; $chkCortana.Location = New-Object System.Drawing.Point(10, 110); $chkCortana.AutoSize = $true
+$chkOffice  = New-Object System.Windows.Forms.CheckBox; $chkOffice.Text = "Удалить Office Hub/OneNote"; $chkOffice.Location = New-Object System.Drawing.Point(10, 140); $chkOffice.AutoSize = $true
+$grpBloat.Controls.AddRange(@($chkXbox, $chkMail, $chkNews, $chkCortana, $chkOffice))
+
+# Group: Performance
+$grpPerf = New-Object System.Windows.Forms.GroupBox
+$grpPerf.Text = "Производительность"
+$grpPerf.Location = New-Object System.Drawing.Point(570, 10)
+$grpPerf.Size = New-Object System.Drawing.Size(270, 400)
+
+$chkSysMain   = New-Object System.Windows.Forms.CheckBox; $chkSysMain.Text = "SysMain (Авто-SSD)"; $chkSysMain.Location = New-Object System.Drawing.Point(10, 20); $chkSysMain.AutoSize = $true
+$chkAnim      = New-Object System.Windows.Forms.CheckBox; $chkAnim.Text = "Отключить Анимации (Visual)"; $chkAnim.Location = New-Object System.Drawing.Point(10, 50); $chkAnim.AutoSize = $true
+$chkGameDVR   = New-Object System.Windows.Forms.CheckBox; $chkGameDVR.Text = "Отключить GameDVR"; $chkGameDVR.Location = New-Object System.Drawing.Point(10, 80); $chkGameDVR.AutoSize = $true
+$chkPower     = New-Object System.Windows.Forms.CheckBox; $chkPower.Text = "Схема 'High Performance'"; $chkPower.Location = New-Object System.Drawing.Point(10, 110); $chkPower.AutoSize = $true
+$chkRestore   = New-Object System.Windows.Forms.CheckBox; $chkRestore.Text = "Создать точку восстановления"; $chkRestore.Location = New-Object System.Drawing.Point(10, 360); $chkRestore.Checked = $true; $chkRestore.ForeColor = "DarkBlue"
+$grpPerf.Controls.AddRange(@($chkSysMain, $chkAnim, $chkGameDVR, $chkPower, $chkRestore))
+
+$tabTweaks.Controls.AddRange(@($grpPriv, $grpBloat, $grpPerf))
+
+# --- TAB 2: APPS (WINGET) ---
+$tabApps = New-Object System.Windows.Forms.TabPage; $tabApps.Text = " 📦 Магазин "
+$txtSearch = New-Object System.Windows.Forms.TextBox; $txtSearch.Location = New-Object System.Drawing.Point(10, 10); $txtSearch.Size = New-Object System.Drawing.Size(600, 25); $txtSearch.Text = "Поиск (Нажмите Enter)"
+$listApps = New-Object System.Windows.Forms.CheckedListBox; $listApps.Location = New-Object System.Drawing.Point(10, 40); $listApps.Size = New-Object System.Drawing.Size(600, 350); $listApps.CheckOnClick = $true
+$btnAppInstall = New-Object System.Windows.Forms.Button; $btnAppInstall.Text = "Установить выбранное"; $btnAppInstall.Location = New-Object System.Drawing.Point(620, 40); $btnAppInstall.Size = New-Object System.Drawing.Size(200, 50); $btnAppInstall.BackColor = "Green"; $btnAppInstall.ForeColor = "White"
+$btnAppUpdate = New-Object System.Windows.Forms.Button; $btnAppUpdate.Text = "Обновить весь софт"; $btnAppUpdate.Location = New-Object System.Drawing.Point(620, 100); $btnAppUpdate.Size = New-Object System.Drawing.Size(200, 50); $btnAppUpdate.BackColor = "DarkBlue"; $btnAppUpdate.ForeColor = "White"
+
+$tabApps.Controls.AddRange(@($txtSearch, $listApps, $btnAppInstall, $btnAppUpdate))
+
+# --- TAB 3: CLEAN ---
+$tabClean = New-Object System.Windows.Forms.TabPage; $tabClean.Text = " 🧹 Очистка "
+$chkTemp = New-Object System.Windows.Forms.CheckBox; $chkTemp.Text = "Удалить временные файлы (Temp)"; $chkTemp.Location = New-Object System.Drawing.Point(20, 30); $chkTemp.AutoSize = $true; $chkTemp.Checked = $true
+$chkLogs = New-Object System.Windows.Forms.CheckBox; $chkLogs.Text = "Очистить логи событий"; $chkLogs.Location = New-Object System.Drawing.Point(20, 60); $chkLogs.AutoSize = $true
+$chkUpd  = New-Object System.Windows.Forms.CheckBox; $chkUpd.Text = "Очистить кэш обновлений (SoftwareDistribution)"; $chkUpd.Location = New-Object System.Drawing.Point(20, 90); $chkUpd.AutoSize = $true
+$tabClean.Controls.AddRange(@($chkTemp, $chkLogs, $chkUpd))
+
+$tabControl.Controls.AddRange(@($tabTweaks, $tabApps, $tabClean))
+
+# --- BOTTOM CONTROLS ---
+$txtLog = New-Object System.Windows.Forms.RichTextBox
+$txtLog.Location = New-Object System.Drawing.Point(10, 510)
+$txtLog.Size = New-Object System.Drawing.Size(865, 90)
+$txtLog.ReadOnly = $true
+$txtLog.BackColor = "White"
+
+$btnPresetPotato = New-Object System.Windows.Forms.Button; $btnPresetPotato.Text = "🥔 POTATO (Максимум)"; $btnPresetPotato.Location = New-Object System.Drawing.Point(10, 470); $btnPresetPotato.Size = New-Object System.Drawing.Size(150, 30); $btnPresetPotato.BackColor = "Maroon"; $btnPresetPotato.ForeColor = "White"
+$btnPresetSafe   = New-Object System.Windows.Forms.Button; $btnPresetSafe.Text = "🛡️ SAFE (Безопасно)"; $btnPresetSafe.Location = New-Object System.Drawing.Point(170, 470); $btnPresetSafe.Size = New-Object System.Drawing.Size(150, 30); $btnPresetSafe.BackColor = "SeaGreen"; $btnPresetSafe.ForeColor = "White"
+$btnPresetClear  = New-Object System.Windows.Forms.Button; $btnPresetClear.Text = "Сброс"; $btnPresetClear.Location = New-Object System.Drawing.Point(330, 470); $btnPresetClear.Size = New-Object System.Drawing.Size(80, 30)
+
+$btnRun = New-Object System.Windows.Forms.Button
+$btnRun.Text = "ЗАПУСТИТЬ ВЫБРАННОЕ"
+$btnRun.Location = New-Object System.Drawing.Point(625, 470); $btnRun.Size = New-Object System.Drawing.Size(250, 30)
+$btnRun.BackColor = "DarkSlateGray"; $btnRun.ForeColor = "White"
+$btnRun.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+
+$form.Controls.AddRange(@($tabControl, $txtLog, $btnPresetPotato, $btnPresetSafe, $btnPresetClear, $btnRun))
+
+# --- 5. LOGIC & EVENTS ---
+
+# JSON Loader
+$Global:Apps = @()
+try {
+    $json = Invoke-RestMethod $AppsJsonUrl -UseBasicParsing -TimeoutSec 5
+    if ($json.ManualCategories) {
+        $json.ManualCategories.PSObject.Properties | % { $cat=$_.Name; $_.Value | % { 
+            $_.PSObject.Properties.Add((New-Object PSNoteProperty("Display", "$($_.Name) [$cat]"))); 
+            $Global:Apps += $_ 
+        }}
+    }
+} catch { Log "Ошибка загрузки JSON. Интернет?" "Red" }
+
+function Refresh-AppList($filter) {
+    $listApps.Items.Clear()
+    $Global:Apps | Where { $_.Name -match $filter } | % { $listApps.Items.Add($_.Display) }
+}
+Refresh-AppList ""
+
+# Events
+$txtSearch.Add_KeyDown({ if ($_.KeyCode -eq 'Enter') { Refresh-AppList $txtSearch.Text } })
+
+$btnPresetSafe.Add_Click({
+    $chkRestore.Checked=$true; $chkTemp.Checked=$true; $chkLogs.Checked=$true
+    $chkTelemetry.Checked=$true; $chkBing.Checked=$true; $chkSysMain.Checked=$true
+    $chkXbox.Checked=$false; $chkMail.Checked=$false; $chkAnim.Checked=$false
+    Log "Пресет SAFE выбран." "Green"
+})
+
+$btnPresetPotato.Add_Click({
+    # Select ALL
+    $tabTweaks.Controls | % { $_.Controls | % { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked = $true} } }
+    $tabClean.Controls | % { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked = $true} }
+    Log "Пресет POTATO (Разгон) выбран!" "Red"
+})
+
+$btnPresetClear.Add_Click({
+    $tabTweaks.Controls | % { $_.Controls | % { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked = $false} } }
+    Log "Сброс выбора."
+})
+
+$btnAppUpdate.Add_Click({
+    Log "Запуск обновления всех приложений..." "Blue"
+    Start-Process winget -ArgumentList "upgrade --all --include-unknown" -NoNewWindow -Wait
+    Log "Обновление завершено." "Green"
+})
+
+$btnAppInstall.Add_Click({
+    foreach ($item in $listApps.CheckedItems) {
+        $name = $item.Split("[")[0].Trim()
+        $id = ($Global:Apps | Where {$_.Name -eq $name} | Select -First 1).Id
+        Log "Установка: $name ($id)" "Blue"
+        Start-Process winget -ArgumentList "install --id $id -e --silent --accept-package-agreements --accept-source-agreements" -NoNewWindow -Wait
+    }
+    Log "Установка завершена." "Green"
+})
+
+$btnRun.Add_Click({
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+    $btnRun.Enabled = $false
+    
+    # 1. Restore Point
+    if ($chkRestore.Checked) { Core-CreateRestorePoint }
+
+    # 2. Privacy
+    if ($chkTelemetry.Checked) { 
+        Core-KillService "DiagTrack"; Core-KillService "dmwappushservice"
+        Core-RegTweak "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" 0
+    }
+    if ($chkCopilot.Checked) { Core-RegTweak "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot" "TurnOffWindowsCopilot" 1 }
+    if ($chkBing.Checked) { Core-RegTweak "HKCU:\Software\Policies\Microsoft\Windows\Explorer" "DisableSearchBoxSuggestions" 1 }
+    if ($chkLocation.Checked) { Core-KillService "lfsvc"; Core-KillService "MapsBroker" }
+
+    # 3. Bloatware
+    if ($chkXbox.Checked) { 
+        ("XboxApp","GamingApp","XboxGamingOverlay","Xbox.TCUI") | % { Core-RemoveApp $_ }
+        ("XblAuthManager","XblGameSave","XboxNetApiSvc") | % { Core-KillService $_ }
+    }
+    if ($chkMail.Checked) { Core-RemoveApp "windowscommunicationsapps" }
+    if ($chkNews.Checked) { Core-RemoveApp "BingNews"; Core-RemoveApp "BingWeather"; Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "TaskbarDa" 0 }
+    if ($chkCortana.Checked) { Core-RemoveApp "Cortana"; Core-RemoveApp "People" }
+    if ($chkOffice.Checked) { Core-RemoveApp "MicrosoftOfficeHub"; Core-RemoveApp "Office.OneNote" }
+
+    # 4. Performance
+    if ($chkSysMain.Checked) { Core-SysMain }
+    if ($chkGameDVR.Checked) { 
+        Core-RegTweak "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0 
+        Core-KillService "BcastDVRUserService*"
+    }
+    if ($chkAnim.Checked) { Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2 }
+    if ($chkPower.Checked) { 
+        powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 2>$null | Out-Null
+        powercfg -setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null
+    }
+
+    # 5. Clean
+    if ($chkTemp.Checked) { Remove-Item "$env:TEMP\*" -Recurse -Force -EA 0; Log "Temp очищен." }
+    if ($chkLogs.Checked) { Get-WinEvent -ListLog * -EA 0 | % { Wevtutil cl $_.LogName 2>$null }; Log "Логи очищены." }
+    if ($chkUpd.Checked) { 
+        Stop-Service wuauserv -Force -EA 0
+        Remove-Item "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -EA 0
+        Start-Service wuauserv -EA 0
+        Log "Кэш обновлений очищен."
+    }
+
+    $btnRun.Enabled = $true
+    $form.Cursor = [System.Windows.Forms.Cursors]::Default
+    [System.Windows.Forms.MessageBox]::Show("Готово! Перезагрузите ПК.")
+})
 
 # --- START ---
-Show-MainMenu
+$form.ShowDialog()
