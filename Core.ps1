@@ -290,4 +290,13 @@ $btnRun.Add_Click({
     
     if($chkXbox.Checked){("XboxApp","GamingApp","XboxGamingOverlay","Xbox.TCUI")|%{Core-RemoveApp $_};("XblAuthManager","XblGameSave","XboxNetApiSvc")|%{Core-KillService $_}}
     if($chkMail.Checked){Core-RemoveApp "windowscommunicationsapps"}
-    if($chkNews.Checked){Core-RemoveApp "BingNews";Core-RemoveApp "BingWeather";Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersio
+    if($chkNews.Checked){Core-RemoveApp "BingNews";Core-RemoveApp "BingWeather";Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "TaskbarDa" 0}
+    if($chkCort.Checked){Core-RemoveApp "Cortana";Core-RemoveApp "People"}
+    if($chkOff.Checked){Core-RemoveApp "MicrosoftOfficeHub"}
+    
+    if($chkSysMain.Checked){$ssd=Get-PhysicalDisk|Where{$_.MediaType-eq'SSD'};if($ssd){Core-KillService "SysMain"}}
+    if($chkAnim.Checked){Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2}
+    if($chkDVR.Checked){Core-RegTweak "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0;Core-KillService "BcastDVRUserService*"}
+    if($chkSticky.Checked){Core-RegTweak "HKCU:\Control Panel\Accessibility\StickyKeys" "Flags" 506}
+    if($chkHib.Checked){powercfg -h off}
+    if($chkExt.Checked
