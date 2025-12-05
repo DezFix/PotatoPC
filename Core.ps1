@@ -27,11 +27,17 @@ $LogicFile  = "$TempDir\Logic.ps1"
 
 # Скачиваем и подключаем логику
 try {
-    $LogicContent = Invoke-RestMethod -Uri $LogicUrl -UseBasicParsing
-    $LogicContent | Out-File -FilePath $LogicFile -Encoding UTF8 -Force
-    . $LogicFile # Импорт функций из Logic.ps1
+    $wc = New-Object System.Net.WebClient
+    $wc.Encoding = [System.Text.Encoding]::UTF8
+    $LogicCode = $wc.DownloadString($LogicUrl)
+    
+    # Сохраняем с BOM
+    [System.IO.File]::WriteAllText($LogicFile, $LogicCode, [System.Text.Encoding]::UTF8)
+    
+    # Подключаем
+    . $LogicFile 
 } catch {
-    [System.Windows.Forms.MessageBox]::Show("Не удалось загрузить Logic.ps1. Проверьте интернет!")
+    [System.Windows.Forms.MessageBox]::Show("Не удалось загрузить Logic.ps1. Ошибка кодировки или интернета.")
     exit
 }
 
@@ -200,4 +206,5 @@ $brun.Add_Click({
 $breboot.Add_Click({ Restart-Computer -Force })
 
 $form.ShowDialog()
+
 
