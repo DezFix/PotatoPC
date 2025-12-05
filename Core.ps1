@@ -1,20 +1,57 @@
 # ==========================================
-# POTATO PC OPTIMIZER v8.0 (STABLE)
+# POTATO PC OPTIMIZER v8.5 (STABLE FIX)
 # ==========================================
 
-# --- 1. AUTO-ELEVATE ---
-$currentPrincipal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-if (!($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
-    $scriptPath = $MyInvocation.MyCommand.Definition
-    if ([string]::IsNullOrWhiteSpace($scriptPath)) { Write-Host "Ошибка путей. Сохраните файл."; Read-Host; exit }
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
-    exit
-}
-
-# --- 2. НАСТРОЙКИ ---
+# 1. ПОДКЛЮЧЕНИЕ БИБЛИОТЕК (Сразу, чтобы показать баннер)
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# 2. ФУНКЦИЯ: БАННЕР АДМИНИСТРАТОРА
+function Show-AdminWarning {
+    $frmAdmin = New-Object System.Windows.Forms.Form
+    $frmAdmin.Text = "ОШИБКА ДОСТУПА"
+    $frmAdmin.Size = New-Object System.Drawing.Size(500, 250)
+    $frmAdmin.StartPosition = "CenterScreen"
+    $frmAdmin.FormBorderStyle = "FixedDialog"
+    $frmAdmin.MaximizeBox = $false
+    $frmAdmin.MinimizeBox = $false
+    $frmAdmin.BackColor = [System.Drawing.Color]::DarkRed # Красный фон
+
+    $lblTitle = New-Object System.Windows.Forms.Label
+    $lblTitle.Text = "⚠️ ТРЕБУЮТСЯ ПРАВА АДМИНИСТРАТОРА"
+    $lblTitle.Font = New-Object System.Drawing.Font("Arial", 14, [System.Drawing.FontStyle]::Bold)
+    $lblTitle.ForeColor = "White"
+    $lblTitle.AutoSize = $true
+    $lblTitle.Location = New-Object System.Drawing.Point(30, 40)
+
+    $lblDesc = New-Object System.Windows.Forms.Label
+    $lblDesc.Text = "Скрипт не может вносить изменения в систему без прав.`nПожалуйста, закройте это окно, нажмите правой кнопкой мыши на файл и выберите:`n👉 'Запуск от имени администратора'"
+    $lblDesc.Font = New-Object System.Drawing.Font("Arial", 10)
+    $lblDesc.ForeColor = "WhiteSmoke"
+    $lblDesc.AutoSize = $true
+    $lblDesc.Location = New-Object System.Drawing.Point(30, 80)
+
+    $btnClose = New-Object System.Windows.Forms.Button
+    $btnClose.Text = "ПОНЯТНО, ВЫХОЖУ"
+    $btnClose.Size = New-Object System.Drawing.Size(200, 40)
+    $btnClose.Location = New-Object System.Drawing.Point(140, 150)
+    $btnClose.BackColor = "White"
+    $btnClose.ForeColor = "DarkRed"
+    $btnClose.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $btnClose.Add_Click({ $frmAdmin.Close() })
+
+    $frmAdmin.Controls.AddRange(@($lblTitle, $lblDesc, $btnClose))
+    $frmAdmin.ShowDialog() | Out-Null
+}
+
+# 3. ПРОВЕРКА ПРАВ
+$currentPrincipal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+if (!($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
+    Show-AdminWarning
+    exit # Останавливаем скрипт
+}
+
+# --- НАСТРОЙКИ ---
 $WorkDir   = "C:\PotatoPC"
 $BackupDir = "$WorkDir\Backups"
 $TempDir   = "$WorkDir\Temp"
@@ -24,7 +61,7 @@ New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 $Global:SelectedAppIDs = new-object System.Collections.Generic.HashSet[string]
 
-# --- 3. ФУНКЦИИ ЛОГИКИ ---
+# --- ФУНКЦИИ ЛОГИКИ ---
 
 function Log($text, $color="Black") {
     $txtLog.SelectionColor = [System.Drawing.Color]::FromName($color)
@@ -32,29 +69,26 @@ function Log($text, $color="Black") {
     $txtLog.ScrollToCaret()
 }
 
-# --- WINGET FIX (Установка с зависимостями) ---
+# FIX: Исправленная функция WINGET
 function Fix-Winget {
-    Log "Попытка восстановления WinGet..." "DarkMagenta"
+    Log "Восстановление WinGet..." "DarkMagenta"
     try {
-        # 1. Скачиваем VCLibs (Зависимость)
         $vcUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
         Invoke-WebRequest -Uri $vcUrl -OutFile "$TempDir\vclibs.appx" -UseBasicParsing
         Add-AppxPackage -Path "$TempDir\vclibs.appx" -ErrorAction SilentlyContinue
         
-        # 2. Скачиваем UI.Xaml (Зависимость)
         $uiUrl = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx"
         Invoke-WebRequest -Uri $uiUrl -OutFile "$TempDir\ui.xaml.appx" -UseBasicParsing
         Add-AppxPackage -Path "$TempDir\ui.xaml.appx" -ErrorAction SilentlyContinue
 
-        # 3. Скачиваем сам Desktop App Installer (Winget)
         $wgUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
         Invoke-WebRequest -Uri $wgUrl -OutFile "$TempDir\winget.msixbundle" -UseBasicParsing
         Add-AppxPackage -Path "$TempDir\winget.msixbundle" -ForceApplicationShutdown
         
-        Log "WinGet библиотеки установлены. Проверка..." "Green"
+        Log "WinGet библиотеки установлены." "Green"
         return (Get-Command winget -ErrorAction SilentlyContinue)
     } catch {
-        Log "Ошибка установки WinGet: $($_.Exception.Message)" "Red"
+        Log "Ошибка WinGet: $($_.Exception.Message)" "Red"
         return $false
     }
 }
@@ -85,12 +119,15 @@ function Core-RegTweak($path, $name, $val) {
     Set-ItemProperty $path $name $val -Type DWord -Force -EA 0
 }
 
-# --- 4. GUI HELPER (Чекбоксы с вопросиком) ---
+# --- GUI HELPER (FIXED POINT ERROR) ---
 $Global:ToolTip = New-Object System.Windows.Forms.ToolTip
 $Global:ToolTip.AutoPopDelay = 15000
 $Global:ToolTip.InitialDelay = 100
 
-function Add-Item($panel, $text, $desc, $y, $varName) {
+function Add-Item($panel, $text, $desc, $yRaw, $varName) {
+    # FIX: Явное преобразование в целое число
+    $y = [int]$yRaw
+    
     # Checkbox
     $chk = New-Object System.Windows.Forms.CheckBox
     $chk.Text = $text
@@ -98,25 +135,25 @@ function Add-Item($panel, $text, $desc, $y, $varName) {
     $chk.AutoSize = $true
     $panel.Controls.Add($chk)
     
-    # Question Mark Label
+    # Question Mark Label (FIX: Вычисление Y отдельно)
+    $lblY = $y + 3
     $lbl = New-Object System.Windows.Forms.Label
     $lbl.Text = "[?]"
     $lbl.ForeColor = "DodgerBlue"
     $lbl.Cursor = [System.Windows.Forms.Cursors]::Hand
-    $lbl.Location = New-Object System.Drawing.Point(235, $y+3) # Сдвиг вправо
+    $lbl.Location = New-Object System.Drawing.Point(235, $lblY) 
     $lbl.AutoSize = $true
     
     $Global:ToolTip.SetToolTip($lbl, $desc)
     $panel.Controls.Add($lbl)
 
-    # Register variable globally so logic can find it
     Set-Variable -Name $varName -Value $chk -Scope Script
 }
 
-# --- 5. GUI CONSTRUCTION ---
+# --- GUI CONSTRUCTION ---
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "PotatoPC Optimizer v8.0"
+$form.Text = "PotatoPC Optimizer v8.5"
 $form.Size = New-Object System.Drawing.Size(950, 700)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedSingle"
@@ -153,25 +190,25 @@ $tabTweaks = New-Object System.Windows.Forms.TabPage; $tabTweaks.Text = " [2] Т
 $grpPriv = New-Object System.Windows.Forms.GroupBox; $grpPriv.Text = "Приватность"; $grpPriv.Location = New-Object System.Drawing.Point(10, 10); $grpPriv.Size = New-Object System.Drawing.Size(280, 400)
 Add-Item $grpPriv "Откл. Телеметрию" "Отключает службы DiagTrack (сбор данных) и кейлоггеры Microsoft." 25 "chkTel"
 Add-Item $grpPriv "Убрать Copilot" "Полностью выключает ИИ-ассистента в Windows 11/10." 55 "chkCop"
-Add-Item $grpPriv "Убрать Bing (Поиск)" "Убирает результаты из интернета в меню Пуск, ускоряя его открытие." 85 "chkBing"
+Add-Item $grpPriv "Убрать Bing (Поиск)" "Убирает результаты из интернета в меню Пуск." 85 "chkBing"
 
 # Group 2
 $grpBloat = New-Object System.Windows.Forms.GroupBox; $grpBloat.Text = "Удаление"; $grpBloat.Location = New-Object System.Drawing.Point(300, 10); $grpBloat.Size = New-Object System.Drawing.Size(280, 400)
-Add-Item $grpBloat "Удалить Xbox" "Удаляет все сервисы Xbox. ВНИМАНИЕ: Игры из Store перестанут работать!" 25 "chkXbox"
-Add-Item $grpBloat "Удалить Почту" "Удаляет стандартное приложение Почта и Календарь." 55 "chkMail"
-Add-Item $grpBloat "Удалить Новости" "Удаляет виджет Погоды/Новостей и MSN приложения." 85 "chkNews"
-Add-Item $grpBloat "Удалить Cortana" "Удаляет голосового помощника и приложение 'Люди'." 115 "chkCort"
-Add-Item $grpBloat "Удалить Office Hub" "Удаляет предустановленное приложение 'My Office'." 145 "chkOff"
+Add-Item $grpBloat "Удалить Xbox" "Удаляет все сервисы Xbox. ВНИМАНИЕ: Игры из Store не будут работать!" 25 "chkXbox"
+Add-Item $grpBloat "Удалить Почту" "Удаляет Почту и Календарь." 55 "chkMail"
+Add-Item $grpBloat "Удалить Новости" "Удаляет виджет Погоды/Новостей." 85 "chkNews"
+Add-Item $grpBloat "Удалить Cortana" "Удаляет голосового помощника." 115 "chkCort"
+Add-Item $grpBloat "Удалить Office Hub" "Удаляет приложение 'My Office'." 145 "chkOff"
 
 # Group 3
 $grpPerf = New-Object System.Windows.Forms.GroupBox; $grpPerf.Text = "Производительность"; $grpPerf.Location = New-Object System.Drawing.Point(590, 10); $grpPerf.Size = New-Object System.Drawing.Size(280, 400)
-Add-Item $grpPerf "SysMain (Авто)" "Отключает Superfetch, если обнаружен SSD. Не трогает HDD." 25 "chkSysMain"
-Add-Item $grpPerf "Откл. Анимации" "Убирает плавное затухание окон и теней для отзывчивости." 55 "chkAnim"
-Add-Item $grpPerf "Откл. GameDVR" "Выключает фоновую запись геймплея (сильно ест FPS)." 85 "chkDVR"
-Add-Item $grpPerf "Откл. Залипание" "Отключает надоедливое окно при нажатии Shift 5 раз." 115 "chkSticky"
-Add-Item $grpPerf "Откл. Гибернацию" "Освобождает место на диске C: (равно объему ОЗУ)." 145 "chkHib"
-Add-Item $grpPerf "Показ расширений" "Показывает .exe, .txt и другие расширения файлов." 175 "chkExt"
-Add-Item $grpPerf "Fix Мыши" "Отключает акселерацию (повышенную точность) для точного прицеливания." 205 "chkMouse"
+Add-Item $grpPerf "SysMain (Авто)" "Отключает Superfetch, если SSD. Не трогает HDD." 25 "chkSysMain"
+Add-Item $grpPerf "Откл. Анимации" "Убирает визуальные эффекты окон." 55 "chkAnim"
+Add-Item $grpPerf "Откл. GameDVR" "Выключает фоновую запись геймплея." 85 "chkDVR"
+Add-Item $grpPerf "Откл. Залипание" "Отключает окно при нажатии Shift 5 раз." 115 "chkSticky"
+Add-Item $grpPerf "Откл. Гибернацию" "Освобождает место на диске C:." 145 "chkHib"
+Add-Item $grpPerf "Показ расширений" "Показывает .exe, .txt и другие." 175 "chkExt"
+Add-Item $grpPerf "Fix Мыши" "Отключает акселерацию для точности." 205 "chkMouse"
 
 $btnResetSelection = New-Object System.Windows.Forms.Button; $btnResetSelection.Text = "Сбросить галочки"; $btnResetSelection.Location = New-Object System.Drawing.Point(10, 420); $btnResetSelection.Size = New-Object System.Drawing.Size(200, 30)
 $tabTweaks.Controls.AddRange(@($grpPriv, $grpBloat, $grpPerf, $btnResetSelection))
@@ -190,12 +227,12 @@ $tabApps.Controls.AddRange(@($lblCat, $comboCat, $txtSearch, $listApps, $btnAppI
 
 # === TAB 4: CLEANUP ===
 $tabClean = New-Object System.Windows.Forms.TabPage; $tabClean.Text = " [4] ОЧИСТКА "
-Add-Item $tabClean "Очистка Temp" "Удаляет временные файлы приложений." 30 "chkTmp"; $chkTmp.Checked=$true
+Add-Item $tabClean "Очистка Temp" "Удаляет временные файлы." 30 "chkTmp"; $chkTmp.Checked=$true
 Add-Item $tabClean "Очистка Логов" "Очищает журнал событий Windows." 60 "chkLog"
-Add-Item $tabClean "Очистка Update Cache" "Удаляет старые файлы обновлений (SoftwareDistribution)." 90 "chkUpdCache"
-Add-Item $tabClean "Сброс DNS" "Чистит кэш DNS для исправления интернета." 120 "chkDns"
-Add-Item $tabClean "Очистить Корзину" "Принудительная очистка корзины." 150 "chkBin"
-Add-Item $tabClean "DISM Очистка" "Глубокая очистка образа Windows (долго)." 180 "chkDism"
+Add-Item $tabClean "Очистка Update Cache" "Удаляет кэш обновлений." 90 "chkUpdCache"
+Add-Item $tabClean "Сброс DNS" "Чистит кэш DNS." 120 "chkDns"
+Add-Item $tabClean "Очистить Корзину" "Чистит корзину." 150 "chkBin"
+Add-Item $tabClean "DISM Очистка" "Очистка образа Windows (долго)." 180 "chkDism"
 
 $tabControl.Controls.AddRange(@($tabPresets, $tabTweaks, $tabApps, $tabClean))
 
@@ -253,28 +290,4 @@ $btnRun.Add_Click({
     
     if($chkXbox.Checked){("XboxApp","GamingApp","XboxGamingOverlay","Xbox.TCUI")|%{Core-RemoveApp $_};("XblAuthManager","XblGameSave","XboxNetApiSvc")|%{Core-KillService $_}}
     if($chkMail.Checked){Core-RemoveApp "windowscommunicationsapps"}
-    if($chkNews.Checked){Core-RemoveApp "BingNews";Core-RemoveApp "BingWeather";Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "TaskbarDa" 0}
-    if($chkCort.Checked){Core-RemoveApp "Cortana";Core-RemoveApp "People"}
-    if($chkOff.Checked){Core-RemoveApp "MicrosoftOfficeHub"}
-    
-    if($chkSysMain.Checked){$ssd=Get-PhysicalDisk|Where{$_.MediaType-eq'SSD'};if($ssd){Core-KillService "SysMain"}}
-    if($chkAnim.Checked){Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2}
-    if($chkDVR.Checked){Core-RegTweak "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0;Core-KillService "BcastDVRUserService*"}
-    if($chkSticky.Checked){Core-RegTweak "HKCU:\Control Panel\Accessibility\StickyKeys" "Flags" 506}
-    if($chkHib.Checked){powercfg -h off}
-    if($chkExt.Checked){Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "HideFileExt" 0}
-    if($chkMouse.Checked){Core-RegTweak "HKCU:\Control Panel\Mouse" "MouseSpeed" 0;Core-RegTweak "HKCU:\Control Panel\Mouse" "MouseThreshold1" 0;Core-RegTweak "HKCU:\Control Panel\Mouse" "MouseThreshold2" 0}
-
-    if($chkTmp.Checked){Remove-Item "$env:TEMP\*" -Recurse -Force -EA 0}
-    if($chkLog.Checked){Get-WinEvent -ListLog * -EA 0 | % { Wevtutil cl $_.LogName 2>$null }}
-    if($chkUpdCache.Checked){Stop-Service wuauserv -Force -EA 0; Remove-Item "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -EA 0; Start-Service wuauserv -EA 0}
-    if($chkDns.Checked){Clear-DnsClientCache}
-    if($chkBin.Checked){Clear-RecycleBin -Force -EA 0}
-    if($chkDism.Checked){Log "DISM (Ждите)..." "Orange"; Dism.exe /online /Cleanup-Image /StartComponentCleanup | Out-Null}
-
-    $form.Enabled=$true; $form.Cursor=[System.Windows.Forms.Cursors]::Default; Log "Готово." "Green"; [System.Windows.Forms.MessageBox]::Show("Операции завершены.")
-})
-
-$btnRestart.Add_Click({ Restart-Computer -Force })
-
-$form.ShowDialog()
+    if($chkNews.Checked){Core-RemoveApp "BingNews";Core-RemoveApp "BingWeather";Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersio
