@@ -1,22 +1,19 @@
 <#
     .SYNOPSIS
-    PotatoPC Loader v4.0
+    PotatoPC Loader v5.0 (Stable File Mode)
 #>
 
-# 1. Проверка прав Админа (Жесткая)
-$params = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Start-Process powershell.exe -ArgumentList $params -Verb RunAs
-    exit
-}
+# 1. Скрытие лишних ошибок
+$ErrorActionPreference = "SilentlyContinue"
 
-# 2. Настройка
-$Host.UI.RawUI.WindowTitle = "PotatoPC: Loading..."
+# 2. Настройка безопасности (для GitHub)
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# === ССЫЛКА НА ЯДРО (ЗАМЕНИ DezFix НА СВОЙ НИК, ЕСЛИ ДРУГОЙ) ===
+# 3. Пути
 $CoreURL = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/Core.ps1"
+$LocalFile = "$env:TEMP\PotatoPC_Core.ps1"
 
+# 4. Визуал (Твой ASCII Art)
 Clear-Host
 Write-Host "
   _____      _        _        _____   _____ 
@@ -26,16 +23,35 @@ Write-Host "
  | |  | (_) | || (_| | || (_) | |    | |____ 
  |_|   \___/ \__\__,_|\__\___/|_|     \_____|
                                              
-    :: Загрузка ядра в память... ::
+    :: Загрузка ядра... ::
 " -ForegroundColor Yellow
 
+# 5. Скачивание (Главное исправление)
 try {
-    # Скачиваем и запускаем Core.ps1 без сохранения на диск
-    $CoreScript = Invoke-RestMethod -Uri $CoreURL -UseBasicParsing
-    Invoke-Expression $CoreScript
+    Write-Host " [1/2] Скачивание последней версии..." -ForegroundColor Cyan -NoNewline
+    
+    # Скачиваем файл на диск. Это предотвращает ошибки синтаксиса/скобок.
+    Invoke-WebRequest -Uri $CoreURL -OutFile $LocalFile -UseBasicParsing | Out-Null
+    
+    Write-Host " [OK]" -ForegroundColor Green
 }
 catch {
-    Write-Host "`n[FATAL ERROR] Не удалось загрузить ядро." -ForegroundColor Red
-    Write-Host "Ошибка: $($_.Exception.Message)" -ForegroundColor Gray
-    Read-Host "Нажмите Enter для выхода..."
+    Write-Host "`n [ERROR] Не удалось скачать скрипт." -ForegroundColor Red
+    Write-Host " Ошибка: $($_.Exception.Message)" -ForegroundColor Gray
+    Write-Host " Проверьте интернет."
+    Read-Host " Нажмите Enter для выхода..."
+    exit
+}
+
+# 6. Запуск
+try {
+    Write-Host " [2/2] Запуск интерфейса..." -ForegroundColor Cyan
+    
+    # Запускаем скачанный файл. 
+    # Теперь Core.ps1 сам проверит админа и покажет красный баннер, если прав нет.
+    & $LocalFile
+}
+catch {
+    Write-Host " [FATAL] Ошибка при запуске файла: $_" -ForegroundColor Red
+    Read-Host " Нажмите Enter..."
 }
