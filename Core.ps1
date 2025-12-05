@@ -27,7 +27,8 @@ $LogicFile  = "$TempDir\Logic.ps1"
 
 # Скачиваем и подключаем логику
 try {
-    Invoke-WebRequest -Uri $LogicUrl -OutFile $LogicFile -UseBasicParsing
+    $LogicContent = Invoke-RestMethod -Uri $LogicUrl -UseBasicParsing
+    $LogicContent | Out-File -FilePath $LogicFile -Encoding UTF8 -Force
     . $LogicFile # Импорт функций из Logic.ps1
 } catch {
     [System.Windows.Forms.MessageBox]::Show("Не удалось загрузить Logic.ps1. Проверьте интернет!")
@@ -199,3 +200,4 @@ $brun.Add_Click({
 $breboot.Add_Click({ Restart-Computer -Force })
 
 $form.ShowDialog()
+
