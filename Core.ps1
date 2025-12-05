@@ -1,8 +1,8 @@
 # ==========================================
-# POTATO PC OPTIMIZER v8.5 (STABLE FIX)
+# POTATO PC OPTIMIZER v9.0 (FIXED & CLEAN)
 # ==========================================
 
-# 1. ПОДКЛЮЧЕНИЕ БИБЛИОТЕК (Сразу, чтобы показать баннер)
+# 1. ПОДКЛЮЧЕНИЕ БИБЛИОТЕК
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -15,7 +15,7 @@ function Show-AdminWarning {
     $frmAdmin.FormBorderStyle = "FixedDialog"
     $frmAdmin.MaximizeBox = $false
     $frmAdmin.MinimizeBox = $false
-    $frmAdmin.BackColor = [System.Drawing.Color]::DarkRed # Красный фон
+    $frmAdmin.BackColor = [System.Drawing.Color]::DarkRed
 
     $lblTitle = New-Object System.Windows.Forms.Label
     $lblTitle.Text = "⚠️ ТРЕБУЮТСЯ ПРАВА АДМИНИСТРАТОРА"
@@ -32,7 +32,7 @@ function Show-AdminWarning {
     $lblDesc.Location = New-Object System.Drawing.Point(30, 80)
 
     $btnClose = New-Object System.Windows.Forms.Button
-    $btnClose.Text = "ПОНЯТНО, ВЫХОЖУ"
+    $btnClose.Text = "ВЫХОД"
     $btnClose.Size = New-Object System.Drawing.Size(200, 40)
     $btnClose.Location = New-Object System.Drawing.Point(140, 150)
     $btnClose.BackColor = "White"
@@ -48,7 +48,7 @@ function Show-AdminWarning {
 $currentPrincipal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (!($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
     Show-AdminWarning
-    exit # Останавливаем скрипт
+    exit
 }
 
 # --- НАСТРОЙКИ ---
@@ -69,7 +69,6 @@ function Log($text, $color="Black") {
     $txtLog.ScrollToCaret()
 }
 
-# FIX: Исправленная функция WINGET
 function Fix-Winget {
     Log "Восстановление WinGet..." "DarkMagenta"
     try {
@@ -99,8 +98,8 @@ function Core-KillService($Name) {
         if ($s.Status -ne 'Stopped' -or $s.StartType -ne 'Disabled') {
             Log "Stop Service: $($s.Name)" "DarkMagenta"
             [PSCustomObject]@{Name=$s.Name;Start=$s.StartType;Status=$s.Status} | Export-Csv "$BackupDir\Services_$(Get-Date -f yyyyMMdd).csv" -Append -NoType -Force
-            Stop-Service $s.Name -Force -EA 0
-            Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$($s.Name)" "Start" 4 -Type DWord -Force -EA 0
+            Stop-Service $s.Name -Force -ErrorAction SilentlyContinue
+            Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$($s.Name)" "Start" 4 -Type DWord -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -110,32 +109,28 @@ function Core-RemoveApp($Pattern) {
     $apps = Get-AppxPackage -AllUsers | Where {$_.Name -like "*$Pattern*" -and $_.Name -notin $White}
     foreach ($a in $apps) {
         Log "Remove App: $($a.Name)" "Red"
-        Remove-AppxPackage -Package $a.PackageFullName -AllUsers -EA 0
+        Remove-AppxPackage -Package $a.PackageFullName -AllUsers -ErrorAction SilentlyContinue
     }
 }
 
 function Core-RegTweak($path, $name, $val) {
     if (!(Test-Path $path)) { New-Item $path -Force | Out-Null }
-    Set-ItemProperty $path $name $val -Type DWord -Force -EA 0
+    Set-ItemProperty $path $name $val -Type DWord -Force -ErrorAction SilentlyContinue
 }
 
-# --- GUI HELPER (FIXED POINT ERROR) ---
+# --- GUI HELPER ---
 $Global:ToolTip = New-Object System.Windows.Forms.ToolTip
 $Global:ToolTip.AutoPopDelay = 15000
 $Global:ToolTip.InitialDelay = 100
 
 function Add-Item($panel, $text, $desc, $yRaw, $varName) {
-    # FIX: Явное преобразование в целое число
     $y = [int]$yRaw
-    
-    # Checkbox
     $chk = New-Object System.Windows.Forms.CheckBox
     $chk.Text = $text
     $chk.Location = New-Object System.Drawing.Point(15, $y)
     $chk.AutoSize = $true
     $panel.Controls.Add($chk)
     
-    # Question Mark Label (FIX: Вычисление Y отдельно)
     $lblY = $y + 3
     $lbl = New-Object System.Windows.Forms.Label
     $lbl.Text = "[?]"
@@ -147,13 +142,14 @@ function Add-Item($panel, $text, $desc, $yRaw, $varName) {
     $Global:ToolTip.SetToolTip($lbl, $desc)
     $panel.Controls.Add($lbl)
 
+    # Важно: Сохраняем переменную в Script Scope
     Set-Variable -Name $varName -Value $chk -Scope Script
 }
 
 # --- GUI CONSTRUCTION ---
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "PotatoPC Optimizer v8.5"
+$form.Text = "PotatoPC Optimizer v9.0"
 $form.Size = New-Object System.Drawing.Size(950, 700)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedSingle"
@@ -165,7 +161,7 @@ $tabControl = New-Object System.Windows.Forms.TabControl
 $tabControl.Location = New-Object System.Drawing.Point(10, 10)
 $tabControl.Size = New-Object System.Drawing.Size(915, 500)
 
-# === TAB 1: PRESETS ===
+# TAB 1: PRESETS
 $tabPresets = New-Object System.Windows.Forms.TabPage; $tabPresets.Text = " [1] ПРЕСЕТЫ "
 $lblP1 = New-Object System.Windows.Forms.Label; $lblP1.Text = "Выберите режим:"; $lblP1.Location = New-Object System.Drawing.Point(20, 20); $lblP1.AutoSize=$true; $lblP1.Font = New-Object System.Drawing.Font("Arial", 12, [System.Drawing.FontStyle]::Bold)
 
@@ -183,37 +179,33 @@ $lblP_Potato = New-Object System.Windows.Forms.Label; $lblP_Potato.Text = "От�
 
 $tabPresets.Controls.AddRange(@($lblP1, $btnP_Safe, $lblP_Safe, $btnP_Office, $lblP_Office, $btnP_Gamer, $lblP_Gamer, $btnP_Potato, $lblP_Potato))
 
-# === TAB 2: TWEAKS ===
+# TAB 2: TWEAKS
 $tabTweaks = New-Object System.Windows.Forms.TabPage; $tabTweaks.Text = " [2] ТВИКИ "
-
-# Group 1
 $grpPriv = New-Object System.Windows.Forms.GroupBox; $grpPriv.Text = "Приватность"; $grpPriv.Location = New-Object System.Drawing.Point(10, 10); $grpPriv.Size = New-Object System.Drawing.Size(280, 400)
-Add-Item $grpPriv "Откл. Телеметрию" "Отключает службы DiagTrack (сбор данных) и кейлоггеры Microsoft." 25 "chkTel"
-Add-Item $grpPriv "Убрать Copilot" "Полностью выключает ИИ-ассистента в Windows 11/10." 55 "chkCop"
-Add-Item $grpPriv "Убрать Bing (Поиск)" "Убирает результаты из интернета в меню Пуск." 85 "chkBing"
+Add-Item $grpPriv "Откл. Телеметрию" "Отключает службы DiagTrack." 25 "chkTel"
+Add-Item $grpPriv "Убрать Copilot" "Выключает ИИ-ассистента." 55 "chkCop"
+Add-Item $grpPriv "Убрать Bing" "Убирает поиск в интернете из меню Пуск." 85 "chkBing"
 
-# Group 2
 $grpBloat = New-Object System.Windows.Forms.GroupBox; $grpBloat.Text = "Удаление"; $grpBloat.Location = New-Object System.Drawing.Point(300, 10); $grpBloat.Size = New-Object System.Drawing.Size(280, 400)
-Add-Item $grpBloat "Удалить Xbox" "Удаляет все сервисы Xbox. ВНИМАНИЕ: Игры из Store не будут работать!" 25 "chkXbox"
+Add-Item $grpBloat "Удалить Xbox" "Удаляет сервисы Xbox. Игры Store перестанут работать!" 25 "chkXbox"
 Add-Item $grpBloat "Удалить Почту" "Удаляет Почту и Календарь." 55 "chkMail"
 Add-Item $grpBloat "Удалить Новости" "Удаляет виджет Погоды/Новостей." 85 "chkNews"
 Add-Item $grpBloat "Удалить Cortana" "Удаляет голосового помощника." 115 "chkCort"
 Add-Item $grpBloat "Удалить Office Hub" "Удаляет приложение 'My Office'." 145 "chkOff"
 
-# Group 3
 $grpPerf = New-Object System.Windows.Forms.GroupBox; $grpPerf.Text = "Производительность"; $grpPerf.Location = New-Object System.Drawing.Point(590, 10); $grpPerf.Size = New-Object System.Drawing.Size(280, 400)
-Add-Item $grpPerf "SysMain (Авто)" "Отключает Superfetch, если SSD. Не трогает HDD." 25 "chkSysMain"
-Add-Item $grpPerf "Откл. Анимации" "Убирает визуальные эффекты окон." 55 "chkAnim"
-Add-Item $grpPerf "Откл. GameDVR" "Выключает фоновую запись геймплея." 85 "chkDVR"
-Add-Item $grpPerf "Откл. Залипание" "Отключает окно при нажатии Shift 5 раз." 115 "chkSticky"
-Add-Item $grpPerf "Откл. Гибернацию" "Освобождает место на диске C:." 145 "chkHib"
-Add-Item $grpPerf "Показ расширений" "Показывает .exe, .txt и другие." 175 "chkExt"
-Add-Item $grpPerf "Fix Мыши" "Отключает акселерацию для точности." 205 "chkMouse"
+Add-Item $grpPerf "SysMain (Авто)" "Отключает Superfetch, если SSD." 25 "chkSysMain"
+Add-Item $grpPerf "Откл. Анимации" "Убирает эффекты окон." 55 "chkAnim"
+Add-Item $grpPerf "Откл. GameDVR" "Выключает запись геймплея." 85 "chkDVR"
+Add-Item $grpPerf "Откл. Залипание" "Отключает Shift 5 раз." 115 "chkSticky"
+Add-Item $grpPerf "Откл. Гибернацию" "Освобождает место на диске C." 145 "chkHib"
+Add-Item $grpPerf "Показ расширений" "Показывает .exe, .txt." 175 "chkExt"
+Add-Item $grpPerf "Fix Мыши" "Отключает акселерацию." 205 "chkMouse"
 
 $btnResetSelection = New-Object System.Windows.Forms.Button; $btnResetSelection.Text = "Сбросить галочки"; $btnResetSelection.Location = New-Object System.Drawing.Point(10, 420); $btnResetSelection.Size = New-Object System.Drawing.Size(200, 30)
 $tabTweaks.Controls.AddRange(@($grpPriv, $grpBloat, $grpPerf, $btnResetSelection))
 
-# === TAB 3: APPS ===
+# TAB 3: APPS
 $tabApps = New-Object System.Windows.Forms.TabPage; $tabApps.Text = " [3] МАГАЗИН "
 $lblCat = New-Object System.Windows.Forms.Label; $lblCat.Text = "Категория:"; $lblCat.Location = New-Object System.Drawing.Point(10, 13); $lblCat.AutoSize=$true
 $comboCat = New-Object System.Windows.Forms.ComboBox; $comboCat.Location = New-Object System.Drawing.Point(80, 10); $comboCat.Size = New-Object System.Drawing.Size(200, 25); $comboCat.DropDownStyle = "DropDownList"
@@ -222,81 +214,185 @@ $txtSearch = New-Object System.Windows.Forms.TextBox; $txtSearch.Location = New-
 $listApps = New-Object System.Windows.Forms.CheckedListBox; $listApps.Location = New-Object System.Drawing.Point(10, 45); $listApps.Size = New-Object System.Drawing.Size(590, 400); $listApps.CheckOnClick = $true
 $btnAppInstall = New-Object System.Windows.Forms.Button; $btnAppInstall.Text = "Установить"; $btnAppInstall.Location = New-Object System.Drawing.Point(620, 45); $btnAppInstall.Size = New-Object System.Drawing.Size(250, 50); $btnAppInstall.BackColor = "Green"; $btnAppInstall.ForeColor = "White"
 $btnAppUpdate = New-Object System.Windows.Forms.Button; $btnAppUpdate.Text = "Обновить ВСЁ"; $btnAppUpdate.Location = New-Object System.Drawing.Point(620, 110); $btnAppUpdate.Size = New-Object System.Drawing.Size(250, 50); $btnAppUpdate.BackColor = "DarkBlue"; $btnAppUpdate.ForeColor = "White"
-$lblInfo = New-Object System.Windows.Forms.Label; $lblInfo.Text = "Если установка не работает - проверьте WinGet (он установится автоматически)."; $lblInfo.Location = New-Object System.Drawing.Point(620, 180); $lblInfo.Size = New-Object System.Drawing.Size(250, 100); $lblInfo.ForeColor = "Gray"
+$lblInfo = New-Object System.Windows.Forms.Label; $lblInfo.Text = "WinGet будет установлен автоматически при необходимости."; $lblInfo.Location = New-Object System.Drawing.Point(620, 180); $lblInfo.Size = New-Object System.Drawing.Size(250, 100); $lblInfo.ForeColor = "Gray"
 $tabApps.Controls.AddRange(@($lblCat, $comboCat, $txtSearch, $listApps, $btnAppInstall, $btnAppUpdate, $lblInfo))
 
-# === TAB 4: CLEANUP ===
+# TAB 4: CLEANUP
 $tabClean = New-Object System.Windows.Forms.TabPage; $tabClean.Text = " [4] ОЧИСТКА "
 Add-Item $tabClean "Очистка Temp" "Удаляет временные файлы." 30 "chkTmp"; $chkTmp.Checked=$true
-Add-Item $tabClean "Очистка Логов" "Очищает журнал событий Windows." 60 "chkLog"
-Add-Item $tabClean "Очистка Update Cache" "Удаляет кэш обновлений." 90 "chkUpdCache"
+Add-Item $tabClean "Очистка Логов" "Очищает журнал событий." 60 "chkLog"
+Add-Item $tabClean "Очистка Update Cache" "Чистит кэш обновлений." 90 "chkUpdCache"
 Add-Item $tabClean "Сброс DNS" "Чистит кэш DNS." 120 "chkDns"
 Add-Item $tabClean "Очистить Корзину" "Чистит корзину." 150 "chkBin"
-Add-Item $tabClean "DISM Очистка" "Очистка образа Windows (долго)." 180 "chkDism"
-
+Add-Item $tabClean "DISM Очистка" "Очистка образа (долго)." 180 "chkDism"
 $tabControl.Controls.AddRange(@($tabPresets, $tabTweaks, $tabApps, $tabClean))
 
-# BOTTOM
+# BOTTOM CONTROLS
 $txtLog = New-Object System.Windows.Forms.RichTextBox; $txtLog.Location = New-Object System.Drawing.Point(10, 560); $txtLog.Size = New-Object System.Drawing.Size(915, 90); $txtLog.ReadOnly = $true; $txtLog.BackColor="White"
 $btnRun = New-Object System.Windows.Forms.Button; $btnRun.Text = "ЗАПУСТИТЬ ВЫБРАННОЕ"; $btnRun.Location = New-Object System.Drawing.Point(400, 515); $btnRun.Size = New-Object System.Drawing.Size(325, 40); $btnRun.BackColor="DarkSlateGray"; $btnRun.ForeColor="White"; $btnRun.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
 $chkRestore = New-Object System.Windows.Forms.CheckBox; $chkRestore.Text = "Точка восстановления"; $chkRestore.Location = New-Object System.Drawing.Point(20, 525); $chkRestore.AutoSize=$true; $chkRestore.Checked=$true; $chkRestore.ForeColor="DarkBlue"
-
-# КНОПКА ПЕРЕЗАГРУЗКИ
 $btnRestart = New-Object System.Windows.Forms.Button; $btnRestart.Text = "Перезагрузить ПК"; $btnRestart.Location = New-Object System.Drawing.Point(740, 515); $btnRestart.Size = New-Object System.Drawing.Size(180, 40); $btnRestart.BackColor="Maroon"; $btnRestart.ForeColor="White"
-
 $form.Controls.AddRange(@($tabControl, $txtLog, $btnRun, $chkRestore, $btnRestart))
 
-# --- 6. EVENTS & LOGIC ---
+# --- EVENTS ---
 
-# Reset Logic
+# Function to reset checkboxes
 function Reset-Checkboxes {
-    $tabTweaks.Controls | % { if($_ -is [System.Windows.Forms.GroupBox]){ $_.Controls | % { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked=$false} } } }
-    $tabClean.Controls | % { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked=$false} }
+    $tabTweaks.Controls | ForEach-Object { 
+        if($_ -is [System.Windows.Forms.GroupBox]){ $_.Controls | ForEach-Object { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked=$false} } } 
+    }
+    $tabClean.Controls | ForEach-Object { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked=$false} }
 }
 $btnResetSelection.Add_Click({ Reset-Checkboxes; Log "Выбор сброшен." })
 
-# Presets
-$btnP_Safe.Add_Click({ Reset-Checkboxes; $chkTel.Checked=$true; $chkBing.Checked=$true; $chkSysMain.Checked=$true; $chkTmp.Checked=$true; $chkLog.Checked=$true; Log "Пресет: SAFE"; [System.Windows.Forms.MessageBox]::Show("SAFE режим. Нажмите ЗАПУСТИТЬ.") })
-$btnP_Office.Add_Click({ Reset-Checkboxes; $chkTel.Checked=$true; $chkCop.Checked=$true; $chkBing.Checked=$true; $chkXbox.Checked=$true; $chkNews.Checked=$true; $chkSysMain.Checked=$true; $chkTmp.Checked=$true; Log "Пресет: OFFICE"; [System.Windows.Forms.MessageBox]::Show("OFFICE режим.") })
-$btnP_Gamer.Add_Click({ Reset-Checkboxes; $chkTel.Checked=$true; $chkCop.Checked=$true; $chkBing.Checked=$true; $chkMail.Checked=$true; $chkNews.Checked=$true; $chkCort.Checked=$true; $chkOff.Checked=$true; $chkSysMain.Checked=$true; $chkAnim.Checked=$true; $chkDVR.Checked=$true; $chkMouse.Checked=$true; $chkSticky.Checked=$true; $chkTmp.Checked=$true; Log "Пресет: GAMER"; [System.Windows.Forms.MessageBox]::Show("GAMER режим.") })
-$btnP_Potato.Add_Click({ Reset-Checkboxes; $tabTweaks.Controls | % { if($_ -is [System.Windows.Forms.GroupBox]){ $_.Controls | % { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked=$true} } } }; $tabClean.Controls | % { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked=$true} }; $chkDism.Checked=$false; Log "Пресет: POTATO"; [System.Windows.Forms.MessageBox]::Show("POTATO режим.") })
+# Presets Logic
+$btnP_Safe.Add_Click({ 
+    Reset-Checkboxes
+    $chkTel.Checked=$true; $chkBing.Checked=$true; $chkSysMain.Checked=$true; $chkTmp.Checked=$true; $chkLog.Checked=$true
+    Log "Пресет: SAFE" "Green"
+    [System.Windows.Forms.MessageBox]::Show("SAFE режим.") 
+})
 
-# Apps
+$btnP_Office.Add_Click({ 
+    Reset-Checkboxes
+    $chkTel.Checked=$true; $chkCop.Checked=$true; $chkBing.Checked=$true; $chkXbox.Checked=$true; $chkNews.Checked=$true; $chkSysMain.Checked=$true; $chkTmp.Checked=$true
+    Log "Пресет: OFFICE" "Blue"
+    [System.Windows.Forms.MessageBox]::Show("OFFICE режим.") 
+})
+
+$btnP_Gamer.Add_Click({ 
+    Reset-Checkboxes
+    $chkTel.Checked=$true; $chkCop.Checked=$true; $chkBing.Checked=$true
+    $chkMail.Checked=$true; $chkNews.Checked=$true; $chkCort.Checked=$true; $chkOff.Checked=$true
+    $chkSysMain.Checked=$true; $chkAnim.Checked=$true; $chkDVR.Checked=$true; $chkMouse.Checked=$true; $chkSticky.Checked=$true; $chkTmp.Checked=$true
+    Log "Пресет: GAMER" "Orange"
+    [System.Windows.Forms.MessageBox]::Show("GAMER режим.") 
+})
+
+$btnP_Potato.Add_Click({ 
+    Reset-Checkboxes
+    $tabTweaks.Controls | ForEach-Object { 
+        if($_ -is [System.Windows.Forms.GroupBox]){ $_.Controls | ForEach-Object { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked=$true} } } 
+    }
+    $tabClean.Controls | ForEach-Object { if($_ -is [System.Windows.Forms.CheckBox]){$_.Checked=$true} }
+    $chkDism.Checked=$false
+    Log "Пресет: POTATO" "Red"
+    [System.Windows.Forms.MessageBox]::Show("POTATO режим.") 
+})
+
+# App Store Logic
 $Global:Apps = @()
-try { $json = Invoke-RestMethod $AppsJsonUrl -UseBasicParsing -TimeoutSec 5; if ($json.ManualCategories) { $json.ManualCategories.PSObject.Properties | % { $cat=$_.Name; $comboCat.Items.Add($cat); $_.Value | % { $_.PSObject.Properties.Add((New-Object PSNoteProperty("Category", $cat))); $_.PSObject.Properties.Add((New-Object PSNoteProperty("Display", "$($_.Name)"))); $Global:Apps += $_ } } } } catch { Log "Ошибка Apps JSON." "Red" }
+try { 
+    $json = Invoke-RestMethod $AppsJsonUrl -UseBasicParsing -TimeoutSec 5
+    if ($json.ManualCategories) { 
+        $json.ManualCategories.PSObject.Properties | ForEach-Object { 
+            $cat=$_.Name
+            $comboCat.Items.Add($cat)
+            $_.Value | ForEach-Object { 
+                $_.PSObject.Properties.Add((New-Object PSNoteProperty("Category", $cat)))
+                $_.PSObject.Properties.Add((New-Object PSNoteProperty("Display", "$($_.Name)")))
+                $Global:Apps += $_ 
+            }
+        }
+    }
+} catch { Log "Ошибка Apps JSON." "Red" }
 $comboCat.SelectedIndex = 0
-$listApps.Add_ItemCheck({ $id = ($Global:Apps | Where {$_.Display -eq $listApps.Items[$_.Index]}).Id; if ($_.NewValue -eq 'Checked') { $Global:SelectedAppIDs.Add($id)|Out-Null } else { $Global:SelectedAppIDs.Remove($id)|Out-Null } })
-function Refresh-Apps { $cat=$comboCat.SelectedItem; $f=$txtSearch.Text; if($f-eq"Поиск..."){$f=""}; $listApps.Items.Clear(); $sub=$Global:Apps|Where{($cat-eq"ВСЕ (All)"-or$_.Category-eq$cat)-and($_.Name-match$f)}; foreach($a in $sub){ $idx=$listApps.Items.Add($a.Display); if($Global:SelectedAppIDs.Contains($a.Id)){$listApps.SetItemChecked($idx,$true)} } }
+
+$listApps.Add_ItemCheck({ 
+    $id = ($Global:Apps | Where-Object {$_.Display -eq $listApps.Items[$_.Index]}).Id
+    if ($_.NewValue -eq 'Checked') { $Global:SelectedAppIDs.Add($id) | Out-Null } 
+    else { $Global:SelectedAppIDs.Remove($id) | Out-Null } 
+})
+
+function Refresh-Apps { 
+    $cat=$comboCat.SelectedItem
+    $f=$txtSearch.Text
+    if($f-eq"Поиск..."){$f=""}
+    $listApps.Items.Clear()
+    $sub=$Global:Apps | Where-Object { ($cat -eq "ВСЕ (All)" -or $_.Category -eq $cat) -and ($_.Name -match $f) }
+    foreach($a in $sub){ 
+        $idx=$listApps.Items.Add($a.Display)
+        if($Global:SelectedAppIDs.Contains($a.Id)){$listApps.SetItemChecked($idx,$true)} 
+    } 
+}
 $comboCat.Add_SelectedIndexChanged({Refresh-Apps}); $txtSearch.Add_KeyUp({Refresh-Apps}); $txtSearch.Add_Click({if($txtSearch.Text-eq"Поиск..."){$txtSearch.Text=""}})
 
-# Install/Update
+# Install Buttons
 $btnAppInstall.Add_Click({ 
-    if(!(Get-Command winget -EA 0)){ if(!(Fix-Winget)){ return } }
-    if ($Global:SelectedAppIDs.Count -gt 0) { $Global:SelectedAppIDs | % { Log "Установка: $_" "Blue"; Start-Process winget -ArgumentList "install --id $_ -e --silent --accept-package-agreements --accept-source-agreements" -Wait } } 
-})
-$btnAppUpdate.Add_Click({ 
-    if(!(Get-Command winget -EA 0)){ if(!(Fix-Winget)){ return } }
-    Log "Обновление..." "Blue"; Start-Process winget -ArgumentList "upgrade --all --include-unknown --accept-source-agreements" -Wait; Log "Готово." "Green" 
+    if(!(Get-Command winget -ErrorAction SilentlyContinue)){ if(!(Fix-Winget)){ return } }
+    if ($Global:SelectedAppIDs.Count -gt 0) { 
+        $Global:SelectedAppIDs | ForEach-Object { 
+            Log "Установка: $_" "Blue"
+            Start-Process winget -ArgumentList "install --id $_ -e --silent --accept-package-agreements --accept-source-agreements" -Wait 
+        } 
+    } 
 })
 
-# Run Main
+$btnAppUpdate.Add_Click({ 
+    if(!(Get-Command winget -ErrorAction SilentlyContinue)){ if(!(Fix-Winget)){ return } }
+    Log "Обновление..." "Blue"
+    Start-Process winget -ArgumentList "upgrade --all --include-unknown --accept-source-agreements" -Wait
+    Log "Готово." "Green" 
+})
+
+# MAIN RUN EVENT
 $btnRun.Add_Click({
     $form.Cursor=[System.Windows.Forms.Cursors]::WaitCursor; $form.Enabled=$false
-    if ($chkRestore.Checked) { Log "Точка восстановления..." "Blue"; Enable-ComputerRestore -Drive "C:\" -EA 0; Checkpoint-Computer -Description "PotatoPC" -RestorePointType "MODIFY_SETTINGS" -EA 0 }
     
-    if($chkTel.Checked){Core-KillService "DiagTrack";Core-KillService "dmwappushservice";Core-RegTweak "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" 0}
-    if($chkCop.Checked){Core-RegTweak "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot" "TurnOffWindowsCopilot" 1}
-    if($chkBing.Checked){Core-RegTweak "HKCU:\Software\Policies\Microsoft\Windows\Explorer" "DisableSearchBoxSuggestions" 1}
+    if ($chkRestore.Checked) { 
+        Log "Точка восстановления..." "Blue"
+        Enable-ComputerRestore -Drive "C:\" -ErrorAction SilentlyContinue
+        Checkpoint-Computer -Description "PotatoPC" -RestorePointType "MODIFY_SETTINGS" -ErrorAction SilentlyContinue
+    }
     
-    if($chkXbox.Checked){("XboxApp","GamingApp","XboxGamingOverlay","Xbox.TCUI")|%{Core-RemoveApp $_};("XblAuthManager","XblGameSave","XboxNetApiSvc")|%{Core-KillService $_}}
-    if($chkMail.Checked){Core-RemoveApp "windowscommunicationsapps"}
-    if($chkNews.Checked){Core-RemoveApp "BingNews";Core-RemoveApp "BingWeather";Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "TaskbarDa" 0}
-    if($chkCort.Checked){Core-RemoveApp "Cortana";Core-RemoveApp "People"}
-    if($chkOff.Checked){Core-RemoveApp "MicrosoftOfficeHub"}
+    # Logic: Privacy
+    if($chkTel.Checked){ Core-KillService "DiagTrack"; Core-KillService "dmwappushservice"; Core-RegTweak "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" 0 }
+    if($chkCop.Checked){ Core-RegTweak "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot" "TurnOffWindowsCopilot" 1 }
+    if($chkBing.Checked){ Core-RegTweak "HKCU:\Software\Policies\Microsoft\Windows\Explorer" "DisableSearchBoxSuggestions" 1 }
     
-    if($chkSysMain.Checked){$ssd=Get-PhysicalDisk|Where{$_.MediaType-eq'SSD'};if($ssd){Core-KillService "SysMain"}}
-    if($chkAnim.Checked){Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2}
-    if($chkDVR.Checked){Core-RegTweak "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0;Core-KillService "BcastDVRUserService*"}
-    if($chkSticky.Checked){Core-RegTweak "HKCU:\Control Panel\Accessibility\StickyKeys" "Flags" 506}
-    if($chkHib.Checked){powercfg -h off}
-    if($chkExt.Checked
+    # Logic: Bloatware
+    if($chkXbox.Checked){ 
+        @("XboxApp","GamingApp","XboxGamingOverlay","Xbox.TCUI") | ForEach-Object { Core-RemoveApp $_ }
+        @("XblAuthManager","XblGameSave","XboxNetApiSvc") | ForEach-Object { Core-KillService $_ }
+    }
+    if($chkMail.Checked){ Core-RemoveApp "windowscommunicationsapps" }
+    if($chkNews.Checked){ Core-RemoveApp "BingNews"; Core-RemoveApp "BingWeather"; Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "TaskbarDa" 0 }
+    if($chkCort.Checked){ Core-RemoveApp "Cortana"; Core-RemoveApp "People" }
+    if($chkOff.Checked){ Core-RemoveApp "MicrosoftOfficeHub" }
+    
+    # Logic: Perf
+    if($chkSysMain.Checked){ 
+        $ssd = Get-PhysicalDisk | Where-Object { $_.MediaType -eq 'SSD' }
+        if ($ssd) { Core-KillService "SysMain" } 
+    }
+    if($chkAnim.Checked){ Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2 }
+    if($chkDVR.Checked){ Core-RegTweak "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0; Core-KillService "BcastDVRUserService*" }
+    if($chkSticky.Checked){ Core-RegTweak "HKCU:\Control Panel\Accessibility\StickyKeys" "Flags" 506 }
+    if($chkHib.Checked){ powercfg -h off }
+    if($chkExt.Checked){ Core-RegTweak "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "HideFileExt" 0 }
+    if($chkMouse.Checked){ 
+        Core-RegTweak "HKCU:\Control Panel\Mouse" "MouseSpeed" 0
+        Core-RegTweak "HKCU:\Control Panel\Mouse" "MouseThreshold1" 0
+        Core-RegTweak "HKCU:\Control Panel\Mouse" "MouseThreshold2" 0 
+    }
+
+    # Logic: Clean
+    if($chkTmp.Checked){ Remove-Item "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue }
+    if($chkLog.Checked){ Get-WinEvent -ListLog * -ErrorAction SilentlyContinue | ForEach-Object { Wevtutil cl $_.LogName 2>$null } }
+    if($chkUpdCache.Checked){ 
+        Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
+        Remove-Item "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
+        Start-Service wuauserv -ErrorAction SilentlyContinue 
+    }
+    if($chkDns.Checked){ Clear-DnsClientCache }
+    if($chkBin.Checked){ Clear-RecycleBin -Force -ErrorAction SilentlyContinue }
+    if($chkDism.Checked){ Log "DISM (Ждите)..." "Orange"; Dism.exe /online /Cleanup-Image /StartComponentCleanup | Out-Null }
+
+    $form.Enabled=$true; $form.Cursor=[System.Windows.Forms.Cursors]::Default
+    Log "Готово." "Green"
+    [System.Windows.Forms.MessageBox]::Show("Операции завершены.")
+})
+
+$btnRestart.Add_Click({ Restart-Computer -Force })
+
+$form.ShowDialog()
