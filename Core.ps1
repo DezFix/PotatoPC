@@ -1,37 +1,44 @@
 # ==========================================
-# POTATO PC OPTIMIZER v11.5 (FONT FIX)
+# POTATO PC OPTIMIZER v12.0 (STRICT FONTS)
 # ==========================================
 
-# 1. ПРОВЕРКА АДМИНА
+# 1. ПОДКЛЮЧЕНИЕ БИБЛИОТЕК
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# 2. ФУНКЦИЯ ДЛЯ БЕЗОПАСНОГО СОЗДАНИЯ ШРИФТА
+function New-Font {
+    param($Name, $Size, $Style)
+    # Принудительно указываем типы, чтобы PowerShell не путал параметры
+    return New-Object System.Drawing.Font($Name, [float]$Size, [System.Drawing.FontStyle]$Style)
+}
+
+# 3. ПРОВЕРКА АДМИНА
 $currentPrincipal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (!($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
     $frm = New-Object System.Windows.Forms.Form
-    $frm.Text="ERROR"; $frm.Size=New-Object System.Drawing.Size(400,200); $frm.StartPosition="CenterScreen"; $frm.BackColor="DarkRed"
+    $frm.Text="ERROR"; $frm.Size=New-Object System.Drawing.Size(450,220); $frm.StartPosition="CenterScreen"; $frm.BackColor="DarkRed"
     
     $lbl = New-Object System.Windows.Forms.Label
     $lbl.Text="ЗАПУСТИТЕ ОТ АДМИНИСТРАТОРА!"
     $lbl.ForeColor="White"; $lbl.AutoSize=$true; $lbl.Location=New-Object System.Drawing.Point(50,50)
-    # ИСПРАВЛЕНИЕ ШРИФТА 1
-    $lbl.Font = New-Object System.Drawing.Font("Arial", 12, [System.Drawing.FontStyle]::Bold)
+    # Используем безопасную функцию
+    $lbl.Font = New-Font "Arial" 12 "Bold"
     
-    $btn = New-Object System.Windows.Forms.Button; $btn.Text="OK"; $btn.Location=New-Object System.Drawing.Point(140,100); $btn.Add_Click({$frm.Close()})
+    $btn = New-Object System.Windows.Forms.Button; $btn.Text="OK"; $btn.Location=New-Object System.Drawing.Point(140,110); $btn.Size=New-Object System.Drawing.Size(100,40); $btn.Add_Click({$frm.Close()})
     $frm.Controls.AddRange(@($lbl,$btn)); $frm.ShowDialog(); exit
 }
 
-# 2. ЗАГРУЗКА МОДУЛЕЙ
+# 4. НАСТРОЙКИ И ПУТИ
 $WorkDir = "C:\PotatoPC"; $TempDir = "$WorkDir\Temp"; $BackupDir = "$WorkDir\Backups"
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 
-# ССЫЛКИ
 $LogicUrl   = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/Logic.ps1" 
 $AppsJsonUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/apps.json"
 $LogicFile  = "$TempDir\Logic.ps1"
 
-# Скачиваем и подключаем логику (С ЗАЩИТОЙ КОДИРОВКИ)
+# 5. ЗАГРУЗКА LOGIC.PS1 (С кодировкой UTF8)
 try {
     $wc = New-Object System.Net.WebClient
     $wc.Encoding = [System.Text.Encoding]::UTF8
@@ -43,7 +50,7 @@ try {
     exit
 }
 
-# 3. ПОСТРОЕНИЕ ИНТЕРФЕЙСА (GUI)
+# 6. GUI ПОСТРОЕНИЕ
 $Global:ToolTip = New-Object System.Windows.Forms.ToolTip
 $Global:ToolTip.AutoPopDelay = 15000; $Global:ToolTip.InitialDelay = 100
 
@@ -58,16 +65,15 @@ function Add-Item($panel, $text, $desc, $yRaw, $varName) {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "PotatoPC Optimizer v11.5"; $form.Size = New-Object System.Drawing.Size(950,700); $form.StartPosition = "CenterScreen"; $form.FormBorderStyle="FixedSingle"; $form.MaximizeBox=$false; $form.BackColor="WhiteSmoke"
+$form.Text = "PotatoPC Optimizer v12.0"; $form.Size = New-Object System.Drawing.Size(950,700); $form.StartPosition = "CenterScreen"; $form.FormBorderStyle="FixedSingle"; $form.MaximizeBox=$false; $form.BackColor="WhiteSmoke"
 
 $tabs = New-Object System.Windows.Forms.TabControl; $tabs.Location=New-Object System.Drawing.Point(10,10); $tabs.Size=New-Object System.Drawing.Size(915,500)
 $log = New-Object System.Windows.Forms.RichTextBox; $log.Location=New-Object System.Drawing.Point(10,560); $log.Size=New-Object System.Drawing.Size(915,90); $log.ReadOnly=$true; $log.BackColor="White"
 
-# --- TAB 1: PRESETS ---
+# === TAB 1: PRESETS ===
 $tp1 = New-Object System.Windows.Forms.TabPage; $tp1.Text=" [1] ПРЕСЕТЫ "
 $l1 = New-Object System.Windows.Forms.Label; $l1.Text="Выберите режим:"; $l1.Location=New-Object System.Drawing.Point(20,20); $l1.AutoSize=$true
-# ИСПРАВЛЕНИЕ ШРИФТА 2
-$l1.Font = New-Object System.Drawing.Font("Arial", 12, [System.Drawing.FontStyle]::Bold)
+$l1.Font = New-Font "Arial" 12 "Bold"
 
 $bp1 = New-Object System.Windows.Forms.Button; $bp1.Text="[ SAFE ]`nБезопасный"; $bp1.Location=New-Object System.Drawing.Point(50,60); $bp1.Size=New-Object System.Drawing.Size(200,60); $bp1.BackColor="SeaGreen"; $bp1.ForeColor="White"
 $lp1 = New-Object System.Windows.Forms.Label; $lp1.Text="Только мусор. Безопасно."; $lp1.Location=New-Object System.Drawing.Point(270,70); $lp1.AutoSize=$true
@@ -83,7 +89,7 @@ $lp4 = New-Object System.Windows.Forms.Label; $lp4.Text="Отключает вс
 
 $tp1.Controls.AddRange(@($l1, $bp1, $lp1, $bp2, $lp2, $bp3, $lp3, $bp4, $lp4))
 
-# --- TAB 2: TWEAKS ---
+# === TAB 2: TWEAKS ===
 $tp2 = New-Object System.Windows.Forms.TabPage; $tp2.Text=" [2] ТВИКИ "
 $g1 = New-Object System.Windows.Forms.GroupBox; $g1.Text="Приватность"; $g1.Location=New-Object System.Drawing.Point(10,10); $g1.Size=New-Object System.Drawing.Size(280,400)
 Add-Item $g1 "Откл. Телеметрию" "Слежка." 25 "chkTel"
@@ -109,7 +115,7 @@ Add-Item $g3 "Fix Мыши" "Акселерация." 205 "chkMouse"
 $brst = New-Object System.Windows.Forms.Button; $brst.Text="Сброс"; $brst.Location=New-Object System.Drawing.Point(10,420); $brst.Size=New-Object System.Drawing.Size(200,30)
 $tp2.Controls.AddRange(@($g1, $g2, $g3, $brst))
 
-# --- TAB 3: APPS ---
+# === TAB 3: APPS ===
 $tp3 = New-Object System.Windows.Forms.TabPage; $tp3.Text=" [3] МАГАЗИН "
 $cc = New-Object System.Windows.Forms.ComboBox; $cc.Location=New-Object System.Drawing.Point(10,10); $cc.Size=New-Object System.Drawing.Size(200,25); $cc.DropDownStyle="DropDownList"; $cc.Items.Add("ВСЕ (All)")
 $ts = New-Object System.Windows.Forms.TextBox; $ts.Location=New-Object System.Drawing.Point(220,10); $ts.Size=New-Object System.Drawing.Size(380,25); $ts.Text="Поиск..."
@@ -118,7 +124,7 @@ $bi = New-Object System.Windows.Forms.Button; $bi.Text="Установить"; $
 $bu = New-Object System.Windows.Forms.Button; $bu.Text="Обновить ВСЁ"; $bu.Location=New-Object System.Drawing.Point(620,110); $bu.Size=New-Object System.Drawing.Size(250,50); $bu.BackColor="DarkBlue"; $bu.ForeColor="White"
 $tp3.Controls.AddRange(@($cc, $ts, $la, $bi, $bu))
 
-# --- TAB 4: CLEAN ---
+# === TAB 4: CLEAN ---
 $tp4 = New-Object System.Windows.Forms.TabPage; $tp4.Text=" [4] ОЧИСТКА "
 Add-Item $tp4 "Очистка Temp" "Временные файлы." 30 "chkTmp"; $chkTmp.Checked=$true
 Add-Item $tp4 "Очистка Логов" "Журналы событий." 60 "chkLog"
@@ -130,8 +136,7 @@ $tabs.Controls.AddRange(@($tp1, $tp2, $tp3, $tp4))
 
 # FOOTER
 $brun = New-Object System.Windows.Forms.Button; $brun.Text="ЗАПУСТИТЬ ВЫБРАННОЕ"; $brun.Location=New-Object System.Drawing.Point(400,515); $brun.Size=New-Object System.Drawing.Size(325,40); $brun.BackColor="DarkSlateGray"; $brun.ForeColor="White"
-# ИСПРАВЛЕНИЕ ШРИФТА 3
-$brun.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+$brun.Font = New-Font "Arial" 10 "Bold"
 
 $crest = New-Object System.Windows.Forms.CheckBox; $crest.Text="Точка восстановления"; $crest.Location=New-Object System.Drawing.Point(20,525); $crest.AutoSize=$true; $crest.Checked=$true
 $breboot = New-Object System.Windows.Forms.Button; $breboot.Text="Перезагрузка"; $breboot.Location=New-Object System.Drawing.Point(740,515); $breboot.Size=New-Object System.Drawing.Size(180,40); $breboot.BackColor="Maroon"; $breboot.ForeColor="White"
