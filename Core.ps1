@@ -1,19 +1,23 @@
 # ==========================================
-# POTATO PC OPTIMIZER v6.0 (STABLE)
+# POTATO PC OPTIMIZER v6.5 (FIXED)
 # ==========================================
 
-# --- 1. AUTO-ELEVATE (ИСПРАВЛЕНО) ---
+# --- 1. AUTO-ELEVATE (Надежный перезапуск) ---
 $currentPrincipal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (!($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))) {
     $scriptPath = $MyInvocation.MyCommand.Definition
     if ([string]::IsNullOrWhiteSpace($scriptPath)) {
-        Write-Host "Пожалуйста, сохраните скрипт в файл перед запуском!" -ForegroundColor Red
-        Read-Host "Нажмите Enter для выхода"
+        Write-Host "ОШИБКА: Сохраните скрипт в файл (например run.ps1) перед запуском!" -ForegroundColor Red
+        Read-Host "Нажмите Enter для выхода..."
         exit
     }
     Write-Host "Перезапуск от имени Администратора..." -ForegroundColor Yellow
-    # Запускаем новый процесс и передаем ему путь к этому же файлу
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
+    try {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
+    } catch {
+        Write-Host "Не удалось получить права Администратора. Запустите вручную." -ForegroundColor Red
+        Read-Host "Enter..."
+    }
     exit
 }
 
@@ -22,31 +26,15 @@ $AppsJsonUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/apps.json
 $BackupDir = "C:\PotatoPC_Backups"
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
-# --- HELPER: Проверка и установка Winget ---
-function Helper-CheckWinget {
-    Write-Host " [CHECK] Проверка наличия WinGet (App Installer)..." -ForegroundColor DarkGray
-    if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
-        Write-Host "WinGet не найден! Скачивание и установка..." -ForegroundColor Yellow
-        try {
-            # Ссылка на последний релиз с GitHub Microsoft
-            $url = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-            $output = "$env:TEMP\winget.msixbundle"
-            
-            Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
-            Write-Host "Установка пакета..." -ForegroundColor Cyan
-            Add-AppxPackage -Path $output
-            Remove-Item $output
-            Write-Host "[OK] WinGet установлен." -ForegroundColor Green
-        } catch {
-            Write-Host "[ERROR] Не удалось установить WinGet автоматически." -ForegroundColor Red
-            Write-Host "Пожалуйста, обновите Windows или установите 'App Installer' из Microsoft Store."
-            Pause
-            return $false
-        }
-    } else {
-        Write-Host "[OK] WinGet найден." -ForegroundColor Green
+# --- HELPER: Проверка служб перед работой ---
+function Helper-EnsureService {
+    param($Name)
+    $svc = Get-Service $Name -ErrorAction SilentlyContinue
+    if ($svc -and $svc.Status -ne 'Running') {
+        Write-Host " [FIX] Запуск службы $Name для корректной работы..." -ForegroundColor DarkGray
+        Set-Service $Name -StartupType Manual -ErrorAction SilentlyContinue
+        Start-Service $Name -ErrorAction SilentlyContinue
     }
-    return $true
 }
 
 # --- HELPER: Службы ---
@@ -65,21 +53,25 @@ function Helper-KillService {
     }
 }
 
-# --- HELPER: Appx ---
+# --- HELPER: Appx (С обработкой ошибок) ---
 function Helper-KillApp {
     param($NamePattern)
     $WhiteList = @("Microsoft.WindowsStore", "Microsoft.DesktopAppInstaller", "Microsoft.Windows.Photos", "Microsoft.WindowsCalculator", "Microsoft.VP9VideoExtensions") 
     
-    $apps = Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "*$NamePattern*" -and $_.Name -notin $WhiteList}
-    if ($apps) {
-        foreach ($app in $apps) {
-            Write-Host "    -> [DEL] Пакет: $($app.Name)" -ForegroundColor Red
-            Remove-AppxPackage -Package $app.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+    try {
+        $apps = Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "*$NamePattern*" -and $_.Name -notin $WhiteList}
+        if ($apps) {
+            foreach ($app in $apps) {
+                Write-Host "    -> [DEL] Пакет: $($app.Name)" -ForegroundColor Red
+                Remove-AppxPackage -Package $app.PackageFullName -AllUsers -ErrorAction Stop
+            }
         }
-    }
-    Get-AppxProvisionedPackage -Online | Where-Object {$_.DisplayName -like "*$NamePattern*" -and $_.DisplayName -notin $WhiteList} | ForEach-Object {
-        Write-Host "    -> [IMG] Образ: $($_.DisplayName)" -ForegroundColor Magenta
-        Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue | Out-Null
+        Get-AppxProvisionedPackage -Online | Where-Object {$_.DisplayName -like "*$NamePattern*" -and $_.DisplayName -notin $WhiteList} | ForEach-Object {
+            Write-Host "    -> [IMG] Образ: $($_.DisplayName)" -ForegroundColor Magenta
+            Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue | Out-Null
+        }
+    } catch {
+        Write-Host "    [!] Ошибка удаления $NamePattern. Возможно, нет прав или служба AppX отключена." -ForegroundColor DarkGray
     }
 }
 
@@ -96,7 +88,7 @@ function Show-MainMenu {
     while ($true) {
         Clear-Host
         Write-Host "==============================================================" -ForegroundColor Cyan
-        Write-Host "               POTATO PC OPTIMIZER v6.0                       " -ForegroundColor Cyan
+        Write-Host "               POTATO PC OPTIMIZER v6.5 (FIXED)               " -ForegroundColor Cyan
         Write-Host "==============================================================" -ForegroundColor Cyan
         Write-Host " Backups: $BackupDir" -ForegroundColor DarkGray
         Write-Host ""
@@ -155,9 +147,15 @@ function Module-AutoPreset {
 function Module-RemoveBloatware {
     param($Auto = $false)
     Write-Host "`n=== УДАЛЕНИЕ ВСТРОЕННОГО ПО ===" -ForegroundColor Yellow
+    
+    # ПРОВЕРКА СЛУЖБЫ APPX (Критично для работы)
+    Helper-EnsureService "AppXSvc"
+
     if (!$Auto) {
         Write-Host "Будут удалены: Почта, Xbox, Новости, Wallet, People, Cortana и др." -ForegroundColor Red
-        if ((Read-Host "Продолжить? (y/n)") -ne 'y') { return }
+        $conf = Read-Host "Продолжить? (y/n)"
+        # ИСПРАВЛЕНИЕ: Теперь принимает и Y, и y, и Yes
+        if ($conf -notmatch '^[yY]') { return }
         Module-CreateRestorePoint -Auto $true
     }
 
@@ -247,7 +245,18 @@ function Module-SystemCleanup {
 # --- MODULE 4: GUI INSTALLER ---
 function Module-InstallerGUI {
     # ПРОВЕРКА WINGET
-    if (!(Helper-CheckWinget)) { return }
+    if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Host "WinGet не найден! Установка..." -ForegroundColor Yellow
+        try {
+            $url = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+            Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\winget.msixbundle" -UseBasicParsing
+            Add-AppxPackage -Path "$env:TEMP\winget.msixbundle"
+            Write-Host "WinGet установлен." -ForegroundColor Green
+        } catch {
+            Write-Host "Ошибка установки WinGet. Проверьте интернет." -ForegroundColor Red
+            Pause; return
+        }
+    }
 
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
@@ -338,7 +347,7 @@ function Module-InstallerGUI {
     [void]$form.ShowDialog()
 }
 
-# --- MODULE 5: SYSTEM TWEAKS (CLEANED) ---
+# --- MODULE 5: SYSTEM TWEAKS ---
 function Module-SystemTweaks {
     function Get-Status($bool) { if($bool){return "[ON ]"}else{return "[OFF]"} }
     function Get-Color($bool) { if($bool){return "Green"}else{return "Gray"} }
@@ -376,7 +385,7 @@ function Module-CreateRestorePoint {
         Checkpoint-Computer -Description "PotatoPC_Point" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
         Write-Host "[SUCCESS] Точка создана." -ForegroundColor Green
     } catch {
-        Write-Host "[FAIL] Ошибка. (Возможно отключена защита системы)" -ForegroundColor Red
+        Write-Host "[FAIL] Ошибка создания точки." -ForegroundColor Red
         if (!$Auto) { Pause }
     }
     if (!$Auto) { Pause }
