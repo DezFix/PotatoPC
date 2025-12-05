@@ -1,5 +1,5 @@
 # ==========================================
-# POTATO PC: LOGIC MODULE
+# POTATO PC: LOGIC MODULE v2.0 (FAST WINGET)
 # ==========================================
 
 function Log($textBox, $text, $color="Black") {
@@ -10,21 +10,42 @@ function Log($textBox, $text, $color="Black") {
 }
 
 function Fix-Winget {
-    param($TempDir)
+    param($TempDir, $Logger)
+    
+    Log $Logger "--- ЗАПУСК УСТАНОВКИ WINGET ---" "DarkMagenta"
+    
     try {
-        $urls = @(
-            "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx",
-            "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx",
-            "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-        )
-        $files = @("$TempDir\vclibs.appx", "$TempDir\ui.xaml.appx", "$TempDir\winget.msixbundle")
+        $wc = New-Object System.Net.WebClient
         
-        for($i=0; $i -lt 3; $i++) {
-            Invoke-WebRequest -Uri $urls[$i] -OutFile $files[$i] -UseBasicParsing
-            Add-AppxPackage -Path $files[$i] -ErrorAction SilentlyContinue
-        }
+        # 1. VCLibs (Библиотека C++)
+        $vcFile = "$TempDir\vclibs.appx"
+        Log $Logger "Скачивание VCLibs (1/3)..." "Blue"
+        $wc.DownloadFile("https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx", $vcFile)
+        Log $Logger "Установка VCLibs..." "Gray"
+        Add-AppxPackage -Path $vcFile -ErrorAction SilentlyContinue
+
+        # 2. UI.Xaml (Графическая библиотека)
+        $uiFile = "$TempDir\ui.xaml.appx"
+        Log $Logger "Скачивание UI.Xaml (2/3)..." "Blue"
+        # Используем стабильную версию 2.8
+        $wc.DownloadFile("https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx", $uiFile)
+        Log $Logger "Установка UI.Xaml..." "Gray"
+        Add-AppxPackage -Path $uiFile -ErrorAction SilentlyContinue
+
+        # 3. Сам Winget (App Installer)
+        $wgFile = "$TempDir\winget.msixbundle"
+        Log $Logger "Скачивание Winget (3/3)..." "Blue"
+        $wc.DownloadFile("https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle", $wgFile)
+        
+        Log $Logger "Регистрация пакета Winget..." "DarkMagenta"
+        Add-AppxPackage -Path $wgFile -ForceApplicationShutdown -ErrorAction Stop
+        
+        Log $Logger "УСПЕШНО: Winget установлен!" "Green"
         return $true
-    } catch { return $false }
+    } catch {
+        Log $Logger "ОШИБКА установки: $($_.Exception.Message)" "Red"
+        return $false
+    }
 }
 
 function Core-KillService($Name, $BackupDir, $Logger) {
@@ -37,7 +58,7 @@ function Core-KillService($Name, $BackupDir, $Logger) {
                 [PSCustomObject]@{Name=$s.Name;Start=$s.StartType;Status=$s.Status} | Export-Csv "$BackupDir\Services_Back.csv" -Append -NoType -Force
                 Stop-Service $s.Name -Force -ErrorAction Stop
                 Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$($s.Name)" "Start" 4 -Type DWord -Force
-            } catch { Log $Logger "Ошибка службы $($s.Name)" "Gray" }
+            } catch { Log $Logger "Не удалось остановить: $($s.Name)" "Gray" }
         }
         [System.Windows.Forms.Application]::DoEvents()
     }
@@ -46,11 +67,16 @@ function Core-KillService($Name, $BackupDir, $Logger) {
 function Core-RemoveApp($Pattern, $Logger) {
     $White = @("Microsoft.WindowsStore", "Microsoft.DesktopAppInstaller", "Microsoft.Windows.Photos", "Microsoft.WindowsCalculator")
     $apps = Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "*$Pattern*" -and $_.Name -notin $White}
+    
     if ($apps) {
         foreach ($a in $apps) {
-            Log $Logger "Удаление: $($a.Name)" "Red"
-            try { Remove-AppxPackage -Package $a.PackageFullName -AllUsers -ErrorAction Stop } 
-            catch { Log $Logger "Ошибка удаления $($a.Name)" "Gray" }
+            Log $Logger "Удаление App: $($a.Name)" "Red"
+            try { 
+                Remove-AppxPackage -Package $a.PackageFullName -AllUsers -ErrorAction Stop 
+            } 
+            catch { 
+                Log $Logger "Ошибка удаления: $($a.Name)" "Gray" 
+            }
             [System.Windows.Forms.Application]::DoEvents()
         }
     }
