@@ -1,0 +1,58 @@
+{
+  "ManualCategories": {
+    "Браузеры": [
+      {"Name": "Opera", "Id": "Opera.Opera", "Description": "Быстрый браузер со встроенным VPN и блокировщиком рекламы."},
+      {"Name": "OperaGX", "Id": "Opera.OperaGX", "Description": "Браузер для геймеров с контролем ресурсов."},
+      {"Name": "Google Chrome", "Id": "Google.Chrome", "Description": "Популярный веб-браузер от Google."},
+      {"Name": "Mozilla Firefox", "Id": "Mozilla.Firefox", "Description": "Открытый веб-браузер, ориентированный на конфиденциальность."}
+    ],
+    "Мультимедиа": [
+      {"Name": "VLC Media Player", "Id": "VideoLAN.VLC", "Description": "Универсальный медиаплеер."},
+      {"Name": "GIMP", "Id": "GIMP.GIMP.2", "Description": "Бесплатный редактор изображений, альтернатива Photoshop."},
+      {"Name": "Audacity", "Id": "Audacity.Audacity", "Description": "Бесплатный аудиоредактор и звукозаписывающее приложение."},
+      {"Name": "Shotcut", "Id": "Meltytech.Shotcut", "Description": "Бесплатный видеоредактор с открытым исходным кодом."},
+      {"Name": "Kdenlive", "Id": "KDE.Kdenlive", "Description": "Бесплатный и открытый видеоредактор."},
+      {"Name": "OBS Studio", "Id": "OBSProject.OBSStudio", "Description": "Бесплатное ПО для записи видео и потокового вещания."}
+    ],
+    "Офис и Документы": [
+      {"Name": "Onlyoffice", "Id": "ONLYOFFICE.DesktopEditors", "Description": "Пакет офисных программ."},
+      {"Name": "LibreOffice", "Id": "TheDocumentFoundation.LibreOffice", "Description": "Бесплатный офисный пакет, совместимый с Microsoft Office."},
+      {"Name": "Microsoft Office", "Id": "Microsoft.Office", "Description": "Популярный офисный пакет от Microsoft."},
+      {"Name": "SumatraPDF", "Id": "SumatraPDF.SumatraPDF", "Description": "Легкий просмотрщик PDF и других форматов."},
+      {"Name": "Notepad++", "Id": "Notepad++.Notepad++", "Description": "Бесплатный текстовый редактор с открытым исходным кодом."}
+    ],
+    "Файловые и Архиваторы": [
+      {"Name": "7-Zip", "Id": "7zip.7zip", "Description": "Бесплатный архиватор с высокой степенью сжатия."},
+      {"Name": "ABDownloadManager", "Id": "amir1376.ABDownloadManager", "Description": "Менеджер загрузок с функциями ускорения."},
+      {"Name": "File Converter", "Id": "AdrienAllard.FileConverter", "Description": "Инструмент для конвертации файлов через контекстное меню."},
+      {"Name": "ShareX", "Id": "ShareX.ShareX", "Description": "Инструмент для захвата экрана и обмена файлами."}
+    ],
+    "Системные Утилиты": [
+      {"Name": "AnyDesk", "Id": "AnyDesk.AnyDesk", "Description": "Программа для удаленного доступа и управления."},
+      {"Name": "BCUninstaller", "Id": "Klocman.BulkCrapUninstaller", "Description": "Бесплатный деинсталлятор программ с расширенными возможностями."},
+      {"Name": "QuickLook", "Id": "QL-Win.QuickLook", "Description": "Быстрый предварительный просмотр файлов по нажатию пробела."},
+      {"Name": "EarTrumpet", "Id": "File-New-Project.EarTrumpet", "Description": "Расширенный регулятор громкости для Windows."},
+      {"Name": "ExplorerPatcher", "Id": "valinet.ExplorerPatcher", "Description": "Патч для Проводника Windows, возвращающий старый вид."},
+      {"Name": "NetTime", "Id": "MarkGriffiths.NetTime", "Description": "Утилита для синхронизации времени с NTP-серверами."},
+      {"Name": "Flameshot", "Id": "Flameshot.Flameshot", "Description": "Мощный инструмент для создания скриншотов."}
+    ],
+    "Связь и Сеть": [
+      {"Name": "Telegram", "Id": "Telegram.TelegramDesktop", "Description": "Быстрый и безопасный мессенджер."},
+      {"Name": "Discord", "Id": "Discord.Discord", "Description": "Платформа для голосового, видео и текстового общения."},
+      {"Name": "Viber", "Id": "Rakuten.Viber", "Description": "Мессенджер для бесплатных звонков и сообщений."},
+      {"Name": "Microsoft Teams", "Id": "Microsoft.Teams", "Description": "Платформа для совместной работы от Microsoft."},
+      {"Name": "Zoom", "Id": "Zoom.Zoom", "Description": "Приложение для видеоконференций и онлайн-встреч."},
+      {"Name": "Signal", "Id": "OpenWhisperSystems.Signal", "Description": "Мессенджер, ориентированный на конфиденциальность."}
+    ],
+    "Разработка": [
+      {"Name": "VS Code", "Id": "Microsoft.VisualStudioCode", "Description": "Мощный редактор кода от Microsoft."},
+      {"Name": "Git", "Id": "Git.Git", "Description": "Система контроля версий для отслеживания изменений."},
+      {"Name": "Python", "Id": "Python.Python", "Description": "Популярный язык программирования."},
+      {"Name": "Docker Desktop", "Id": "Docker.DockerDesktop", "Description": "Платформа для разработки и запуска приложений в контейнерах."}
+    ],
+    "Игры": [
+      {"Name": "Steam", "Id": "Valve.Steam", "Description": "Крупнейшая платформа для цифровой дистрибуции игр."},
+      {"Name": "Heroic Games Launcher", "Id": "HeroicGamesLauncher.HeroicGamesLauncher", "Description": "Открытый игровой лаунчер для Epic Games, GOG и Amazon Games."}
+    ]
+  }
+}
