@@ -58,9 +58,9 @@
     "Presets": {
     "Work": ["Google.Chrome", "Telegram.TelegramDesktop", "Microsoft.VisualStudioCode"],
     "Games": ["Valve.Steam", "Discord.Discord"]
-}
   }
 }
+
 
 
 
