@@ -53,11 +53,12 @@
     "Игры": [
       {"Name": "Steam", "Id": "Valve.Steam", "Description": "Крупнейшая платформа для цифровой дистрибуции игр."},
       {"Name": "Heroic Games Launcher", "Id": "HeroicGamesLauncher.HeroicGamesLauncher", "Description": "Открытый игровой лаунчер для Epic Games, GOG и Amazon Games."}
-    ]
+    ],
     "Presets": {
     "Work": ["Google.Chrome", "Telegram.TelegramDesktop", "Microsoft.VisualStudioCode"],
     "Games": ["Valve.Steam", "Discord.Discord"]
 }
   }
 }
+
 
