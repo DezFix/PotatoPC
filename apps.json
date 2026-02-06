@@ -63,7 +63,3 @@
 }
 
 
-
-winget install -e --id IrfanSkiljan.IrfanView
-
-
