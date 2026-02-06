@@ -385,12 +385,7 @@ while (-not $backToMain) {
         '0' {
             Write-Host "Возврат в главное меню..." -ForegroundColor Green
             Start-Sleep -Seconds 1
-            try {
-                $menuScript = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1" -UseBasicParsing
-                Invoke-Expression $menuScript.Content
-            } catch {
-                Write-Host "[!] Не удалось загрузить меню. Проверьте подключение к интернету." -ForegroundColor Red
-            }
+            iex (irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1")
             $backToMain = $true
         }
         default {
