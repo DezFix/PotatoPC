@@ -7,8 +7,9 @@
       {"Name": "Mozilla Firefox", "Id": "Mozilla.Firefox", "Description": "Открытый веб-браузер, ориентированный на конфиденциальность."}
     ],
     "Мультимедиа": [
-      {"Name": "VLC Media Player", "Id": "VideoLAN.VLC", "Description": "Универсальный медиаплеер."},
+      {"Name": "VLC Media Player", "Id": "VideoLAN.VLC", "Description": "Универсальный медиаплеер."}, 
       {"Name": "GIMP", "Id": "GIMP.GIMP.2", "Description": "Бесплатный редактор изображений, альтернатива Photoshop."},
+      {"Name": "IrfanView", "Id": "IrfanSkiljan.IrfanView", "Description": "Бесплатный просмоторщик изображений"},
       {"Name": "Audacity", "Id": "Audacity.Audacity", "Description": "Бесплатный аудиоредактор и звукозаписывающее приложение."},
       {"Name": "Shotcut", "Id": "Meltytech.Shotcut", "Description": "Бесплатный видеоредактор с открытым исходным кодом."},
       {"Name": "Kdenlive", "Id": "KDE.Kdenlive", "Description": "Бесплатный и открытый видеоредактор."},
@@ -55,13 +56,14 @@
     ]
       },
       "Presets": {
-        "Work-Teams": ["Google.Chrome", "Rakuten.Viber", "VLC Media Player", "Microsoft.Teams", "SumatraPDF.SumatraPDF", "AnyDesk.AnyDesk"],
-        "Work-noTeams": ["Google.Chrome", "Rakuten.Viber", "VLC Media Player", "SumatraPDF.SumatraPDF", "AnyDesk.AnyDesk"],
+        "Work-Teams": ["Google.Chrome", "Rakuten.Viber", "VLC Media Player", "Microsoft.Teams", "SumatraPDF.SumatraPDF", "IrfanSkiljan.IrfanView", "AnyDesk.AnyDesk"],
+        "Work-noTeams": ["Google.Chrome", "Rakuten.Viber", "VLC Media Player", "SumatraPDF.SumatraPDF", "IrfanSkiljan.IrfanView", "AnyDesk.AnyDesk"],
         "Games": ["Valve.Steam", "Discord.Discord"]
       }
 }
 
 
 
+winget install -e --id IrfanSkiljan.IrfanView
 
 
