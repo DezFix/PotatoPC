@@ -1,262 +1,192 @@
-# Ссылки на твои файлы на GitHub
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+[Windows.Forms.Application]::EnableVisualStyles()
+
+# --- ПРОВЕРКА ПРАВ АДМИНИСТРАТОРА ---
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    [Windows.Forms.MessageBox]::Show("Запустите программу от имени АДМИНИСТРАТОРА!", "Ошибка доступа")
+    exit
+}
+
+# --- ЗАГРУЗКА ДАННЫХ ---
 $JsonUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/apps.json"
-$MainMenuUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1"
+try { $AppData = Invoke-RestMethod -Uri $JsonUrl } catch { $AppData = $null }
 
-# Прямая ссылка на пакет WinGet (v1.12.470)
-$WinGetBundleUrl = "https://github.com/microsoft/winget-cli/releases/download/v1.12.470/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+# Глобальное хранилище обновлений
+$Global:UpdatesList = @()
 
-# --- Вспомогательные функции стиля ---
+# Цвета
+$C_BG     = [Drawing.Color]::FromArgb(20, 20, 20)
+$C_Panel  = [Drawing.Color]::FromArgb(40, 40, 40)
+$C_Accent = [Drawing.Color]::Yellow
+$C_Green  = [Drawing.Color]::Lime
 
-function Write-FrameHeader {
-    param([string]$Text)
-    $Width = 71
-    $Padding = [math]::Max(0, [int](($Width - $Text.Length) / 2))
-    $LeftPad = " " * $Padding
-    $RightPad = " " * ($Width - $Text.Length - $Padding)
-    
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
-    Write-Host "║$LeftPad$Text$RightPad║" -ForegroundColor Yellow
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
-    Write-Host ""
+# --- ОКНО ---
+$Form = New-Object Windows.Forms.Form
+$Form.Text = "WICKED RAVEN : SOFTWARE MANAGER"
+$Form.Size = New-Object Drawing.Size(960, 850)
+$Form.StartPosition = "CenterScreen"
+$Form.BackColor = $C_BG
+$Form.ForeColor = [Drawing.Color]::White
+$Form.FormBorderStyle = "FixedSingle"
+$Form.MaximizeBox = $false
+
+# Заголовок
+$Header = New-Object Windows.Forms.Label
+$Header.Text = "WICKED RAVEN SOFTWARE MANAGER"
+$Header.Font = New-Object Drawing.Font("Consolas", 18, [Drawing.FontStyle]::Bold)
+$Header.ForeColor = $C_Accent ; $Header.TextAlign = "MiddleCenter" ; $Header.Size = New-Object Drawing.Size(940, 50) ; $Header.Location = New-Object Drawing.Point(0, 10)
+$Form.Controls.Add($Header)
+
+$TabControl = New-Object Windows.Forms.TabControl
+$TabControl.Size = New-Object Drawing.Size(900, 520) ; $TabControl.Location = New-Object Drawing.Point(25, 70)
+$Form.Controls.Add($TabControl)
+
+# --- ЛОГ ---
+$LogBox = New-Object Windows.Forms.TextBox
+$LogBox.Multiline = $true ; $LogBox.ReadOnly = $true ; $LogBox.ScrollBars = "Vertical" ; $LogBox.Size = New-Object Drawing.Size(900, 180) ; $LogBox.Location = New-Object Drawing.Point(25, 600)
+$LogBox.BackColor = [Drawing.Color]::Black ; $LogBox.ForeColor = $C_Green ; $LogBox.Font = New-Object Drawing.Font("Consolas", 10) ; $LogBox.BorderStyle = "FixedSingle"
+$Form.Controls.Add($LogBox)
+
+function Write-Log($Text) { 
+    $LogBox.AppendText("[( $(Get-Date -Format 'HH:mm:ss') )] $Text`r`n") 
+    $LogBox.ScrollToCaret() 
+    [System.Windows.Forms.Application]::DoEvents() 
 }
 
-function Write-InvalidInput {
-    Write-Host "`n[!] Неверный ввод, попробуйте снова." -ForegroundColor Red
-    Start-Sleep -Seconds 1
-}
+# ==============================================================================
+# ВКЛАДКА 1: УПРАВЛЕНИЕ ПО
+# ==============================================================================
+$T_Main = New-Object Windows.Forms.TabPage ; $T_Main.Text = " УПРАВЛЕНИЕ ПО " ; $T_Main.BackColor = $C_Panel
+$TabControl.Controls.Add($T_Main)
 
-# --- Функция установки WinGet ---
+# Поиск
+$L_Search = New-Object Windows.Forms.Label ; $L_Search.Text = "ПОИСК:" ; $L_Search.Location = New-Object Drawing.Point(15, 18) ; $L_Search.Size = New-Object Drawing.Size(60, 20) ; $L_Search.Font = New-Object Drawing.Font("Segoe UI", 10, [Drawing.FontStyle]::Bold) ; $L_Search.ForeColor = $C_Accent ; $T_Main.Controls.Add($L_Search)
+$SearchBox = New-Object Windows.Forms.TextBox ; $SearchBox.Size = New-Object Drawing.Size(340, 25) ; $SearchBox.Location = New-Object Drawing.Point(80, 16) ; $SearchBox.BackColor = [Drawing.Color]::Black ; $SearchBox.ForeColor = [Drawing.Color]::White ; $SearchBox.BorderStyle = "FixedSingle" ; $T_Main.Controls.Add($SearchBox)
 
-function Ensure-WinGet {
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        Clear-Host
-        Write-FrameHeader "УСТАНОВКА WINGET"
-        Write-Host "[!] WinGet не обнаружен в системе." -ForegroundColor Red
-        Write-Host "[*] Попытка автоматической загрузки и установки..." -ForegroundColor Cyan
-        
-        $tempPath = "$env:TEMP\WinGet.msixbundle"
-        
-        try {
-            # Скачивание пакета
-            Write-Host "[>] Загрузка пакета с GitHub..." -ForegroundColor Gray
-            Invoke-WebRequest -Uri $WinGetBundleUrl -OutFile $tempPath -ErrorAction Stop
-            
-            # Установка пакета
-            Write-Host "[>] Установка пакета в систему..." -ForegroundColor Gray
-            Add-AppxPackage -Path $tempPath -ErrorAction Stop
-            
-            Write-Host "[+] WinGet успешно установлен!" -ForegroundColor Green
-            Remove-Item $tempPath -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
-        }
-        catch {
-            # Если автоматика не сработала
-            Write-Host "`n[!] ОШИБКА АВТОМАТИЧЕСКОЙ УСТАНОВКИ" -ForegroundColor Red
-            Write-Host "------------------------------------------------------------" -ForegroundColor Yellow
-            Write-Host " Пожалуйста, установите WinGet вручную по ссылке ниже:" -ForegroundColor White
-            Write-Host " https://github.com/microsoft/winget-cli/releases/tag/v1.12.470" -ForegroundColor Cyan
-            Write-Host "------------------------------------------------------------" -ForegroundColor Yellow
-            Write-Host "`nНажмите любую клавишу, чтобы выйти..."
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-            exit
-        }
-    }
-}
+# Левая часть: Дерево
+$TreeApps = New-Object Windows.Forms.TreeView ; $TreeApps.CheckBoxes = $true ; $TreeApps.Size = New-Object Drawing.Size(415, 340) ; $TreeApps.Location = New-Object Drawing.Point(15, 85) ; $TreeApps.BackColor = $C_BG ; $TreeApps.ForeColor = [Drawing.Color]::White ; $TreeApps.BorderStyle = "FixedSingle"
+$T_Main.Controls.Add($TreeApps)
 
-function Get-AppData {
-    try { return Invoke-RestMethod -Uri $JsonUrl }
-    catch { Write-Host "[!] Ошибка загрузки JSON конфигурации" -ForegroundColor Red; return $null }
-}
-
-# --- Основные меню ---
-
-function Show-Main {
-    Ensure-WinGet
-    $Data = Get-AppData
-    if (-not $Data) { Pause; return }
-
-    while ($true) {
-        Clear-Host
-        Write-FrameHeader "WICKED RAVEN SYSTEM TOOLKIT : SOFTWARE"
-        
-        Write-Host " 1. " -ForegroundColor Green -NoNewline
-        Write-Host "Установка пресета (набора программ)"
-        
-        Write-Host " 2. " -ForegroundColor Green -NoNewline
-        Write-Host "Установка программ по категориям"
-        
-        Write-Host " 3. " -ForegroundColor Green -NoNewline
-        Write-Host "Обновление установленного ПО"
-        
-        Write-Host ""
-        Write-Host " 0. " -ForegroundColor Red -NoNewline
-        Write-Host "Возврат в системный Toolkit"
-        Write-Host ""
-        
-        $choice = Read-Host "Выберите опцию"
-
-        switch ($choice) {
-            "1" { Menu-Presets $Data }
-            "2" { Menu-Categories $Data }
-            "3" { Menu-UpdateCenter }
-            "0" {
-                Write-Host "`nВозврат в главное меню..." -ForegroundColor Green
-                Start-Sleep -Seconds 1
-                iex (irm $MainMenuUrl)
-                return 
-            }
-            Default { Write-InvalidInput }
+# Логика галочек
+$script:InternalCheck = $false
+$TreeApps.Add_AfterCheck({
+    param($sender, $e)
+    if ($script:InternalCheck) { return }
+    $script:InternalCheck = $true
+    function Set-ChildNodes($node, $state) { foreach ($child in $node.Nodes) { $child.Checked = $state ; Set-ChildNodes $child $state } }
+    Set-ChildNodes $e.Node $e.Node.Checked
+    function Update-ParentNode($node) {
+        $parent = $node.Parent
+        if ($null -ne $parent) {
+            $allChecked = $true ; foreach ($sibling in $parent.Nodes) { if (-not $sibling.Checked) { $allChecked = $false; break } }
+            $parent.Checked = $allChecked ; Update-ParentNode $parent
         }
     }
-}
+    Update-ParentNode $e.Node
+    $script:InternalCheck = $false
+})
 
-function Menu-Presets {
-    param($Data)
-    while ($true) {
-        Clear-Host
-        Write-FrameHeader "ВЫБОР ПРЕСЕТА"
-        
-        if (-not $Data.Presets) {
-            Write-Host "[!] В JSON не найден раздел 'Presets'." -ForegroundColor Red
-            Pause; return
-        }
+$BtnTAll = New-Object Windows.Forms.Button ; $BtnTAll.Text = "Выделить всё" ; $BtnTAll.Size = New-Object Drawing.Size(100, 22) ; $BtnTAll.Location = New-Object Drawing.Point(15, 55) ; $BtnTAll.FlatStyle = "Flat" ; $T_Main.Controls.Add($BtnTAll)
+$BtnTNone = New-Object Windows.Forms.Button ; $BtnTNone.Text = "Снять всё" ; $BtnTNone.Size = New-Object Drawing.Size(100, 22) ; $BtnTNone.Location = New-Object Drawing.Point(120, 55) ; $BtnTNone.FlatStyle = "Flat" ; $T_Main.Controls.Add($BtnTNone)
 
-        $presetNames = $Data.Presets.PSObject.Properties.Name
-        for ($i=0; $i -lt $presetNames.Count; $i++) {
-            Write-Host " $($i+1). " -ForegroundColor Green -NoNewline
-            Write-Host "$($presetNames[$i])"
-        }
-        
-        Write-Host ""
-        Write-Host " 0. " -ForegroundColor Red -NoNewline
-        Write-Host "Назад"
-        Write-Host ""
+# Правая часть: Обновления
+$ListViewUpd = New-Object Windows.Forms.ListView ; $ListViewUpd.View = "Details" ; $ListViewUpd.CheckBoxes = $true ; $ListViewUpd.FullRowSelect = $true ; $ListViewUpd.Size = New-Object Drawing.Size(415, 340) ; $ListViewUpd.Location = New-Object Drawing.Point(445, 85) ; $ListViewUpd.BackColor = $C_BG ; $ListViewUpd.ForeColor = [Drawing.Color]::White ; $ListViewUpd.BorderStyle = "FixedSingle"
+$ListViewUpd.Columns.Add("Программа", 180) | Out-Null ; $ListViewUpd.Columns.Add("Установлено", 100) | Out-Null ; $ListViewUpd.Columns.Add("Доступно", 100) | Out-Null
+$T_Main.Controls.Add($ListViewUpd)
 
-        $pChoice = Read-Host "Выберите номер пресета"
-        if ($pChoice -eq "0") { return }
-        
-        if ($pChoice -match '^\d+$' -and [int]$pChoice -gt 0 -and [int]$pChoice -le $presetNames.Count) {
-            $selected = $presetNames[[int]$pChoice - 1]
-            Write-Host "`n[>] Установка набора: $selected..." -ForegroundColor Cyan
-            foreach ($id in $Data.Presets.$selected) {
-                Write-Host " - Установка $id" -ForegroundColor Gray
-                winget install --id $id --silent --accept-package-agreements --accept-source-agreements
-            }
-            Write-Host "[+] Готово!" -ForegroundColor Green
-            Pause
-        } else { Write-InvalidInput }
-    }
-}
+$BtnUAll = New-Object Windows.Forms.Button ; $BtnUAll.Text = "Выделить всё" ; $BtnUAll.Size = New-Object Drawing.Size(100, 22) ; $BtnUAll.Location = New-Object Drawing.Point(445, 55) ; $BtnUAll.FlatStyle = "Flat" ; $T_Main.Controls.Add($BtnUAll)
+$BtnUNone = New-Object Windows.Forms.Button ; $BtnUNone.Text = "Снять всё" ; $BtnUNone.Size = New-Object Drawing.Size(100, 22) ; $BtnUNone.Location = New-Object Drawing.Point(550, 55) ; $BtnUNone.FlatStyle = "Flat" ; $T_Main.Controls.Add($BtnUNone)
+$BtnScan = New-Object Windows.Forms.Button ; $BtnScan.Text = "СКАНЕР ОБНОВЛЕНИЙ" ; $BtnScan.Size = New-Object Drawing.Size(150, 25) ; $BtnScan.Location = New-Object Drawing.Point(445, 15) ; $BtnScan.FlatStyle = "Flat" ; $BtnScan.BackColor = [Drawing.Color]::Gray ; $T_Main.Controls.Add($BtnScan)
 
-function Menu-Categories {
-    param($Data)
-    while ($true) {
-        Clear-Host
-        Write-FrameHeader "КАТЕГОРИИ ПРОГРАММ"
-        
-        $catNames = $Data.ManualCategories.PSObject.Properties.Name
-        for ($i=0; $i -lt $catNames.Count; $i++) {
-            $num = ($i + 1).ToString().PadRight(2)
-            Write-Host " $num. " -ForegroundColor Green -NoNewline
-            Write-Host "$($catNames[$i])"
-        }
-        
-        Write-Host ""
-        Write-Host " 0. " -ForegroundColor Red -NoNewline
-        Write-Host "Назад"
-        Write-Host ""
+$BtnGo = New-Object Windows.Forms.Button ; $BtnGo.Text = "ВЫПОЛНИТЬ ВЫБРАННЫЕ ДЕЙСТВИЯ" ; $BtnGo.Size = New-Object Drawing.Size(845, 40) ; $BtnGo.Location = New-Object Drawing.Point(15, 440) ; $BtnGo.FlatStyle = "Flat" ; $BtnGo.BackColor = [Drawing.Color]::DarkGreen ; $BtnGo.Font = New-Object Drawing.Font("Segoe UI", 10, [Drawing.FontStyle]::Bold) ; $T_Main.Controls.Add($BtnGo)
 
-        $cChoice = Read-Host "Выберите категорию"
-        if ($cChoice -eq "0") { return }
-
-        if ($cChoice -match '^\d+$' -and [int]$cChoice -gt 0 -and [int]$cChoice -le $catNames.Count) {
-            $selectedCat = $catNames[[int]$cChoice - 1]
-            Menu-AppList $Data.ManualCategories.$selectedCat $selectedCat
-        } else { Write-InvalidInput }
-    }
-}
-
-function Menu-AppList {
-    param($AppList, $CatName)
-    while ($true) {
-        Clear-Host
-        Write-FrameHeader "КАТЕГОРИЯ: $CatName"
-        
-        for ($i=0; $i -lt $AppList.Count; $i++) {
-            $num = ($i + 1).ToString().PadRight(2)
-            Write-Host " $num. " -ForegroundColor Green -NoNewline
-            Write-Host "$($AppList[$i].Name.PadRight(25))" -NoNewline
-            Write-Host " - $($AppList[$i].Description)" -ForegroundColor Gray
-        }
-        
-        Write-Host ""
-        Write-Host " 0. " -ForegroundColor Red -NoNewline
-        Write-Host "Назад к списку категорий"
-        Write-Host ""
-
-        $input = Read-Host "Введите номера через запятую"
-        if ($input -eq "0") { return }
-
-        try {
-            foreach ($idx in $input.Split(',')) {
-                $app = $AppList[[int]$idx.Trim() - 1]
-                if ($app) {
-                    Write-Host "`n[>] Установка $($app.Name)..." -ForegroundColor Cyan
-                    winget install --id $app.Id --silent --accept-package-agreements
-                }
-            }
-            Write-Host "`n[+] Готово." -ForegroundColor Green
-            Pause
-        } catch { Write-InvalidInput }
-    }
-}
-
-function Menu-UpdateCenter {
-    while ($true) {
-        Clear-Host
-        Write-FrameHeader "ЦЕНТР ОБНОВЛЕНИЙ"
-        Write-Host "[*] Сканирование системы... " -ForegroundColor Gray
-        
-        $rawUpdates = winget upgrade | Select-String -Pattern '^\S+' | Select-Object -Skip 2
-        
-        if (-not $rawUpdates) {
-            Write-Host "[+] Все программы в актуальном состоянии." -ForegroundColor Green
-            Pause; return
-        }
-
-        $upgradeList = @()
-        for ($i=0; $i -lt $rawUpdates.Count; $i++) {
-            $line = $rawUpdates[$i].ToString()
-            $parts = $line -split '\s{2,}'
-            if ($parts.Count -ge 2) {
-                $upgradeList += [PSCustomObject]@{ Name = $parts[0]; ID = $parts[1] }
-                $num = ($i + 1).ToString().PadRight(2)
-                Write-Host " $num. " -ForegroundColor Green -NoNewline
-                Write-Host "$($parts[0].PadRight(25)) (Доступно: $($parts[3]))"
+# --- ЛОГИКА ФИЛЬТРАЦИИ ---
+function Refresh-Tree($Filter = "") {
+    $TreeApps.Nodes.Clear()
+    if ($null -eq $AppData) { return }
+    foreach ($cat in $AppData.ManualCategories.PSObject.Properties) {
+        $P = New-Object Windows.Forms.TreeNode($cat.Name) ; $P.ForeColor = [Drawing.Color]::Cyan
+        $show = $false
+        foreach ($app in $cat.Value) {
+            if ($app.Name -match $Filter -or $app.Id -match $Filter) {
+                $n = $P.Nodes.Add($app.Name) ; $n.Tag = $app.Id ; $show = $true
             }
         }
-
-        Write-Host ""
-        Write-Host " A. " -ForegroundColor Yellow -NoNewline
-        Write-Host "ОБНОВИТЬ ВСЁ"
-        Write-Host " 0. " -ForegroundColor Red -NoNewline
-        Write-Host "Назад"
-        Write-Host ""
-
-        $uChoice = Read-Host "Выберите номер или 'A'"
-        
-        if ($uChoice -eq "A" -or $uChoice -eq "a" -or $uChoice -eq "ф") {
-            winget upgrade --all --silent --accept-package-agreements
-            Pause; return
-        } elseif ($uChoice -eq "0") {
-            return
-        } elseif ($uChoice -match '^\d+$' -and $upgradeList[[int]$uChoice - 1]) {
-            $target = $upgradeList[[int]$uChoice - 1]
-            winget upgrade --id $target.ID --silent --accept-package-agreements
-            Pause
-        } else { Write-InvalidInput }
+        if ($show) { $TreeApps.Nodes.Add($P) | Out-Null ; if($Filter){$P.Expand()} }
     }
 }
 
-# Запуск
-Show-Main
+function Refresh-Updates-View($Filter = "") {
+    $ListViewUpd.Items.Clear()
+    foreach ($upd in $Global:UpdatesList) {
+        if ($upd.Name -match $Filter -or $upd.ID -match $Filter) {
+            $item = New-Object Windows.Forms.ListViewItem($upd.Name)
+            $item.Tag = $upd.ID ; $item.SubItems.Add($upd.CurVer) | Out-Null ; $item.SubItems.Add($upd.NewVer) | Out-Null
+            $item.Checked = $true ; $ListViewUpd.Items.Add($item) | Out-Null
+        }
+    }
+}
+
+$SearchBox.Add_TextChanged({ Refresh-Tree $SearchBox.Text ; Refresh-Updates-View $SearchBox.Text })
+
+$BtnScan.Add_Click({
+    $ListViewUpd.Items.Clear() ; $Global:UpdatesList = @()
+    Write-Log "Сканирую систему на обновления..."
+    $raw = winget upgrade --accept-source-agreements | Select-String -Pattern '^\S+'
+    foreach ($line in $raw) {
+        $str = $line.ToString().Trim()
+        if ($str.StartsWith("Name") -or $str.StartsWith("---") -or $str.StartsWith("Имя")) { continue }
+        $p = $str -split '\s{2,}'
+        if ($p.Count -ge 2) {
+            $Global:UpdatesList += [PSCustomObject]@{
+                Name = $p[0]; ID = $p[1]; CurVer = if($p[2]){$p[2]}else{"-"}; NewVer = if($p[3]){$p[3]}else{"New"}
+            }
+        }
+    }
+    Refresh-Updates-View $SearchBox.Text
+    Write-Log "Найдено: $($Global:UpdatesList.Count)"
+})
+
+$BtnTAll.Add_Click({ foreach($n in $TreeApps.Nodes){ $n.Checked = $true } })
+$BtnTNone.Add_Click({ foreach($n in $TreeApps.Nodes){ $n.Checked = $false } })
+$BtnUAll.Add_Click({ foreach($item in $ListViewUpd.Items){ $item.Checked = $true } })
+$BtnUNone.Add_Click({ foreach($item in $ListViewUpd.Items){ $item.Checked = $false } })
+
+# ==============================================================================
+# ВКЛАДКА 2: INFO (ВОССТАНОВЛЕНО)
+# ==============================================================================
+$T_Info = New-Object Windows.Forms.TabPage ; $T_Info.Text = " [?] INFO " ; $T_Info.BackColor = $C_Panel
+$TabControl.Controls.Add($T_Info)
+
+$InfoBox = New-Object Windows.Forms.RichTextBox ; $InfoBox.Size = New-Object Drawing.Size(860, 480) ; $InfoBox.Location = New-Object Drawing.Point(10, 10) ; $InfoBox.BackColor = $C_BG ; $InfoBox.ForeColor = [Drawing.Color]::White ; $InfoBox.ReadOnly = $true ; $InfoBox.BorderStyle = "None" ; $InfoBox.Font = New-Object Drawing.Font("Consolas", 11) ; $T_Info.Controls.Add($InfoBox)
+
+$InfoBox.Text = @"
+ИНСТРУКЦИЯ WICKED RAVEN MANAGER
+
+1. УСТАНОВКА: Введите название в поле ПОИСК или раскройте категории слева. 
+   - Выбор категории автоматически отмечает все программы внутри.
+   - Поиск фильтрует оба списка (установку и обновления) одновременно.
+
+2. ОБНОВЛЕНИЯ: Нажмите 'СКАНЕР'. После завершения вы увидите список доступных 
+   апдейтов с указанием текущей и новой версий. 
+   Чтобы пропустить программу (например, AnyDesk), просто снимите с неё галочку.
+
+3. ЗАПУСК: Нажмите большую зеленую кнопку внизу. Процесс пойдет в фоновом режиме.
+
+ЕСЛИ WINGET НЕ РАБОТАЕТ:
+Если вы видите ошибки установки или сканера в логах ниже, установите 
+официальный пакет Microsoft Desktop App Installer вручную по ссылке:
+
+https://github.com/microsoft/winget-cli/releases
+(Скачайте и запустите файл с расширением .msixbundle)
+"@
+
+$BtnGo.Add_Click({
+    Write-Log "--- СТАРТ ЗАДАЧ ---"
+    foreach($n in $TreeApps.Nodes){ foreach($s in $n.Nodes){ if($s.Checked){ Write-Log "Установка: $($s.Tag)..." ; Start-Process winget -ArgumentList "install --id $($s.Tag) --silent --accept-package-agreements" -Wait -NoNewWindow }}}
+    foreach($item in $ListViewUpd.Items){ if($item.Checked){ Write-Log "Обновление: $($item.Tag)..." ; Start-Process winget -ArgumentList "upgrade --id $($item.Tag) --silent --accept-package-agreements" -Wait -NoNewWindow }}
+    Write-Log "--- ВСЕ ЗАДАЧИ ВЫПОЛНЕНЫ ---"
+})
+
+Refresh-Tree ; Write-Log "WICKED RAVEN MANAGER ГОТОВ." ; $Form.ShowDialog()
