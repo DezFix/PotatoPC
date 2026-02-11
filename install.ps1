@@ -2,6 +2,9 @@
 $JsonUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/apps.json"
 $MainMenuUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1"
 
+# Прямая ссылка на пакет WinGet (v1.12.470)
+$WinGetBundleUrl = "https://github.com/microsoft/winget-cli/releases/download/v1.12.470/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+
 # --- Вспомогательные функции стиля ---
 
 function Write-FrameHeader {
@@ -22,11 +25,41 @@ function Write-InvalidInput {
     Start-Sleep -Seconds 1
 }
 
+# --- Функция установки WinGet ---
+
 function Ensure-WinGet {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        Write-Host "[!] WinGet не найден. Попытка установки..." -ForegroundColor Red
-        Install-Module Microsoft.WinGet.Client -Force -AllowClobber -Confirm:$false
-        Repair-WinGetPackageManager
+        Clear-Host
+        Write-FrameHeader "УСТАНОВКА WINGET"
+        Write-Host "[!] WinGet не обнаружен в системе." -ForegroundColor Red
+        Write-Host "[*] Попытка автоматической загрузки и установки..." -ForegroundColor Cyan
+        
+        $tempPath = "$env:TEMP\WinGet.msixbundle"
+        
+        try {
+            # Скачивание пакета
+            Write-Host "[>] Загрузка пакета с GitHub..." -ForegroundColor Gray
+            Invoke-WebRequest -Uri $WinGetBundleUrl -OutFile $tempPath -ErrorAction Stop
+            
+            # Установка пакета
+            Write-Host "[>] Установка пакета в систему..." -ForegroundColor Gray
+            Add-AppxPackage -Path $tempPath -ErrorAction Stop
+            
+            Write-Host "[+] WinGet успешно установлен!" -ForegroundColor Green
+            Remove-Item $tempPath -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+        }
+        catch {
+            # Если автоматика не сработала
+            Write-Host "`n[!] ОШИБКА АВТОМАТИЧЕСКОЙ УСТАНОВКИ" -ForegroundColor Red
+            Write-Host "------------------------------------------------------------" -ForegroundColor Yellow
+            Write-Host " Пожалуйста, установите WinGet вручную по ссылке ниже:" -ForegroundColor White
+            Write-Host " https://github.com/microsoft/winget-cli/releases/tag/v1.12.470" -ForegroundColor Cyan
+            Write-Host "------------------------------------------------------------" -ForegroundColor Yellow
+            Write-Host "`nНажмите любую клавишу, чтобы выйти..."
+            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            exit
+        }
     }
 }
 
@@ -37,7 +70,6 @@ function Get-AppData {
 
 # --- Основные меню ---
 
-# ГЛАВНОЕ МЕНЮ СОФТА
 function Show-Main {
     Ensure-WinGet
     $Data = Get-AppData
@@ -78,7 +110,6 @@ function Show-Main {
     }
 }
 
-# МЕНЮ ПРЕСЕТОВ
 function Menu-Presets {
     param($Data)
     while ($true) {
@@ -102,7 +133,7 @@ function Menu-Presets {
         Write-Host ""
 
         $pChoice = Read-Host "Выберите номер пресета"
-        if ($pChoice -eq "0") { return } # Возврат в Show-Main
+        if ($pChoice -eq "0") { return }
         
         if ($pChoice -match '^\d+$' -and [int]$pChoice -gt 0 -and [int]$pChoice -le $presetNames.Count) {
             $selected = $presetNames[[int]$pChoice - 1]
@@ -117,7 +148,6 @@ function Menu-Presets {
     }
 }
 
-# МЕНЮ КАТЕГОРИЙ
 function Menu-Categories {
     param($Data)
     while ($true) {
@@ -137,17 +167,15 @@ function Menu-Categories {
         Write-Host ""
 
         $cChoice = Read-Host "Выберите категорию"
-        if ($cChoice -eq "0") { return } # Возврат в Show-Main
+        if ($cChoice -eq "0") { return }
 
         if ($cChoice -match '^\d+$' -and [int]$cChoice -gt 0 -and [int]$cChoice -le $catNames.Count) {
             $selectedCat = $catNames[[int]$cChoice - 1]
-            # Вызываем список приложений. Когда там нажмут 0, вернемся СЮДА (в цикл while)
             Menu-AppList $Data.ManualCategories.$selectedCat $selectedCat
         } else { Write-InvalidInput }
     }
 }
 
-# СПИСОК ПРИЛОЖЕНИЙ В КАТЕГОРИИ
 function Menu-AppList {
     param($AppList, $CatName)
     while ($true) {
@@ -167,7 +195,7 @@ function Menu-AppList {
         Write-Host ""
 
         $input = Read-Host "Введите номера через запятую"
-        if ($input -eq "0") { return } # Возврат в Menu-Categories
+        if ($input -eq "0") { return }
 
         try {
             foreach ($idx in $input.Split(',')) {
@@ -183,7 +211,6 @@ function Menu-AppList {
     }
 }
 
-# ЦЕНТР ОБНОВЛЕНИЙ
 function Menu-UpdateCenter {
     while ($true) {
         Clear-Host
