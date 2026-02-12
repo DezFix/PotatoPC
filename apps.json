@@ -60,10 +60,11 @@
     ]
       },
       "Presets": {
-        "Work-Teams": ["Google.Chrome", "Rakuten.Viber", "VLC Media Player", "Microsoft.Teams", "SumatraPDF.SumatraPDF", "IrfanSkiljan.IrfanView", "AnyDesk.AnyDesk"],
-        "Games": ["Valve.Steam", "Discord.Discord"]
+        "Office-pack": ["Microsoft.Teams", "Google.Chrome", "Rakuten.Viber", "VLC Media Player", "SumatraPDF.SumatraPDF", "IrfanSkiljan.IrfanView", "AnyDesk.AnyDesk"],
+        "Games-pack": ["Valve.Steam", "Discord.Discord"]
       }
 }
+
 
 
 
