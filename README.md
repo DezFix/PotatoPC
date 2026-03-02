@@ -1,5 +1,5 @@
 # PotatoPC
 
 ```powershell
-irm "https://kutt.it/potatopc" | iex
+irm "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/menu.ps1" | iex
 ```
