@@ -18,6 +18,7 @@
     ],
     "Офис и Документы": [
       {"Name": "Onlyoffice", "Id": "ONLYOFFICE.DesktopEditors", "Description": "Пакет офисных программ."},
+      {"Name": "FreeOffice 2024", "Id": "SoftMaker.FreeOffice.2024", "Description": "Бесплатный офисный пакет от SoftMaker с поддержкой форматов Microsoft Office."},
       {"Name": "LibreOffice", "Id": "TheDocumentFoundation.LibreOffice", "Description": "Бесплатный офисный пакет, совместимый с Microsoft Office."},
       {"Name": "SumatraPDF", "Id": "SumatraPDF.SumatraPDF", "Description": "Легкий просмотрщик PDF и других форматов."},
       {"Name": "Notepad++", "Id": "Notepad++.Notepad++", "Description": "Бесплатный текстовый редактор с открытым исходным кодом."}
@@ -64,6 +65,7 @@
         "Games-pack": ["Valve.Steam", "Discord.Discord"]
       }
 }
+
 
 
 
