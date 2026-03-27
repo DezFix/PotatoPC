@@ -3,21 +3,20 @@
 [![GitHub](https://img.shields.io/badge/GitHub-DezFix/PotatoPC-blue?style=for-the-badge&logo=github)](https://github.com/DezFix/PotatoPC)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1+-blue?style=for-the-badge&logo=powershell)](https://github.com/PowerShell/PowerShell)
 
-**PotatoPS** — универсальный менеджер настройки Windows с GUI интерфейсом.
+**PotatoPS** — универсальный менеджер настройки Windows с красивым GUI интерфейсом.
 
 ---
 
 ## 🚀 Запуск
 
-### Онлайн (рекомендуется):
+### Онлайн:
 ```powershell
-& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/DezFix/PotatoPC/main/install.ps1")))
+& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/DezFix/PotatoPC/main/launcher.ps1")))
 ```
 
 ### Локально:
 ```powershell
-.\launcher.ps1          # Консольная версия
-.\launcher-gui.ps1      # GUI версия (как в Win11Debloat)
+.\launcher.ps1
 ```
 
 > ⚠️ **Требуется:** PowerShell 5.1+, права администратора
@@ -28,22 +27,17 @@
 
 | Модуль | Описание |
 |--------|----------|
-| 📦 **Установка ПО** | 88+ программ через winget, пресеты |
-| 🧹 **Очистка** | Телеметрия, службы, temp, bloatware |
-| 🔍 **Диагностика** | SFC, DISM, CHKDSK, RAM, сеть |
+| 📦 **Установка ПО** | 88+ программ через winget |
+| 🧹 **Очистка** | Телеметрия, службы, temp |
+| 🔍 **Диагностика** | SFC, DISM, CHKDSK, RAM |
 | 🤖 **Удаление AI** | Copilot, Recall, AI пакеты |
-| 🗑️ **Деблотер** | 20+ твиков реестра и интерфейса |
+| 🗑️ **Деблотер** | 20+ твиков реестра |
 
 ---
 
 ## 🎨 GUI Интерфейс
 
-Для запуска графической версии (как в Win11Debloat):
-```powershell
-.\launcher-gui.ps1
-```
-
-![PotatoPS GUI](https://via.placeholder.com/800x600/1A1A1A/6366F1?text=PotatoPS+GUI+Preview)
+Современный тёмный интерфейс в стиле Windows 11.
 
 ---
 
@@ -52,25 +46,22 @@
 - Windows 10/11 x64
 - PowerShell 5.1+
 - Права администратора
-- winget (для установки ПО)
 
 ---
 
 ## ⚠️ Предупреждение
 
-Используйте на свой страх и риск! Создайте точку восстановления перед применением оптимизаций.
+Используйте на свой страх и риск!
 
 ---
 
 ## 📄 Лицензия
 
-MIT License — см. файл [LICENSE](LICENSE)
+MIT License
 
 ---
 
 ## 🙏 Благодарности
 
-Проект создан на основе:
-- [PotatoPC](https://github.com/DezFix/PotatoPC)
 - [RemoveWindowsAI](https://github.com/zoicware/RemoveWindowsAI)
 - [Win11Debloat](https://github.com/Raphire/Win11Debloat)
