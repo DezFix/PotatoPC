@@ -3,21 +3,21 @@
 [![GitHub](https://img.shields.io/badge/GitHub-DezFix/PotatoPC-blue?style=for-the-badge&logo=github)](https://github.com/DezFix/PotatoPC)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1+-blue?style=for-the-badge&logo=powershell)](https://github.com/PowerShell/PowerShell)
 
-**PotatoPS** — универсальный менеджер настройки Windows. Установка ПО, оптимизация, удаление AI и деблотинг в одном приложении.
+**PotatoPS** — универсальный менеджер настройки Windows с GUI интерфейсом.
 
 ---
 
 ## 🚀 Запуск
 
-### Онлайн (через GitHub):
+### Онлайн (рекомендуется):
 ```powershell
 & ([scriptblock]::Create((irm "https://raw.githubusercontent.com/DezFix/PotatoPC/main/install.ps1")))
 ```
 
 ### Локально:
 ```powershell
-cd PotatoPC
-.\launcher.ps1
+.\launcher.ps1          # Консольная версия
+.\launcher-gui.ps1      # GUI версия (как в Win11Debloat)
 ```
 
 > ⚠️ **Требуется:** PowerShell 5.1+, права администратора
@@ -36,32 +36,23 @@ cd PotatoPC
 
 ---
 
+## 🎨 GUI Интерфейс
+
+Для запуска графической версии (как в Win11Debloat):
+```powershell
+.\launcher-gui.ps1
+```
+
+![PotatoPS GUI](https://via.placeholder.com/800x600/1A1A1A/6366F1?text=PotatoPS+GUI+Preview)
+
+---
+
 ## 📋 Требования
 
 - Windows 10/11 x64
 - PowerShell 5.1+
 - Права администратора
 - winget (для установки ПО)
-
----
-
-## 📁 Структура
-
-```
-PotatoPC/
-├── install.ps1              # Онлайн-загрузчик
-├── launcher.ps1             # Главный загрузчик
-├── test.ps1                 # Тест проверки
-├── Config/
-│   ├── apps.json            # Каталог программ
-│   └── settings.json        # Настройки
-└── Modules/
-    ├── SoftwareInstaller/
-    ├── SystemClear/
-    ├── Diagnostics/
-    ├── RemoveAI/
-    └── Debloat/
-```
 
 ---
 

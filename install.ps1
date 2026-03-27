@@ -1,75 +1,110 @@
-﻿# Онлайн-загрузчик PotatoPS
+﻿# PotatoPS - Онлайн установщик и загрузчик
 # Запуск: & ([scriptblock]::Create((irm "https://raw.githubusercontent.com/DezFix/PotatoPC/main/install.ps1")))
 
 $ErrorActionPreference = "Stop"
 
+# Цвета
+$COLOR_ACCENT = "Cyan"
+$COLOR_ERROR = "Red"
+$COLOR_SUCCESS = "Green"
+
+function Write-Status {
+    param([string]$Message, [string]$Type = "Info")
+    $color = switch ($Type) {
+        "Info" { $COLOR_ACCENT }
+        "Success" { $COLOR_SUCCESS }
+        "Error" { $COLOR_ERROR }
+    }
+    Write-Host "[$Type] $Message" -ForegroundColor $color
+}
+
 # Проверка прав администратора
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host ""
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Red
-    Write-Host "║  ТРЕБУЮТСЯ ПРАВА АДМИНИСТРАТОРА                                       ║" -ForegroundColor Red
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Перезапуск с правами администратора..." -ForegroundColor Yellow
-    Write-Host ""
+    Write-Status "Требуется запуск от имени администратора!" "Error"
+    Start-Sleep -Seconds 2
     
     $arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/DezFix/PotatoPC/main/install.ps1')))`""
     Start-Process PowerShell -Verb RunAs -ArgumentList $arguments
     exit
 }
 
-# Проверка версии PowerShell
+# Проверка PowerShell
 if ($PSVersionTable.PSVersion.Major -lt 5) {
-    Write-Host "[ОШИБКА] Требуется PowerShell 5.1 или выше!" -ForegroundColor Red
-    Write-Host "Ваша версия: $($PSVersionTable.PSVersion)" -ForegroundColor Red
+    Write-Status "Требуется PowerShell 5.1 или выше!" "Error"
     Start-Sleep -Seconds 3
     exit 1
 }
 
-# Загрузка и выполнение PotatoPS
+# Проверка интернета
+Write-Status "Проверка подключения..." "Info"
 try {
-    Write-Host ""
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║  PotatoPS - Загрузка...                                               ║" -ForegroundColor Cyan
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
-    Write-Host ""
-    
-    $launcherUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/launcher.ps1"
-    
-    Write-Host "[i] Загрузка launcher.ps1..." -ForegroundColor Cyan
-    $launcherScript = Invoke-RestMethod -Uri $launcherUrl -UseBasicParsing
-    
-    Write-Host "[i] Запуск PotatoPS..." -ForegroundColor Cyan
-    Write-Host ""
-    
-    # Выполняем загруженный скрипт
-    Invoke-Expression $launcherScript
+    $connection = Test-Connection -ComputerName www.github.com -Count 1 -Quiet -ErrorAction Stop
+    if (-not $connection) {
+        throw "Нет подключения"
+    }
 }
 catch {
-    Write-Host ""
-    Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Red
-    Write-Host "║  ОШИБКА ЗАГРУЗКИ                                                      ║" -ForegroundColor Red
-    Write-Host "╚═══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Ошибка: $_" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Возможные причины:" -ForegroundColor Yellow
-    Write-Host "  - Нет подключения к интернету" -ForegroundColor DarkGray
-    Write-Host "  - GitHub недоступен" -ForegroundColor DarkGray
-    Write-Host "  - Блокировка антивирусом/файрволом" -ForegroundColor DarkGray
-    Write-Host ""
-    Write-Host "Попробуйте:" -ForegroundColor Yellow
-    Write-Host "  1. Проверить подключение к интернету" -ForegroundColor DarkGray
-    Write-Host "  2. Запустить от имени администратора" -ForegroundColor DarkGray
-    Write-Host "  3. Скачать файлы вручную с GitHub" -ForegroundColor DarkGray
-    Write-Host ""
+    Write-Status "Нет подключения к интернету!" "Error"
+    Start-Sleep -Seconds 2
+    exit 1
+}
+
+# Создание временной папки
+$tempPath = Join-Path $env:TEMP "PotatoPS-$(Get-Random)"
+Write-Status "Создание временной папки: $tempPath" "Info"
+New-Item -Path $tempPath -ItemType Directory -Force | Out-Null
+
+# Файлы для загрузки
+$files = @(
+    "launcher.ps1",
+    "Config/apps.json",
+    "Config/settings.json",
+    "Modules/SoftwareInstaller/SoftwareInstaller.psm1",
+    "Modules/SystemClear/SystemClear.psm1",
+    "Modules/Diagnostics/Diagnostics.psm1",
+    "Modules/RemoveAI/RemoveAI.psm1",
+    "Modules/Debloat/Debloat.psm1"
+)
+
+$baseUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/main/"
+
+# Загрузка файлов
+Write-Status "Загрузка файлов PotatoPS..." "Info"
+foreach ($file in $files) {
+    $url = $baseUrl + $file
+    $localPath = Join-Path $tempPath $file
     
-    $choice = Read-Host "Открыть GitHub в браузере? (y/n)"
-    if ($choice -eq "y" -or $choice -eq "Y") {
-        Start-Process "https://github.com/DezFix/PotatoPC"
+    $dir = Split-Path $localPath -Parent
+    if (-not (Test-Path $dir)) {
+        New-Item -Path $dir -ItemType Directory -Force | Out-Null
     }
     
-    Write-Host ""
-    Write-Host "Нажмите любую клавишу для выхода..." -ForegroundColor Gray
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $localPath -UseBasicParsing
+        Write-Status "  ✓ $file" "Success"
+    }
+    catch {
+        Write-Status "  ✗ Ошибка загрузки: $file" "Error"
+    }
 }
+
+# Запуск launcher
+Write-Status "Запуск PotatoPS..." "Info"
+Write-Host ""
+
+try {
+    & "$tempPath\launcher.ps1"
+}
+catch {
+    Write-Status "Ошибка запуска: $_" "Error"
+    Start-Sleep -Seconds 3
+}
+finally {
+    # Очистка
+    Write-Status "Очистка временных файлов..." "Info"
+    Remove-Item -Path $tempPath -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host ""
+Write-Host "Нажмите любую клавишу для выхода..." -ForegroundColor Gray
+$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
