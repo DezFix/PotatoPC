@@ -6,6 +6,8 @@
     На основе проекта RemoveWindowsAI
 #>
 
+# PotatoPS RemoveAI Module
+
 $MODULE_CONFIG = @{
     Name = "Удаление AI"
     Version = "1.0.0"

@@ -6,6 +6,8 @@
     На основе проекта Win11Debloat
 #>
 
+# PotatoPS Debloat Module
+
 $MODULE_CONFIG = @{
     Name = "Деблотер"
     Version = "1.0.0"

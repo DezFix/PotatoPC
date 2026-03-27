@@ -5,9 +5,24 @@
     Очистка временных файлов, отключение телеметрии, оптимизация служб и производительности
 #>
 
+# PotatoPS SystemClear Module
+
+# Путь к Config (для совместимости с онлайн запуском)
+$tempConfig = Join-Path $env:TEMP "PotatoPS-Modules\Config\settings.json"
+if (Test-Path $tempConfig) {
+    $settingsPath = $tempConfig
+}
+elseif (Test-Path "$PSScriptRoot\..\Config\settings.json") {
+    $settingsPath = "$PSScriptRoot\..\Config\settings.json"
+}
+else {
+    $settingsPath = $null
+}
+
 $MODULE_CONFIG = @{
     Name = "Очистка системы"
     Version = "1.0.0"
+    SettingsPath = $settingsPath
 }
 
 # Цвета

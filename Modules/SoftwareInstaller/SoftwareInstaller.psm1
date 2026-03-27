@@ -5,10 +5,22 @@
     Установка программ через winget с использованием каталога apps.json
 #>
 
+# Путь к Config файлам (сначала пробуем временную папку, потом локальную)
+$tempConfig = Join-Path $env:TEMP "PotatoPS-Modules\Config\apps.json"
+if (Test-Path $tempConfig) {
+    $configPath = $tempConfig
+}
+elseif (Test-Path "$PSScriptRoot\..\Config\apps.json") {
+    $configPath = "$PSScriptRoot\..\Config\apps.json"
+}
+else {
+    $configPath = $null
+}
+
 $MODULE_CONFIG = @{
     Name = "Установка ПО"
     Version = "1.0.0"
-    AppsConfigPath = "$PSScriptRoot\..\Config\apps.json"
+    AppsConfigPath = $configPath
 }
 
 # Цвета
