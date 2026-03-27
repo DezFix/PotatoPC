@@ -33,26 +33,34 @@ function Load-Module {
     $window.Title = "PotatoPS - Загрузка $moduleName..."
     
     try {
-        # Создаём папку для модуля
-        $modulePath = Join-Path $tempModules $moduleName
-        $moduleDir = Split-Path $modulePath -Parent
-        if (-not (Test-Path $moduleDir)) {
-            New-Item -Path $moduleDir -ItemType Directory -Force | Out-Null
+        # Маппинг имён модулей
+        $modulePaths = @{
+            "SoftwareInstaller.psm1" = "Modules/SoftwareInstaller/SoftwareInstaller.psm1"
+            "SystemClear.psm1" = "Modules/SystemClear/SystemClear.psm1"
+            "Diagnostics.psm1" = "Modules/Diagnostics/Diagnostics.psm1"
+            "RemoveAI.psm1" = "Modules/RemoveAI/RemoveAI.psm1"
+            "Debloat.psm1" = "Modules/Debloat/Debloat.psm1"
         }
         
-        # Скачиваем модуль
-        $url = "$baseUrl$moduleName"
-        Invoke-WebRequest -Uri $url -OutFile $modulePath -UseBasicParsing
+        $modulePath = $modulePaths[$moduleName]
+        $fullUrl = "$baseUrl$modulePath"
         
-        # Скачиваем Config файлы если нужно
-        if (-not (Test-Path "$tempModules\Config")) {
-            New-Item -Path "$tempModules\Config" -ItemType Directory -Force | Out-Null
-            Invoke-WebRequest -Uri "$baseUrl/Config/apps.json" -OutFile "$tempModules\Config\apps.json" -UseBasicParsing
-            Invoke-WebRequest -Uri "$baseUrl/Config/settings.json" -OutFile "$tempModules\Config\settings.json" -UseBasicParsing
+        Write-Host "Загрузка: $fullUrl" -ForegroundColor Cyan
+        
+        # Скачиваем модуль
+        $tempPath = Join-Path $tempModules $moduleName
+        Invoke-WebRequest -Uri $fullUrl -OutFile $tempPath -UseBasicParsing
+        
+        # Скачиваем Config файлы
+        $configDir = Join-Path $tempModules "Config"
+        if (-not (Test-Path $configDir)) {
+            New-Item -Path $configDir -ItemType Directory -Force | Out-Null
+            Invoke-WebRequest -Uri "$baseUrl/Config/apps.json" -OutFile "$configDir\apps.json" -UseBasicParsing
+            Invoke-WebRequest -Uri "$baseUrl/Config/settings.json" -OutFile "$configDir\settings.json" -UseBasicParsing
         }
         
         # Загружаем модуль
-        Import-Module $modulePath -Force
+        Import-Module $tempPath -Force
         
         # Вызываем функцию
         & $functionName
@@ -61,7 +69,9 @@ function Load-Module {
         Remove-Module $moduleName -Force
     }
     catch {
-        [System.Windows.MessageBox]::Show("Ошибка: $_", "PotatoPS", "OK", "Error")
+        Write-Host "Ошибка: $_" -ForegroundColor Red
+        Write-Host "URL: $fullUrl" -ForegroundColor Yellow
+        [System.Windows.MessageBox]::Show("Ошибка загрузки модуля:`n`n$_`n`nURL: $fullUrl", "PotatoPS", "OK", "Error")
     }
     finally {
         $window.Title = "PotatoPS"
