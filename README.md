@@ -15,7 +15,7 @@
 ### Способ 1: Запуск через PowerShell (рекомендуется)
 
 ```powershell
-& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/DezFix/PotatoPC/main/dist/launcher.ps1")))
+& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/DezFix/PotatoPC/main/install.ps1")))
 ```
 
 ### Способ 2: Через короткую ссылку
@@ -33,6 +33,12 @@
 ```powershell
 cd d:\CODE\PotatoPS_reborn\dist
 .\launcher.ps1
+```
+
+### Способ 4: Через batch-файл
+
+```cmd
+.\Run.bat
 ```
 
 ---

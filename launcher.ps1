@@ -7,10 +7,9 @@
 .NOTES
     Версия: 1.0.0
     Автор: PotatoPS Team
-    GitHub: https://github.com/USER/PotatoPS_reborn
+    GitHub: https://github.com/DezFix/PotatoPC
 #>
 
-[CmdletBinding()]
 param(
     [switch]$Debug,
     [switch]$NoLogo,
