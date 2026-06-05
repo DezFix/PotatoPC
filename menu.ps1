@@ -28,7 +28,7 @@ $script:BackupsFolder = Join-Path $script:WorkFolder "backups"
 $script:AppsJsonPath = Join-Path $script:WorkFolder "apps.json"
 
 # URL вашего репозитория GitHub
-$script:RepoZipUrl = "https://github.com/DezFix/testerwrewindows/archive/refs/heads/main.zip"
+$script:RepoZipUrl = "https://github.com/DezFix/PotatoPC/archive/refs/heads/main.zip"
 $script:AppsJsonUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/apps.json"
 
 # ═══ Инициализация и загрузка с GitHub ═══
