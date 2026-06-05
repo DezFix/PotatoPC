@@ -57,9 +57,6 @@ function Optimize-WindowsDefender {
         Write-Host "[-] Отключите её вручную в: Защита от вирусов и угроз -> Параметры защиты от вирусов и угроз." -ForegroundColor Red
     }
     
-    Write-Host ""
-    Write-Host "Нажмите любую клавишу для выхода..."
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
 # Запуск функции
