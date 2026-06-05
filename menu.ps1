@@ -22,10 +22,9 @@ Add-Type -AssemblyName WindowsBase
 Add-Type -AssemblyName System.Windows.Forms
 
 # ═══ Настройка рабочих папок (Temp) ═══
-$script:WorkFolder = Join-Path $env:TEMP "PotatoPC"
+$script:WorkFolder    = Join-Path $env:TEMP "PotatoPC"
 $script:ScriptsFolder = Join-Path $script:WorkFolder "scripts"
-$script:BackupsFolder = Join-Path $script:WorkFolder "backups"
-$script:AppsJsonPath = Join-Path $script:WorkFolder "apps.json"
+$script:AppsJsonPath  = Join-Path $script:WorkFolder "apps.json"
 
 # URL вашего репозитория GitHub
 $script:RepoZipUrl = "https://github.com/DezFix/PotatoPC/archive/refs/heads/main.zip"
@@ -36,7 +35,7 @@ function Initialize-PotatoPC {
     Write-Log "Инициализация рабочей среды..."
     
     # Создаем папки
-    foreach ($folder in @($script:WorkFolder, $script:ScriptsFolder, $script:BackupsFolder)) {
+    foreach ($folder in @($script:WorkFolder, $script:ScriptsFolder)) {
         if (-not (Test-Path $folder)) {
             New-Item -ItemType Directory -Path $folder -Force | Out-Null
         }
@@ -158,14 +157,14 @@ function Write-Log($msg, $color = "Default") {
         <Style x:Key="BtnPrimary" TargetType="Button">
             <Setter Property="Background" Value="#6c63ff"/>
             <Setter Property="Foreground" Value="#ffffff"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="14,9">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="12,7">
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -195,7 +194,7 @@ function Write-Log($msg, $color = "Default") {
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}" BorderThickness="0,0,0,3" BorderBrush="Transparent" Padding="18,12">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" BorderThickness="0,0,0,3" BorderBrush="Transparent" Padding="14,10">
                             <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -255,8 +254,8 @@ function Write-Log($msg, $color = "Default") {
             <TabItem>
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="🧩" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="Модули" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Text="🧩" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Модули" FontSize="12" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <Grid Background="#12121f">
@@ -265,47 +264,70 @@ function Write-Log($msg, $color = "Default") {
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Background="#1a1a2e" Padding="16,10">
+                    <Border Grid.Row="0" Background="#1a1a2e" Padding="16,8">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            <Grid Grid.Row="0">
+                            <!-- Строка 1: Папка + кнопки -->
+                            <Grid Grid.Row="0" Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Foreground="#6060a0" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <TextBlock Foreground="#6060a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0">
                                         <Run Text="📂 Папка: "/>
                                     </TextBlock>
-                                    <TextBlock x:Name="ScriptsFolderText" Foreground="#8080c0" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="500"/>
+                                    <TextBlock x:Name="ScriptsFolderText" Foreground="#8080c0" FontSize="10" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="500"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Content="📂 Открыть" x:Name="OpenFolderBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,8,0" Height="32" FontSize="12"/>
-                                    <Button Content="🔄 Обновить" x:Name="RefreshBtn" Style="{StaticResource BtnSecondary}" Height="32" FontSize="12"/>
+                                    <Button Content="📂 Открыть" x:Name="OpenFolderBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="28" FontSize="11"/>
+                                    <Button Content="🔄 Обновить" x:Name="RefreshBtn" Style="{StaticResource BtnSecondary}" Height="28" FontSize="11"/>
                                 </StackPanel>
                             </Grid>
+                            <!-- Строка 2: Поиск -->
+                            <Border Grid.Row="1" Background="#12121f" CornerRadius="6" BorderBrush="#2a2a45" BorderThickness="1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="🔍" FontSize="13" Foreground="#505070" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                    <TextBox x:Name="ScriptSearchBox" Grid.Column="1"
+                                             Background="Transparent" Foreground="#c0c0e0" FontSize="12"
+                                             BorderThickness="0" Padding="8,6" VerticalAlignment="Center"
+                                             CaretBrush="#6c63ff"/>
+                                    <TextBlock x:Name="ScriptSearchHint" Grid.Column="1"
+                                               Text="Поиск по названию или описанию..."
+                                               Foreground="#404060" FontSize="12" VerticalAlignment="Center"
+                                               Margin="8,0,0,0" IsHitTestVisible="False"/>
+                                    <Button x:Name="ScriptSearchClear" Grid.Column="2" Content="✕"
+                                            Background="Transparent" Foreground="#505070" BorderThickness="0"
+                                            FontSize="12" Cursor="Hand" Padding="8,4" Visibility="Collapsed"/>
+                                </Grid>
+                            </Border>
                         </Grid>
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
                         <StackPanel x:Name="ScriptsPanel" Margin="16,12,16,12"/>
                     </ScrollViewer>
-                    <Border Grid.Row="2" Background="#16162a" Padding="16,12">
+                    <Border Grid.Row="2" Background="#16162a" Padding="12,10">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock x:Name="SelectedCountText" Foreground="#8080c0" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="SelectedCountText" Foreground="#8080c0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <Button Content="⭐ Рекомендованное" x:Name="SelectRecommendedBtn" Style="{StaticResource BtnGold}" Margin="0,0,6,0" Height="36" FontSize="13" Width="150"/>
-                                <Button Content="✓ Выбрать все" x:Name="SelectAllBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="36" FontSize="13" Width="110"/>
-                                <Button Content="✗ Снять все" x:Name="DeselectAllBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,12,0" Height="36" FontSize="13" Width="110"/>
-                                <Button Content="▶ Запустить выбранные" x:Name="RunScriptsBtn" Style="{StaticResource BtnPrimary}" Height="36" FontSize="14" Padding="16,8"/>
+                                <Button Content="⭐ Рекомендованное" x:Name="SelectRecommendedBtn" Style="{StaticResource BtnGold}" Margin="0,0,5,0" Height="30" FontSize="11" Width="140"/>
+                                <Button Content="✓ Все" x:Name="SelectAllBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,5,0" Height="30" FontSize="11" Width="70"/>
+                                <Button Content="✗ Снять" x:Name="DeselectAllBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,10,0" Height="30" FontSize="11" Width="70"/>
+                                <Button Content="▶ Запустить выбранные" x:Name="RunScriptsBtn" Style="{StaticResource BtnPrimary}" Height="30" FontSize="12" Padding="14,6"/>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -316,8 +338,8 @@ function Write-Log($msg, $color = "Default") {
             <TabItem>
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="📦" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="Приложения" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Text="📦" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Приложения" FontSize="12" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <Grid Background="#12121f">
@@ -327,27 +349,127 @@ function Write-Log($msg, $color = "Default") {
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     
-                    <!-- Панель пресетов -->
-                    <Border Grid.Row="0" Background="#1a1a2e" Padding="16,10">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Foreground="#6060a0" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0">
-                                <Run Text="⚡ Пресеты:"/>
-                            </TextBlock>
-                            <Button Content="🏢 Офисный пакет" x:Name="PresetOfficeBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,8,0" Height="32" FontSize="12"/>
-                            <Button Content="🎮 Игровой пакет" x:Name="PresetGamesBtn" Style="{StaticResource BtnSecondary}" Height="32" FontSize="12"/>
+                    <!-- Панель пресетов + поиск -->
+                    <Border Grid.Row="0" Background="#1a1a2e" Padding="14,8">
+                        <StackPanel>
+                            <!-- Пресеты -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Foreground="#6060a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <Run Text="⚡ Пресеты:"/>
+                                </TextBlock>
+                                <Button Content="🏢 Офисный пакет" x:Name="PresetOfficeBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="28" FontSize="11"/>
+                                <Button Content="🎮 Игровой пакет" x:Name="PresetGamesBtn" Style="{StaticResource BtnSecondary}" Height="28" FontSize="11"/>
+                            </StackPanel>
+                            <!-- Поиск -->
+                            <Border Background="#12121f" CornerRadius="6" BorderBrush="#2a2a45" BorderThickness="1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="🔍" FontSize="13" Foreground="#505070" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                    <TextBox x:Name="AppSearchBox" Grid.Column="1"
+                                             Background="Transparent" Foreground="#c0c0e0" FontSize="12"
+                                             BorderThickness="0" Padding="8,6" VerticalAlignment="Center"
+                                             CaretBrush="#6c63ff"/>
+                                    <TextBlock x:Name="AppSearchHint" Grid.Column="1"
+                                               Text="Поиск по названию или описанию..."
+                                               Foreground="#404060" FontSize="12" VerticalAlignment="Center"
+                                               Margin="8,0,0,0" IsHitTestVisible="False"/>
+                                    <Button x:Name="AppSearchClear" Grid.Column="2" Content="✕"
+                                            Background="Transparent" Foreground="#505070" BorderThickness="0"
+                                            FontSize="12" Cursor="Hand" Padding="8,4" Visibility="Collapsed"/>
+                                </Grid>
+                            </Border>
                         </StackPanel>
                     </Border>
                     
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
-                        <StackPanel x:Name="AppsPanel" Margin="16,12,16,12"/>
+                        <StackPanel x:Name="AppsPanel" Margin="14,10,14,10"/>
                     </ScrollViewer>
-                    <Border Grid.Row="2" Background="#16162a" Padding="16,12">
+                    <Border Grid.Row="2" Background="#16162a" Padding="12,10">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="✓ Все" x:Name="SelectAllAppsBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="34" Width="70" FontSize="12"/>
-                            <Button Content="✗ Снять" x:Name="DeselectAllAppsBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,12,0" Height="34" Width="70" FontSize="12"/>
-                            <Button Content="📦 Установить выбранные" x:Name="InstallAppsBtn" Style="{StaticResource BtnPrimary}" Height="34" FontSize="13"/>
+                            <Button Content="✓ Все" x:Name="SelectAllAppsBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,5,0" Height="30" Width="60" FontSize="11"/>
+                            <Button Content="✗ Снять" x:Name="DeselectAllAppsBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,10,0" Height="30" Width="65" FontSize="11"/>
+                            <Button Content="📦 Установить выбранные" x:Name="InstallAppsBtn" Style="{StaticResource BtnPrimary}" Height="30" FontSize="12"/>
                         </StackPanel>
                     </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ВКЛАДКА: ОБНОВЛЕНИЯ -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🔄" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Обновления" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid Background="#12121f">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Toolbar -->
+                    <Border Grid.Row="0" Background="#1a1a2e" Padding="14,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="UpdateStatusText" Foreground="#6060a0" FontSize="11" VerticalAlignment="Center"
+                                       Text="Нажмите «Проверить обновления» для получения списка доступных обновлений."/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="🔍 Проверить обновления" x:Name="CheckUpdatesBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="28" FontSize="11"/>
+                                <Button Content="✓ Все" x:Name="SelectAllUpdatesBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="28" Width="55" FontSize="11"/>
+                                <Button Content="✗ Снять" x:Name="DeselectAllUpdatesBtn" Style="{StaticResource BtnSecondary}" Height="28" Width="60" FontSize="11"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Список обновлений -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
+                        <StackPanel x:Name="UpdatesPanel" Margin="14,10,14,10">
+                            <TextBlock Foreground="#50507a" FontSize="12" TextAlignment="Center" Margin="0,60,0,0"
+                                       Text="📋 Список обновлений появится после нажатия «Проверить обновления»"/>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Нижняя панель -->
+                    <Border Grid.Row="2" Background="#16162a" Padding="12,10">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock x:Name="UpdateCountText" Foreground="#8080c0" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Button Content="⬆ Обновить выбранные" x:Name="InstallUpdatesBtn" Style="{StaticResource BtnPrimary}" Height="30" FontSize="12"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ВКЛАДКА: ТЕСТ СИСТЕМЫ -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🔬" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Тест системы" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid Background="#12121f">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#1a1a2e" Padding="14,8">
+                        <TextBlock Foreground="#6060a0" FontSize="11" VerticalAlignment="Center"
+                                   Text="⚠ Некоторые тесты требуют перезагрузки или длительного ожидания. Результаты отображаются в консоли."/>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="DiagPanel" Margin="16,14,16,14"/>
+                    </ScrollViewer>
                 </Grid>
             </TabItem>
 
@@ -355,8 +477,8 @@ function Write-Log($msg, $color = "Default") {
             <TabItem>
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="💻" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="О системе" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Text="💻" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="О системе" FontSize="12" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <ScrollViewer Background="#12121f" VerticalScrollBarVisibility="Auto">
@@ -386,8 +508,7 @@ function Write-Log($msg, $color = "Default") {
             </Border>
             <Border Grid.Column="1" Background="#16162a" BorderBrush="#1e1e38" BorderThickness="1,1,0,0" Padding="14,14">
                 <StackPanel VerticalAlignment="Top">
-                    <TextBlock Text="ДЕЙСТВИЯ" Foreground="#404060" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                    <Button Content="▶ Запустить" x:Name="QuickRunBtn" Style="{StaticResource BtnPrimary}" Height="40" Margin="0,0,0,8" FontSize="12"/>
+                    <TextBlock Text="КОНСОЛЬ" Foreground="#404060" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,12"/>
                     <Button Content="🗑️ Очистить лог" x:Name="ClearLogBtn" Style="{StaticResource BtnSecondary}" Height="34" Margin="0,0,0,8" FontSize="12"/>
                     <Button Content="📋 Копировать лог" x:Name="CopyLogBtn" Style="{StaticResource BtnSecondary}" Height="34" Margin="0,0,0,16" FontSize="12"/>
                     <Separator Background="#1e1e38" Margin="0,0,0,12"/>
@@ -407,11 +528,12 @@ $script:LogBox          = $window.FindName("LogOutput")
 $scriptsPanel           = $window.FindName("ScriptsPanel")
 $appsPanel              = $window.FindName("AppsPanel")
 $sysPanel               = $window.FindName("SysPanel")
+$updatesPanel           = $window.FindName("UpdatesPanel")
+$diagPanel              = $window.FindName("DiagPanel")
 $headerOsText           = $window.FindName("HeaderOsText")
 $scriptsFolderText      = $window.FindName("ScriptsFolderText")
 $selectedCountText      = $window.FindName("SelectedCountText")
 $runScriptsBtn          = $window.FindName("RunScriptsBtn")
-$quickRunBtn            = $window.FindName("QuickRunBtn")
 $selectAllBtn           = $window.FindName("SelectAllBtn")
 $deselectAllBtn         = $window.FindName("DeselectAllBtn")
 $refreshBtn             = $window.FindName("RefreshBtn")
@@ -426,6 +548,12 @@ $restorePointBtn        = $window.FindName("RestorePointBtn")
 $presetOfficeBtn        = $window.FindName("PresetOfficeBtn")
 $presetGamesBtn         = $window.FindName("PresetGamesBtn")
 $selectRecommendedBtn   = $window.FindName("SelectRecommendedBtn")
+$checkUpdatesBtn        = $window.FindName("CheckUpdatesBtn")
+$selectAllUpdatesBtn    = $window.FindName("SelectAllUpdatesBtn")
+$deselectAllUpdatesBtn  = $window.FindName("DeselectAllUpdatesBtn")
+$installUpdatesBtn      = $window.FindName("InstallUpdatesBtn")
+$updateStatusText       = $window.FindName("UpdateStatusText")
+$updateCountText        = $window.FindName("UpdateCountText")
 
 # ═══ Логика интерфейса ═══
 $script:ScriptCheckboxes = @{}
@@ -656,14 +784,27 @@ function Build-AppsPanel {
 function Build-SysPanel {
     $sysInfo = Get-SystemInfo
     $headerOsText.Text = $sysInfo.OS
+
+    # Получаем реальное название физического диска для C:
+    try {
+        $diskPartition = Get-WmiObject -Query "ASSOCIATORS OF {Win32_LogicalDisk.DeviceID='C:'} WHERE AssocClass=Win32_LogicalDiskToPartition" | Select-Object -First 1
+        $diskDrive = Get-WmiObject -Query "ASSOCIATORS OF {Win32_DiskPartition.DeviceID='$($diskPartition.DeviceID)'} WHERE AssocClass=Win32_DiskDriveToDiskPartition" | Select-Object -First 1
+        $diskSizeGB = [math]::Round($diskDrive.Size / 1GB)
+        $diskModelRaw = $diskDrive.Model -replace '\s+',' '
+        $diskLabel = "$diskModelRaw ($diskSizeGB ГБ)"
+    } catch {
+        $diskLabel = $sysInfo.Disk
+    }
+
     $sysItems = @(
-        @{ L="💻 Операционная система"; V=$sysInfo.OS }
-        @{ L="⚙️ Процессор"; V=$sysInfo.CPU }
-        @{ L="🧠 Оперативная память"; V=$sysInfo.RAM }
-        @{ L="💾 Диск C:"; V=$sysInfo.Disk }
-        @{ L="⏱️ Время работы"; V=$sysInfo.Uptime }
-        @{ L="📂 Рабочая папка"; V=$script:WorkFolder }
+        @{ L="💻 Операционная система"; V=$sysInfo.OS;     Btn=$null }
+        @{ L="⚙️ Процессор";            V=$sysInfo.CPU;    Btn=$null }
+        @{ L="🧠 Оперативная память";   V=$sysInfo.RAM;    Btn=$null }
+        @{ L="💾 Диск";                 V=$diskLabel;      Btn=$null }
+        @{ L="⏱️ Время работы";         V=$sysInfo.Uptime; Btn=$null }
+        @{ L="📂 Рабочая папка";        V=$script:WorkFolder; Btn="Открыть" }
     )
+
     $sysPanel.Children.Clear()
     foreach ($item in $sysItems) {
         $row = [System.Windows.Controls.Border]::new()
@@ -671,17 +812,52 @@ function Build-SysPanel {
         $row.CornerRadius = [System.Windows.CornerRadius]::new(8)
         $row.Margin = [System.Windows.Thickness]::new(0,4,0,4)
         $row.Padding = [System.Windows.Thickness]::new(16,12,16,12)
+
         $g = [System.Windows.Controls.Grid]::new()
-        $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = "200"
+        $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = "210"
         $c2 = [System.Windows.Controls.ColumnDefinition]::new(); $c2.Width = "*"
-        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2)
+        $c3 = [System.Windows.Controls.ColumnDefinition]::new(); $c3.Width = "Auto"
+        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
+
         $lbl = [System.Windows.Controls.TextBlock]::new()
-        $lbl.Text = $item.L; $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#606080"); $lbl.FontSize = 13
+        $lbl.Text = $item.L
+        $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#606080")
+        $lbl.FontSize = 13; $lbl.VerticalAlignment = "Center"
+
         $val = [System.Windows.Controls.TextBlock]::new()
-        $val.Text = $item.V; $val.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d0d0f0"); $val.FontSize = 13; $val.FontWeight = "SemiBold"
-        $val.TextWrapping = "Wrap"
+        $val.Text = $item.V
+        $val.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d0d0f0")
+        $val.FontSize = 13; $val.FontWeight = "SemiBold"; $val.TextWrapping = "Wrap"
+        $val.VerticalAlignment = "Center"
         [System.Windows.Controls.Grid]::SetColumn($val, 1)
-        $g.Children.Add($lbl) | Out-Null; $g.Children.Add($val) | Out-Null
+
+        $g.Children.Add($lbl) | Out-Null
+        $g.Children.Add($val) | Out-Null
+
+        # Кнопка "Открыть" только для рабочей папки
+        if ($item.Btn) {
+            $folderPath = $item.V
+            $openBtn = [System.Windows.Controls.Button]::new()
+            $openBtn.Content = "📂 Открыть"
+            $openBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a2a42")
+            $openBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#c0c0dd")
+            $openBtn.BorderThickness = [System.Windows.Thickness]::new(0)
+            $openBtn.Cursor = [System.Windows.Input.Cursors]::Hand
+            $openBtn.FontSize = 11; $openBtn.Padding = [System.Windows.Thickness]::new(10,5,10,5)
+            $openBtn.VerticalAlignment = "Center"
+            $openBtn.Margin = [System.Windows.Thickness]::new(8,0,0,0)
+            $openBtn.Tag = $folderPath
+            $openBtn.Add_Click({
+                $p = $this.Tag
+                if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }
+                Start-Process explorer.exe $p
+            })
+            $openBtn.Add_MouseEnter({ $this.Opacity = 0.8 })
+            $openBtn.Add_MouseLeave({ $this.Opacity = 1.0 })
+            [System.Windows.Controls.Grid]::SetColumn($openBtn, 2)
+            $g.Children.Add($openBtn) | Out-Null
+        }
+
         $row.Child = $g
         $sysPanel.Children.Add($row) | Out-Null
     }
@@ -762,13 +938,346 @@ function Select-RecommendedScripts {
     Update-SelectedCount
 }
 
+# ═══ Обновления через winget ═══
+$script:UpdateCheckboxes = @{}
+
+function Build-UpdatesPanel {
+    $updatesPanel.Children.Clear()
+    $script:UpdateCheckboxes.Clear()
+    $updateStatusText.Text  = "Идёт проверка обновлений..."
+    $updateCountText.Text   = ""
+
+    Write-Log "🔍 Проверка доступных обновлений через winget..."
+
+    $rawOutput = winget upgrade 2>&1 | Out-String
+    $lines = $rawOutput -split "`n" | Where-Object { $_ -match '\S' }
+
+    # Ищем строки с реальными пакетами: содержат winget-id (точка в середине слова без пробелов)
+    $packages = @()
+    $headerFound = $false
+    foreach ($line in $lines) {
+        if ($line -match '^\s*-+\s*$') { $headerFound = $true; continue }
+        if (-not $headerFound) { continue }
+        if ($line -match '^\s*$') { continue }
+        # Пробуем распарсить: Имя | Ид | Версия | Доступная версия | Источник
+        $parts = $line -split '\s{2,}' | Where-Object { $_.Trim() -ne '' }
+        if ($parts.Count -ge 4) {
+            $packages += @{
+                Name        = $parts[0].Trim()
+                Id          = $parts[1].Trim()
+                Version     = $parts[2].Trim()
+                NewVersion  = $parts[3].Trim()
+                Source      = if ($parts.Count -ge 5) { $parts[4].Trim() } else { "winget" }
+            }
+        }
+    }
+
+    if ($packages.Count -eq 0) {
+        $lbl = [System.Windows.Controls.TextBlock]::new()
+        $lbl.Text = "✅ Все установленные пакеты актуальны — обновлений нет."
+        $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50e050")
+        $lbl.FontSize = 13; $lbl.TextAlignment = "Center"; $lbl.Margin = "0,60,0,0"
+        $updatesPanel.Children.Add($lbl) | Out-Null
+        $updateStatusText.Text = "✅ Обновления не найдены"
+        Write-Log "✅ Обновлений нет"
+        return
+    }
+
+    foreach ($pkg in $packages) {
+        $card = [System.Windows.Controls.Border]::new()
+        $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
+        $card.CornerRadius = [System.Windows.CornerRadius]::new(7)
+        $card.Margin = [System.Windows.Thickness]::new(0,3,0,3)
+        $card.Padding = [System.Windows.Thickness]::new(12,8,12,8)
+
+        $g = [System.Windows.Controls.Grid]::new()
+        $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = [System.Windows.GridLength]::new(28)
+        $c2 = [System.Windows.Controls.ColumnDefinition]::new(); $c2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+        $c3 = [System.Windows.Controls.ColumnDefinition]::new(); $c3.Width = [System.Windows.GridLength]::Auto
+        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
+
+        $cb = [System.Windows.Controls.CheckBox]::new()
+        $cb.VerticalAlignment = "Center"
+        $cb.Tag = $pkg.Id
+        $cb.Add_Checked({
+            $c = ($script:UpdateCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+            $updateCountText.Text = "Выбрано: $c"
+        })
+        $cb.Add_Unchecked({
+            $c = ($script:UpdateCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+            $updateCountText.Text = "Выбрано: $c"
+        })
+        [System.Windows.Controls.Grid]::SetColumn($cb, 0)
+        $script:UpdateCheckboxes[$pkg.Id] = $cb
+
+        $info = [System.Windows.Controls.StackPanel]::new(); $info.VerticalAlignment = "Center"
+        $nm = [System.Windows.Controls.TextBlock]::new()
+        $nm.Text = $pkg.Name; $nm.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e0e0f4")
+        $nm.FontSize = 12; $nm.FontWeight = "Medium"
+        $id = [System.Windows.Controls.TextBlock]::new()
+        $id.Text = $pkg.Id; $id.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
+        $id.FontSize = 10; $id.Margin = [System.Windows.Thickness]::new(0,1,0,0)
+        $info.Children.Add($nm) | Out-Null; $info.Children.Add($id) | Out-Null
+        [System.Windows.Controls.Grid]::SetColumn($info, 1)
+
+        $ver = [System.Windows.Controls.StackPanel]::new(); $ver.VerticalAlignment = "Center"; $ver.HorizontalAlignment = "Right"
+        $v1 = [System.Windows.Controls.TextBlock]::new()
+        $v1.Text = "$($pkg.Version)  →  $($pkg.NewVersion)"
+        $v1.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#c0a030")
+        $v1.FontSize = 11; $v1.HorizontalAlignment = "Right"
+        $ver.Children.Add($v1) | Out-Null
+        [System.Windows.Controls.Grid]::SetColumn($ver, 2)
+
+        $g.Children.Add($cb) | Out-Null; $g.Children.Add($info) | Out-Null; $g.Children.Add($ver) | Out-Null
+        $card.Child = $g
+        $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
+        $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+        $updatesPanel.Children.Add($card) | Out-Null
+    }
+
+    $updateStatusText.Text = "Найдено обновлений: $($packages.Count)"
+    $updateCountText.Text  = "Выбрано: 0"
+    Write-Log "🔄 Найдено $($packages.Count) обновлений"
+}
+
+function Install-SelectedUpdates {
+    $selected = $script:UpdateCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked }
+    if (-not $selected) { Write-Log "⚠ Нет выбранных обновлений" -Color "Yellow"; return }
+    $count = @($selected).Count
+    Write-Log "══ Обновление $count пакетов ══"
+    foreach ($entry in $selected) {
+        Write-Log "⬆ Обновление: $($entry.Key)..."
+        winget upgrade --id $entry.Key --silent --accept-source-agreements --accept-package-agreements 2>&1 |
+            ForEach-Object { Write-Log "   $_" }
+        Write-Log "   ✓ Готово" -Color "Green"
+    }
+    Write-Log "══ Обновление завершено ══"
+    Build-UpdatesPanel
+}
+
+# ═══ Диагностика / Тест системы ═══
+function Build-DiagPanel {
+    $diagPanel.Children.Clear()
+
+    $tests = @(
+        @{
+            Title  = "Проверка системных файлов (SFC)"
+            Desc   = "Сканирует и восстанавливает повреждённые системные файлы Windows. Занимает 5–15 минут."
+            Icon   = "🛡️"
+            Color  = "#4a90d9"
+            Action = {
+                Write-Log "══ SFC: Запуск проверки системных файлов ══"
+                Write-Log "⏳ Пожалуйста, подождите — это может занять несколько минут..."
+                sfc /scannow 2>&1 | ForEach-Object { Write-Log "  $_" }
+                Write-Log "✓ SFC завершён. Результаты выше." -Color "Green"
+            }
+        },
+        @{
+            Title  = "Восстановление компонентов Windows (DISM)"
+            Desc   = "Восстанавливает образ Windows через Windows Update. Требует интернет. Занимает 10–30 минут."
+            Icon   = "🔧"
+            Color  = "#7c63ff"
+            Action = {
+                Write-Log "══ DISM: Восстановление образа Windows ══"
+                Write-Log "⏳ Запуск DISM /RestoreHealth..."
+                DISM /Online /Cleanup-Image /RestoreHealth 2>&1 | ForEach-Object { Write-Log "  $_" }
+                Write-Log "✓ DISM завершён." -Color "Green"
+            }
+        },
+        @{
+            Title  = "Проверка диска C: (CHKDSK)"
+            Desc   = "Проверяет диск C: на ошибки файловой системы. Полная проверка запустится при следующей перезагрузке."
+            Icon   = "💾"
+            Color  = "#2da86a"
+            Action = {
+                Write-Log "══ CHKDSK: Планирование проверки диска C: ══"
+                $confirm = [System.Windows.MessageBox]::Show(
+                    "CHKDSK запустится при следующей перезагрузке Windows.`n`nПланируете перезагрузку сейчас?",
+                    "CHKDSK", "YesNo", "Question")
+                chkdsk C: /f /r /x 2>&1 | ForEach-Object { Write-Log "  $_" }
+                if ($confirm -eq "Yes") {
+                    Write-Log "Перезагрузка через 30 секунд..."
+                    shutdown /r /t 30 /c "PotatoPC: Запланирована проверка диска CHKDSK"
+                } else {
+                    Write-Log "ℹ CHKDSK выполнится при следующей перезагрузке." -Color "Yellow"
+                }
+            }
+        },
+        @{
+            Title  = "Проверка оперативной памяти (RAM)"
+            Desc   = "Запускает встроенный диагностический инструмент Windows Memory Diagnostic. Требует перезагрузку."
+            Icon   = "🧠"
+            Color  = "#d4601a"
+            Action = {
+                Write-Log "══ RAM: Диагностика оперативной памяти ══"
+                $confirm = [System.Windows.MessageBox]::Show(
+                    "Windows Memory Diagnostic запустится после перезагрузки компьютера.`n`nПерезагрузить сейчас?",
+                    "Диагностика RAM", "YesNo", "Question")
+                if ($confirm -eq "Yes") {
+                    Write-Log "Запуск Windows Memory Diagnostic и перезагрузка..."
+                    MdSched.exe
+                } else {
+                    Write-Log "ℹ Диагностика RAM отменена." -Color "Yellow"
+                }
+            }
+        }
+    )
+
+    foreach ($test in $tests) {
+        $card = [System.Windows.Controls.Border]::new()
+        $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
+        $card.CornerRadius = [System.Windows.CornerRadius]::new(10)
+        $card.Margin = [System.Windows.Thickness]::new(0,5,0,5)
+        $card.Padding = [System.Windows.Thickness]::new(16,14,16,14)
+        $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom($test.Color + "55")
+        $card.BorderThickness = [System.Windows.Thickness]::new(0,0,0,2)
+
+        $g = [System.Windows.Controls.Grid]::new()
+        $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = [System.Windows.GridLength]::new(44)
+        $c2 = [System.Windows.Controls.ColumnDefinition]::new(); $c2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+        $c3 = [System.Windows.Controls.ColumnDefinition]::new(); $c3.Width = [System.Windows.GridLength]::Auto
+        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
+
+        $ico = [System.Windows.Controls.TextBlock]::new()
+        $ico.Text = $test.Icon; $ico.FontSize = 26; $ico.VerticalAlignment = "Center"; $ico.HorizontalAlignment = "Center"
+        [System.Windows.Controls.Grid]::SetColumn($ico, 0)
+
+        $txt = [System.Windows.Controls.StackPanel]::new(); $txt.VerticalAlignment = "Center"; $txt.Margin = [System.Windows.Thickness]::new(12,0,12,0)
+        $ttl = [System.Windows.Controls.TextBlock]::new()
+        $ttl.Text = $test.Title; $ttl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e0e0f4")
+        $ttl.FontSize = 13; $ttl.FontWeight = "SemiBold"
+        $dsc = [System.Windows.Controls.TextBlock]::new()
+        $dsc.Text = $test.Desc; $dsc.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#60607a")
+        $dsc.FontSize = 11; $dsc.Margin = [System.Windows.Thickness]::new(0,3,0,0); $dsc.TextWrapping = "Wrap"
+        $txt.Children.Add($ttl) | Out-Null; $txt.Children.Add($dsc) | Out-Null
+        [System.Windows.Controls.Grid]::SetColumn($txt, 1)
+
+        $btn = [System.Windows.Controls.Button]::new()
+        $btn.Content = "▶ Запустить"
+        $btn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom($test.Color)
+        $btn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#ffffff")
+        $btn.BorderThickness = [System.Windows.Thickness]::new(0)
+        $btn.Cursor = [System.Windows.Input.Cursors]::Hand
+        $btn.FontSize = 12; $btn.FontWeight = "SemiBold"
+        $btn.Padding = [System.Windows.Thickness]::new(14,8,14,8)
+        $btn.VerticalAlignment = "Center"
+        $btn.Tag = $test.Action
+
+        # Hover
+        $col = $test.Color
+        $btn.Add_MouseEnter({ $this.Opacity = 0.85 })
+        $btn.Add_MouseLeave({ $this.Opacity = 1.0 })
+        $btn.Add_Click({
+            $actionBlock = $this.Tag
+            & $actionBlock
+        })
+
+        [System.Windows.Controls.Grid]::SetColumn($btn, 2)
+        $g.Children.Add($ico) | Out-Null; $g.Children.Add($txt) | Out-Null; $g.Children.Add($btn) | Out-Null
+        $card.Child = $g
+
+        $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e35") })
+        $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+        $diagPanel.Children.Add($card) | Out-Null
+    }
+}
+
 # ═══ Обработчики событий ═══
+$checkUpdatesBtn.Add_Click({
+    $updatesPanel.Children.Clear()
+    $script:UpdateCheckboxes.Clear()
+    Build-UpdatesPanel
+})
+$selectAllUpdatesBtn.Add_Click({
+    foreach ($cb in $script:UpdateCheckboxes.Values) { $cb.IsChecked = $true }
+    $updateCountText.Text = "Выбрано: $($script:UpdateCheckboxes.Count)"
+})
+$deselectAllUpdatesBtn.Add_Click({
+    foreach ($cb in $script:UpdateCheckboxes.Values) { $cb.IsChecked = $false }
+    $updateCountText.Text = "Выбрано: 0"
+})
+$installUpdatesBtn.Add_Click({ Install-SelectedUpdates })
+
+
 $runScriptsBtn.Add_Click({ Run-SelectedScripts })
-$quickRunBtn.Add_Click({ Run-SelectedScripts })
 $selectAllBtn.Add_Click({ foreach ($cb in $script:ScriptCheckboxes.Values) { $cb.IsChecked = $true }; Update-SelectedCount })
 $deselectAllBtn.Add_Click({ foreach ($cb in $script:ScriptCheckboxes.Values) { $cb.IsChecked = $false }; Update-SelectedCount })
 $refreshBtn.Add_Click({ Write-Log "Обновление списка..."; Build-ScriptsPanel })
 $selectRecommendedBtn.Add_Click({ Select-RecommendedScripts })
+
+# ─── Поиск в Модулях ───────────────────────────────────────────────────────
+$scriptSearchBox   = $window.FindName("ScriptSearchBox")
+$scriptSearchHint  = $window.FindName("ScriptSearchHint")
+$scriptSearchClear = $window.FindName("ScriptSearchClear")
+
+$scriptSearchBox.Add_TextChanged({
+    $query = $scriptSearchBox.Text.Trim().ToLower()
+    # Показываем/скрываем hint и кнопку очистки
+    $scriptSearchHint.Visibility  = if ($query -eq "") { "Visible" } else { "Collapsed" }
+    $scriptSearchClear.Visibility = if ($query -eq "") { "Collapsed" } else { "Visible" }
+    # Фильтрация: показываем/скрываем карточки, чекбоксы НЕ трогаем
+    foreach ($child in $scriptsPanel.Children) {
+        if ($child -is [System.Windows.Controls.Border]) {
+            $child.Visibility = "Visible"  # заголовки категорий всегда видны
+            # Находим имя и описание через дерево
+            $grid = $child.Child
+            if ($grid -is [System.Windows.Controls.Grid] -and $grid.ColumnDefinitions.Count -ge 3) {
+                $nameVal = ""
+                $descVal = ""
+                foreach ($el in $grid.Children) {
+                    if ($el -is [System.Windows.Controls.StackPanel]) {
+                        foreach ($tb in $el.Children) {
+                            if ($tb -is [System.Windows.Controls.TextBlock]) {
+                                if ($nameVal -eq "") { $nameVal = $tb.Text.ToLower() }
+                                else { $descVal = $tb.Text.ToLower() }
+                            }
+                        }
+                    }
+                }
+                if ($query -ne "" -and ($nameVal -notlike "*$query*") -and ($descVal -notlike "*$query*")) {
+                    $child.Visibility = "Collapsed"
+                }
+            }
+        }
+    }
+})
+
+$scriptSearchClear.Add_Click({ $scriptSearchBox.Text = "" })
+
+# ─── Поиск в Приложениях ───────────────────────────────────────────────────
+$appSearchBox   = $window.FindName("AppSearchBox")
+$appSearchHint  = $window.FindName("AppSearchHint")
+$appSearchClear = $window.FindName("AppSearchClear")
+
+$appSearchBox.Add_TextChanged({
+    $query = $appSearchBox.Text.Trim().ToLower()
+    $appSearchHint.Visibility  = if ($query -eq "") { "Visible" } else { "Collapsed" }
+    $appSearchClear.Visibility = if ($query -eq "") { "Collapsed" } else { "Visible" }
+    foreach ($child in $appsPanel.Children) {
+        if ($child -is [System.Windows.Controls.Border]) {
+            $inner = $child.Child
+            if ($inner -is [System.Windows.Controls.StackPanel]) {
+                # Это карточка приложения — ищем чекбокс и описание
+                $nameVal = ""
+                $descVal = ""
+                foreach ($el in $inner.Children) {
+                    if ($el -is [System.Windows.Controls.CheckBox]) { $nameVal = $el.Content.ToString().ToLower() }
+                    if ($el -is [System.Windows.Controls.TextBlock]) { $descVal = $el.Text.ToLower() }
+                }
+                if ($query -ne "" -and ($nameVal -notlike "*$query*") -and ($descVal -notlike "*$query*")) {
+                    $child.Visibility = "Collapsed"
+                } else {
+                    $child.Visibility = "Visible"
+                }
+            } else {
+                # Заголовок категории — всегда показываем
+                $child.Visibility = "Visible"
+            }
+        }
+    }
+})
+
+$appSearchClear.Add_Click({ $appSearchBox.Text = "" })
 
 $openFolderAction = {
     if (-not (Test-Path $script:ScriptsFolder)) { New-Item -ItemType Directory -Path $script:ScriptsFolder -Force | Out-Null }
@@ -822,6 +1331,7 @@ Initialize-PotatoPC
 Build-ScriptsPanel
 Build-AppsPanel
 Build-SysPanel
+Build-DiagPanel
 
 $scriptsFolderText.Text = $script:ScriptsFolder
 
