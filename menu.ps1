@@ -1324,20 +1324,23 @@ if ($restoreResult -eq "Yes") {
     Create-RestorePoint
 }
 
-# 2. Загрузка данных с GitHub
-Initialize-PotatoPC
+# Всё что зависит от LogBox и ScriptsFolder — только после открытия окна
+$window.Add_Loaded({
+    $scriptsFolderText.Text = $script:ScriptsFolder
+    Write-Log "PotatoPC Optimizer v3.0 запущен"
+    Write-Log "Система: $((Get-SystemInfo).OS)"
+    Write-Log "Рабочая папка: $($script:WorkFolder)"
 
-# 3. Построение интерфейса
-Build-ScriptsPanel
-Build-AppsPanel
-Build-SysPanel
-Build-DiagPanel
+    # Загрузка данных (apps.json, скрипты если папка пустая)
+    Initialize-PotatoPC
 
-$scriptsFolderText.Text = $script:ScriptsFolder
+    # Построение всех панелей — строго после Initialize
+    Build-ScriptsPanel
+    Build-AppsPanel
+    Build-SysPanel
+    Build-DiagPanel
 
-Write-Log "PotatoPC Optimizer v3.0 запущен"
-Write-Log "Система: $(Get-SystemInfo).OS"
-Write-Log "Рабочая папка: $($script:WorkFolder)"
-Write-Log "Готов к работе." -Color "Green"
+    Write-Log "✓ Готов к работе." -Color "Green"
+})
 
 $window.ShowDialog() | Out-Null
