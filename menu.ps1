@@ -888,18 +888,11 @@ function Run-SelectedScripts {
     Write-Log "Завершено: ✓$ok успешно$(if($fail -gt 0){ "  ✗$fail ошибок" })"
     Write-Log "══════════════════════════════════════"
 
-    # Перезагрузка если флаг установлен
+    # Перезагрузка если флаг установлен — без подтверждения
     if ($rebootAfterChk.IsChecked) {
-        $confirm = [System.Windows.MessageBox]::Show(
-            "Все скрипты выполнены.`n`nПерезагрузить компьютер сейчас?",
-            "Перезагрузка", "YesNo", "Question")
-        if ($confirm -eq "Yes") {
-            Write-Log "🔄 Перезагрузка..."
-            Restart-Computer -Force
-        } else {
-            Write-Log "ℹ Перезагрузка отменена." -Color "Yellow"
-            $rebootAfterChk.IsChecked = $false
-        }
+        Write-Log "🔄 Перезагрузка через 10 секунд..."
+        Start-Sleep -Seconds 10
+        Restart-Computer -Force
     }
 }
 
