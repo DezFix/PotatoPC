@@ -48,9 +48,6 @@ try {
     Start-Service -Name wuauserv -ErrorAction SilentlyContinue
 
     Write-Host "✅ Настройки успешно применены!" -ForegroundColor Green
-    Write-Host "ℹ️ Windows будет получать только ежемесячные обновления безопасности и качества для версии $currentVersion." -ForegroundColor Yellow
-    Write-Host "ℹ️ Для возврата к стандартным настройкам выполните в PowerShell от админа:" -ForegroundColor Gray
-    Write-Host "   Remove-ItemProperty -Path '$wuPath' -Name TargetReleaseVersion, TargetReleaseVersionInfo, DeferFeatureUpdates, DeferFeatureUpdatesPeriodInDays, ExcludeWUDriversInQualityUpdate -ErrorAction SilentlyContinue" -ForegroundColor DarkGray
 }
 catch {
     Write-Error "❌ Ошибка при настройке обновлений: $_"
