@@ -1,4 +1,4 @@
-﻿# NAME: Install-Winget
+﻿# NAME: Установка Winget
 # DESC: Устанавливает Windows Package Manager (winget) со всеми зависимостями, если он не установлен
 # CATEGORY: Системные утилиты
 # ICON: 📦
