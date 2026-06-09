@@ -33,49 +33,40 @@ $script:AppsJsonUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/he
 # ═══ Инициализация и загрузка с GitHub ═══
 function Initialize-PotatoPC {
     Write-Log "Инициализация рабочей среды..."
-    
-    # Создаем папки
-    foreach ($folder in @($script:WorkFolder, $script:ScriptsFolder)) {
-        if (-not (Test-Path $folder)) {
-            New-Item -ItemType Directory -Path $folder -Force | Out-Null
-        }
+
+    # Создаём рабочую папку если нет
+    if (-not (Test-Path $script:WorkFolder)) {
+        New-Item -ItemType Directory -Path $script:WorkFolder -Force | Out-Null
     }
 
-    # Скачиваем apps.json
+    # Скачиваем архив репозитория — внутри уже есть и scripts/ и apps.json
+    $zipPath = Join-Path $script:WorkFolder "repo.zip"
     try {
-        Invoke-WebRequest -Uri $script:AppsJsonUrl -OutFile $script:AppsJsonPath -UseBasicParsing -ErrorAction Stop
-        Write-Log "✓ Список приложений (apps.json) загружен."
-    } catch {
-        Write-Log "⚠ Не удалось загрузить apps.json. Будет использован резервный список." -Color "Yellow"
-    }
-
-    # Скачиваем и распаковываем скрипты
-    $zipPath = Join-Path $script:WorkFolder "scripts_temp.zip"
-    try {
-        Write-Log "Загрузка пакета скриптов с GitHub..."
+        Write-Log "Загрузка репозитория с GitHub..."
         Invoke-WebRequest -Uri $script:RepoZipUrl -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
-        
-        # Очищаем старую папку скриптов перед распаковкой
-        Get-ChildItem -Path $script:ScriptsFolder -File | Remove-Item -Force
-        
+
+        # Распаковываем прямо в WorkFolder (перезаписываем)
         Expand-Archive -Path $zipPath -DestinationPath $script:WorkFolder -Force
-        
-        # Перемещаем скрипты из распакованной папки репозитория в нашу папку scripts
-        $extractedFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory | Select-Object -First 1
-        if ($extractedFolder) {
-            $sourceScripts = Join-Path $extractedFolder.FullName "scripts"
-            if (Test-Path $sourceScripts) {
-                Copy-Item -Path (Join-Path $sourceScripts "*") -Destination $script:ScriptsFolder -Force -Recurse
-            } else {
-                # Если папки scripts в архиве нет, копируем все .ps1 из корня распаковки
-                Copy-Item -Path (Join-Path $extractedFolder.FullName "*.ps1") -Destination $script:ScriptsFolder -Force -ErrorAction SilentlyContinue
-            }
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+
+        # Находим распакованную папку репозитория (PotatoPC-main)
+        $repoFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory |
+                      Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+        if ($repoFolder) {
+            # Используем scripts и apps.json прямо из папки репозитория — никаких лишних копирований
+            $script:ScriptsFolder = Join-Path $repoFolder.FullName "scripts"
+            $script:AppsJsonPath  = Join-Path $repoFolder.FullName "apps.json"
+
+            $scriptCount = @(Get-ChildItem -Path $script:ScriptsFolder -Filter "*.ps1" -ErrorAction SilentlyContinue).Count
+            Write-Log "✓ Репозиторий загружен. Скриптов: $scriptCount, apps.json: $(Test-Path $script:AppsJsonPath)"
+        } else {
+            Write-Log "✗ Не удалось найти папку репозитория после распаковки." -Color "Red"
         }
-        
-        Remove-Item $zipPath -Force
-        Write-Log "✓ Скрипты успешно загружены и распакованы."
     } catch {
-        Write-Log "✗ Ошибка загрузки скриптов с GitHub: $_" -Color "Red"
+        Write-Log "✗ Ошибка загрузки репозитория: $_" -Color "Red"
+        Write-Log "  Проверьте интернет-соединение или добавьте скрипты вручную в:" -Color "Yellow"
+        Write-Log "  $($script:ScriptsFolder)" -Color "Yellow"
     }
 }
 
@@ -321,7 +312,12 @@ function Write-Log($msg, $color = "Default") {
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock x:Name="SelectedCountText" Foreground="#8080c0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="SelectedCountText" Foreground="#8080c0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                <CheckBox x:Name="RebootAfterScriptsChk" VerticalAlignment="Center" Cursor="Hand">
+                                    <CheckBox.Content>
+                                        <TextBlock Text="🔄 Перезагрузить после выполнения" Foreground="#8080c0" FontSize="11" VerticalAlignment="Center"/>
+                                    </CheckBox.Content>
+                                </CheckBox>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
                                 <Button Content="⭐ Рекомендованное" x:Name="SelectRecommendedBtn" Style="{StaticResource BtnGold}" Margin="0,0,5,0" Height="30" FontSize="11" Width="140"/>
@@ -511,8 +507,7 @@ function Write-Log($msg, $color = "Default") {
                     <TextBlock Text="КОНСОЛЬ" Foreground="#404060" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,12"/>
                     <Button Content="🗑️ Очистить лог" x:Name="ClearLogBtn" Style="{StaticResource BtnSecondary}" Height="34" Margin="0,0,0,8" FontSize="12"/>
                     <Button Content="📋 Копировать лог" x:Name="CopyLogBtn" Style="{StaticResource BtnSecondary}" Height="34" Margin="0,0,0,16" FontSize="12"/>
-                    <Separator Background="#1e1e38" Margin="0,0,0,12"/>
-                    <Button Content="📂 Папка скриптов" x:Name="OpenFolderBtn2" Style="{StaticResource BtnSecondary}" Height="34" FontSize="11" Margin="0,0,0,8"/>
+
                 </StackPanel>
             </Border>
         </Grid>
@@ -534,11 +529,11 @@ $headerOsText           = $window.FindName("HeaderOsText")
 $scriptsFolderText      = $window.FindName("ScriptsFolderText")
 $selectedCountText      = $window.FindName("SelectedCountText")
 $runScriptsBtn          = $window.FindName("RunScriptsBtn")
+$rebootAfterChk         = $window.FindName("RebootAfterScriptsChk")
 $selectAllBtn           = $window.FindName("SelectAllBtn")
 $deselectAllBtn         = $window.FindName("DeselectAllBtn")
 $refreshBtn             = $window.FindName("RefreshBtn")
 $openFolderBtn          = $window.FindName("OpenFolderBtn")
-$openFolderBtn2         = $window.FindName("OpenFolderBtn2")
 $clearLogBtn            = $window.FindName("ClearLogBtn")
 $copyLogBtn             = $window.FindName("CopyLogBtn")
 $installAppsBtn         = $window.FindName("InstallAppsBtn")
@@ -890,8 +885,22 @@ function Run-SelectedScripts {
         }
     }
     Write-Log "══════════════════════════════════════"
-    Write-Log "Завершено: ✓$ok успешно  $(if($fail -gt 0){ "✗$fail ошибок" })"
+    Write-Log "Завершено: ✓$ok успешно$(if($fail -gt 0){ "  ✗$fail ошибок" })"
     Write-Log "══════════════════════════════════════"
+
+    # Перезагрузка если флаг установлен
+    if ($rebootAfterChk.IsChecked) {
+        $confirm = [System.Windows.MessageBox]::Show(
+            "Все скрипты выполнены.`n`nПерезагрузить компьютер сейчас?",
+            "Перезагрузка", "YesNo", "Question")
+        if ($confirm -eq "Yes") {
+            Write-Log "🔄 Перезагрузка..."
+            Restart-Computer -Force
+        } else {
+            Write-Log "ℹ Перезагрузка отменена." -Color "Yellow"
+            $rebootAfterChk.IsChecked = $false
+        }
+    }
 }
 
 # ═══ Функция выбора пресета ═══
@@ -1284,13 +1293,13 @@ $openFolderAction = {
     Start-Process explorer.exe $script:ScriptsFolder
 }
 $openFolderBtn.Add_Click($openFolderAction)
-$openFolderBtn2.Add_Click($openFolderAction)
 
 $clearLogBtn.Add_Click({ $script:LogBox.Clear() })
 $copyLogBtn.Add_Click({
     [System.Windows.Clipboard]::SetText($script:LogBox.Text)
     Write-Log "✓ Лог скопирован в буфер обмена" -Color "Green"
 })
+
 
 $restorePointBtn.Add_Click({ Create-RestorePoint })
 
