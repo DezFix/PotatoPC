@@ -1,6 +1,6 @@
 ﻿# NAME: Отключение менеджера доставки контента (CDM)
 # DESC: Отключает менеджер доставки контента и системные рекомендации
-# CATEGORY: Конфиденциальность
+# TAGS: 2
 # ICON: 📦
 
 $regPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
