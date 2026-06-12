@@ -2,6 +2,7 @@
 # DESC: Отключает сбор и синхронизацию истории действий пользователя
 # TAGS: 2
 # ICON: 📜
+# RECOMMENDED: true
 
 $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
 if (!(Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
