@@ -2,6 +2,7 @@
 # DESC: Отключает отслеживание местоположения, работу датчиков и автоматическое обновление офлайн-карт
 # TAGS: 2
 # ICON: 📍
+# RECOMMENDED: true
 
 $regItems = @(
     @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors"; Name = "DisableLocation"; Value = 1; Type = "DWord" },
