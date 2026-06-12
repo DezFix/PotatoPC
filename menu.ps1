@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
 PotatoPC Optimizer - Modular Edition
@@ -31,58 +31,82 @@ $script:RepoZipUrl = "https://github.com/DezFix/PotatoPC/archive/refs/heads/main
 $script:AppsJsonUrl = "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/apps.json"
 
 # ═══ Инициализация и загрузка с GitHub ═══
-function Initialize-PotatoPC {
-    Write-Log "Инициализация рабочей среды..."
+function Download-Repo {
+    param([switch]$Force)
+    $zipPath = Join-Path $script:WorkFolder "repo.zip"
+    try {
+        Write-Log "$(if($Force){'🔄 Обновление'}else{'📦 Загрузка'}) репозитория с GitHub..."
+        Invoke-WebRequest -Uri $script:RepoZipUrl -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+        Expand-Archive -Path $zipPath -DestinationPath $script:WorkFolder -Force
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
 
-    # Создаём рабочую папку если нет
+        $repoFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory |
+                      Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($repoFolder) {
+            $script:ScriptsFolder = Join-Path $repoFolder.FullName "scripts"
+            $script:AppsJsonPath  = Join-Path $repoFolder.FullName "apps.json"
+            $n = @(Get-ChildItem -Path $script:ScriptsFolder -Recurse -Filter "*.ps1" -ErrorAction SilentlyContinue).Count
+            Write-Log "✓ Готово. Скриптов: $n"
+            return $true
+        } else {
+            Write-Log "✗ Папка репозитория не найдена." -Color "Red"
+            return $false
+        }
+    } catch {
+        Write-Log "✗ Ошибка загрузки: $_" -Color "Red"
+        return $false
+    }
+}
+
+function Initialize-PotatoPC {
+    Write-Log "Инициализация..."
     if (-not (Test-Path $script:WorkFolder)) {
         New-Item -ItemType Directory -Path $script:WorkFolder -Force | Out-Null
     }
 
-    # Скачиваем архив репозитория — внутри уже есть и scripts/ и apps.json
-    $zipPath = Join-Path $script:WorkFolder "repo.zip"
-    try {
-        Write-Log "Загрузка репозитория с GitHub..."
-        Invoke-WebRequest -Uri $script:RepoZipUrl -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+    # Ищем уже существующую папку репозитория
+    $repoFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory |
+                  Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
-        # Распаковываем прямо в WorkFolder (перезаписываем)
-        Expand-Archive -Path $zipPath -DestinationPath $script:WorkFolder -Force
-        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
-
-        # Находим распакованную папку репозитория (PotatoPC-main)
-        $repoFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory |
-                      Sort-Object LastWriteTime -Descending | Select-Object -First 1
-
-        if ($repoFolder) {
-            # Используем scripts и apps.json прямо из папки репозитория — никаких лишних копирований
-            $script:ScriptsFolder = Join-Path $repoFolder.FullName "scripts"
-            $script:AppsJsonPath  = Join-Path $repoFolder.FullName "apps.json"
-
-            $scriptCount = @(Get-ChildItem -Path $script:ScriptsFolder -Filter "*.ps1" -ErrorAction SilentlyContinue).Count
-            Write-Log "✓ Репозиторий загружен. Скриптов: $scriptCount, apps.json: $(Test-Path $script:AppsJsonPath)"
-        } else {
-            Write-Log "✗ Не удалось найти папку репозитория после распаковки." -Color "Red"
-        }
-    } catch {
-        Write-Log "✗ Ошибка загрузки репозитория: $_" -Color "Red"
-        Write-Log "  Проверьте интернет-соединение или добавьте скрипты вручную в:" -Color "Yellow"
-        Write-Log "  $($script:ScriptsFolder)" -Color "Yellow"
+    if ($repoFolder -and (Test-Path (Join-Path $repoFolder.FullName "scripts"))) {
+        # Репозиторий уже есть — используем его
+        $script:ScriptsFolder = Join-Path $repoFolder.FullName "scripts"
+        $script:AppsJsonPath  = Join-Path $repoFolder.FullName "apps.json"
+        $n = @(Get-ChildItem -Path $script:ScriptsFolder -Recurse -Filter "*.ps1" -ErrorAction SilentlyContinue).Count
+        Write-Log "✓ Репозиторий найден локально. Скриптов: $n"
+    } else {
+        # Папки нет — скачиваем впервые
+        Download-Repo
     }
 }
 
 # ═══ Загрузка метаданных скриптов ═══
 function Load-Scripts {
     $result = @()
-    $files = Get-ChildItem -Path $script:ScriptsFolder -Filter "*.ps1" -ErrorAction SilentlyContinue | Sort-Object Name
+    # Ищем .ps1 рекурсивно — категория = имя папки в которой лежит скрипт
+    $files = Get-ChildItem -Path $script:ScriptsFolder -Filter "*.ps1" -Recurse -ErrorAction SilentlyContinue | Sort-Object Name
     foreach ($file in $files) {
-        $meta = @{ Name = $file.BaseName; Desc = ""; Category = "Другое"; Icon = "📄"; Recommended = $false; Path = $file.FullName }
+        # Категория = имя непосредственной родительской папки
+        # Если скрипт лежит прямо в scripts/ — категория "Другое"
+        $parentName = $file.Directory.Name
+        $category = if ($parentName -ne (Split-Path $script:ScriptsFolder -Leaf)) { $parentName } else { "Другое" }
+
+        $meta = @{
+            Name        = $file.BaseName
+            Desc        = ""
+            Category    = $category
+            Icon        = "📄"
+            Recommended = $false
+            Tag         = 0        # 0=нет, 1=безопасно, 2=осторожно, 3=опасно
+            Path        = $file.FullName
+        }
         $lines = Get-Content $file.FullName -TotalCount 15 -ErrorAction SilentlyContinue
         foreach ($line in $lines) {
-            if ($line -match "^#\s*NAME:\s*(.+)")     { $meta.Name     = $Matches[1].Trim() }
-            if ($line -match "^#\s*DESC:\s*(.+)")     { $meta.Desc     = $Matches[1].Trim() }
-            if ($line -match "^#\s*CATEGORY:\s*(.+)") { $meta.Category = $Matches[1].Trim() }
-            if ($line -match "^#\s*ICON:\s*(.+)")     { $meta.Icon     = $Matches[1].Trim() }
-            if ($line -match "^#\s*RECOMMENDED:\s*true") { $meta.Recommended = $true }
+            if ($line -match '^#\s*NAME:\s*(.+)')        { $meta.Name        = $Matches[1].Trim() }
+            if ($line -match '^#\s*DESC:\s*(.+)')        { $meta.Desc        = $Matches[1].Trim() }
+            if ($line -match '^#\s*ICON:\s*(.+)')        { $meta.Icon        = $Matches[1].Trim() }
+            if ($line -match '^#\s*RECOMMENDED:\s*true') { $meta.Recommended = $true }
+            if ($line -match '^#\s*TAGS:\s*(\d)')        { $meta.Tag         = [int]$Matches[1].Trim() }
         }
         $result += $meta
     }
@@ -330,6 +354,72 @@ function Write-Log($msg, $color = "Default") {
                 </Grid>
             </TabItem>
 
+            <!-- ВКЛАДКА: АВТОЗАГРУЗКА -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🚀" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Автозагрузка" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid Background="#12121f">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0" Margin="14,12,14,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Background="#1a1a2e" CornerRadius="8" Padding="12,8" Margin="0,0,0,6">
+                                <TextBlock Text="📋 Автозагрузка приложений" Foreground="#6c63ff" FontSize="12" FontWeight="SemiBold"/>
+                            </Border>
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="StartupAppsPanel" Margin="0,0,0,8"/>
+                            </ScrollViewer>
+                        </Grid>
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Background="#1a1a2e" CornerRadius="8" Padding="12,8" Margin="0,0,0,6">
+                                <TextBlock Text="🗓️ Запланированные задачи" Foreground="#6c63ff" FontSize="12" FontWeight="SemiBold"/>
+                            </Border>
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="ScheduledTasksPanel" Margin="0,0,0,8"/>
+                            </ScrollViewer>
+                        </Grid>
+                    </Grid>
+                    <Border Grid.Row="1" Background="#16162a" Padding="14,10">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="🔄 Обновить" x:Name="RefreshStartupBtn" Style="{StaticResource BtnSecondary}" Height="30" FontSize="11" Margin="0,0,8,0"/>
+                            <Button x:Name="DisableStartupBtn" Height="30" FontSize="11" Cursor="Hand" BorderThickness="0" Foreground="White" Padding="12,6">
+                                <Button.Content>❌ Отключить выбранные</Button.Content>
+                                <Button.Background><SolidColorBrush Color="#7a1f1f"/></Button.Background>
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.82"/></Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
             <!-- ВКЛАДКА: ПРИЛОЖЕНИЯ -->
             <TabItem>
                 <TabItem.Header>
@@ -549,6 +639,10 @@ $deselectAllUpdatesBtn  = $window.FindName("DeselectAllUpdatesBtn")
 $installUpdatesBtn      = $window.FindName("InstallUpdatesBtn")
 $updateStatusText       = $window.FindName("UpdateStatusText")
 $updateCountText        = $window.FindName("UpdateCountText")
+$startupAppsPanel       = $window.FindName("StartupAppsPanel")
+$scheduledTasksPanel    = $window.FindName("ScheduledTasksPanel")
+$refreshStartupBtn      = $window.FindName("RefreshStartupBtn")
+$disableStartupBtn      = $window.FindName("DisableStartupBtn")
 
 # ═══ Логика интерфейса ═══
 $script:ScriptCheckboxes = @{}
@@ -626,23 +720,59 @@ function Build-ScriptsPanel {
             $textStack = [System.Windows.Controls.StackPanel]::new()
             $textStack.VerticalAlignment = "Center"
 
+            # Строка с именем + теги
+            $nameRow = [System.Windows.Controls.StackPanel]::new()
+            $nameRow.Orientation = "Horizontal"; $nameRow.VerticalAlignment = "Center"
+
             $nameText = [System.Windows.Controls.TextBlock]::new()
-            $nameText.Text = $script_item.Name
-            $nameText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e0e0f4")
-            $nameText.FontSize = 13; $nameText.FontWeight = "Medium"
-            
-            # Золотой цвет для рекомендованных
-            if ($script_item.Recommended) {
-                $nameText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d4a017")
+            $nameText.Text = $script_item.Name; $nameText.FontSize = 13; $nameText.FontWeight = "Medium"
+            $nameText.VerticalAlignment = "Center"
+            $nameColor = if ($script_item.Recommended) { "#d4a017" } else { "#e0e0f4" }
+            $nameText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($nameColor)
+            $nameRow.Children.Add($nameText) | Out-Null
+
+            # TAGS бейдж
+            if ($script_item.Tag -in 1,2,3) {
+                $tagBorder = [System.Windows.Controls.Border]::new()
+                $tagBorder.CornerRadius = [System.Windows.CornerRadius]::new(4)
+                $tagBorder.Padding = [System.Windows.Thickness]::new(5,1,5,1)
+                $tagBorder.Margin  = [System.Windows.Thickness]::new(7,0,0,0)
+                $tagBorder.VerticalAlignment = "Center"
+                $tagTxt = [System.Windows.Controls.TextBlock]::new()
+                $tagTxt.FontSize = 10; $tagTxt.FontWeight = "SemiBold"
+                switch ($script_item.Tag) {
+                    1 {
+                        $tagBorder.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#0d2d1a")
+                        $tagBorder.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a6b35")
+                        $tagBorder.BorderThickness = [System.Windows.Thickness]::new(1)
+                        $tagTxt.Text      = "● безопасно"
+                        $tagTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+                    }
+                    2 {
+                        $tagBorder.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d2200")
+                        $tagBorder.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#a07800")
+                        $tagBorder.BorderThickness = [System.Windows.Thickness]::new(1)
+                        $tagTxt.Text      = "● осторожно"
+                        $tagTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+                    }
+                    3 {
+                        $tagBorder.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d0d0d")
+                        $tagBorder.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#8b1a1a")
+                        $tagBorder.BorderThickness = [System.Windows.Thickness]::new(1)
+                        $tagTxt.Text      = "● опасно"
+                        $tagTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
+                    }
+                }
+                $tagBorder.Child = $tagTxt
+                $nameRow.Children.Add($tagBorder) | Out-Null
             }
+            $textStack.Children.Add($nameRow) | Out-Null
 
             $descText = [System.Windows.Controls.TextBlock]::new()
             $descText.Text = if ($script_item.Desc) { $script_item.Desc } else { $script_item.Path | Split-Path -Leaf }
             $descText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
-            $descText.FontSize = 11; $descText.Margin = [System.Windows.Thickness]::new(0, 2, 0, 0)
+            $descText.FontSize = 11; $descText.Margin = [System.Windows.Thickness]::new(0,2,0,0)
             $descText.TextTrimming = "CharacterEllipsis"
-
-            $textStack.Children.Add($nameText) | Out-Null
             $textStack.Children.Add($descText) | Out-Null
             [System.Windows.Controls.Grid]::SetColumn($textStack, 2)
 
@@ -791,13 +921,36 @@ function Build-SysPanel {
         $diskLabel = $sysInfo.Disk
     }
 
+    # Собираем все логические диски
+    $allDisks = @()
+    try {
+        $logicalDisks = Get-WmiObject Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 }
+        foreach ($ld in $logicalDisks) {
+            try {
+                $part = Get-WmiObject -Query "ASSOCIATORS OF {Win32_LogicalDisk.DeviceID='$($ld.DeviceID)'} WHERE AssocClass=Win32_LogicalDiskToPartition" | Select-Object -First 1
+                $phys = Get-WmiObject -Query "ASSOCIATORS OF {Win32_DiskPartition.DeviceID='$($part.DeviceID)'} WHERE AssocClass=Win32_DiskDriveToDiskPartition" | Select-Object -First 1
+                $model = ($phys.Model -replace '\s+',' ').Trim()
+            } catch { $model = "Неизвестно" }
+            $freeGB  = [math]::Round($ld.FreeSpace / 1GB, 1)
+            $totalGB = [math]::Round($ld.Size / 1GB, 1)
+            $isSystem = $ld.DeviceID -eq "C:"
+            $allDisks += @{
+                Letter   = $ld.DeviceID
+                Model    = $model
+                FreeGB   = $freeGB
+                TotalGB  = $totalGB
+                IsSystem = $isSystem
+                PhysDisk = $phys
+            }
+        }
+    } catch {}
+
     $sysItems = @(
-        @{ L="💻 Операционная система"; V=$sysInfo.OS;     Btn=$null }
-        @{ L="⚙️ Процессор";            V=$sysInfo.CPU;    Btn=$null }
-        @{ L="🧠 Оперативная память";   V=$sysInfo.RAM;    Btn=$null }
-        @{ L="💾 Диск";                 V=$diskLabel;      Btn=$null }
-        @{ L="⏱️ Время работы";         V=$sysInfo.Uptime; Btn=$null }
-        @{ L="📂 Рабочая папка";        V=$script:WorkFolder; Btn="Открыть" }
+        @{ L="💻 Операционная система"; V=$sysInfo.OS;        Btn=$null;    BtnData=$null }
+        @{ L="⚙️ Процессор";            V=$sysInfo.CPU;       Btn=$null;    BtnData=$null }
+        @{ L="🧠 Оперативная память";   V=$sysInfo.RAM;       Btn=$null;    BtnData=$null }
+        @{ L="⏱️ Время работы";         V=$sysInfo.Uptime;    Btn=$null;    BtnData=$null }
+        @{ L="📂 Рабочая папка";        V=$script:WorkFolder; Btn="Открыть";BtnData=$null }
     )
 
     $sysPanel.Children.Clear()
@@ -829,8 +982,8 @@ function Build-SysPanel {
         $g.Children.Add($lbl) | Out-Null
         $g.Children.Add($val) | Out-Null
 
-        # Кнопка "Открыть" только для рабочей папки
-        if ($item.Btn) {
+        # Кнопки действий
+        if ($item.Btn -eq "Открыть") {
             $folderPath = $item.V
             $openBtn = [System.Windows.Controls.Button]::new()
             $openBtn.Content = "📂 Открыть"
@@ -855,6 +1008,159 @@ function Build-SysPanel {
 
         $row.Child = $g
         $sysPanel.Children.Add($row) | Out-Null
+    }
+
+    # ── Диски — внизу списка ─────────────────────────────────
+    if ($allDisks.Count -gt 0) {
+        $diskHeader = [System.Windows.Controls.Border]::new()
+        $diskHeader.Margin = [System.Windows.Thickness]::new(0,8,0,4)
+        $diskHeader.Padding = [System.Windows.Thickness]::new(0,0,0,6)
+        $diskHeader.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
+        $diskHeader.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
+        $dhTxt = [System.Windows.Controls.TextBlock]::new()
+        $dhTxt.Text = "ДИСКИ"; $dhTxt.FontSize = 11; $dhTxt.FontWeight = "SemiBold"
+        $dhTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
+        $diskHeader.Child = $dhTxt
+        $sysPanel.Children.Add($diskHeader) | Out-Null
+
+        foreach ($disk in $allDisks) {
+            $drow = [System.Windows.Controls.Border]::new()
+            $drow.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
+            $drow.CornerRadius = [System.Windows.CornerRadius]::new(8)
+            $drow.Margin = [System.Windows.Thickness]::new(0,3,0,3)
+            $drow.Padding = [System.Windows.Thickness]::new(16,10,16,10)
+
+            $dg = [System.Windows.Controls.Grid]::new()
+            $dc1 = [System.Windows.Controls.ColumnDefinition]::new(); $dc1.Width = "40"
+            $dc2 = [System.Windows.Controls.ColumnDefinition]::new(); $dc2.Width = "*"
+            $dc3 = [System.Windows.Controls.ColumnDefinition]::new(); $dc3.Width = "Auto"
+            $dc4 = [System.Windows.Controls.ColumnDefinition]::new(); $dc4.Width = "Auto"
+            $dg.ColumnDefinitions.Add($dc1); $dg.ColumnDefinitions.Add($dc2)
+            $dg.ColumnDefinitions.Add($dc3); $dg.ColumnDefinitions.Add($dc4)
+
+            # Буква диска
+            $dl = [System.Windows.Controls.TextBlock]::new()
+            $dl.Text = $disk.Letter; $dl.FontSize = 14; $dl.FontWeight = "Bold"
+            $dl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#8080d0")
+            $dl.VerticalAlignment = "Center"
+
+            # Инфо: модель + свободно
+            $dinfo = [System.Windows.Controls.StackPanel]::new(); $dinfo.VerticalAlignment = "Center"
+            $dmodel = [System.Windows.Controls.TextBlock]::new()
+            $dmodel.Text = $disk.Model; $dmodel.FontSize = 12; $dmodel.FontWeight = "Medium"
+            $dmodel.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d0d0f0")
+            $dmodel.TextTrimming = "CharacterEllipsis"
+            $dspace = [System.Windows.Controls.TextBlock]::new()
+            $dspace.Text = "$($disk.FreeGB) ГБ своб. из $($disk.TotalGB) ГБ"
+            $dspace.FontSize = 10
+            $dspace.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
+            $dinfo.Children.Add($dmodel) | Out-Null; $dinfo.Children.Add($dspace) | Out-Null
+            [System.Windows.Controls.Grid]::SetColumn($dinfo, 1)
+
+            # Тег СИСТЕМА
+            if ($disk.IsSystem) {
+                $sysBadge = [System.Windows.Controls.Border]::new()
+                $sysBadge.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a4a")
+                $sysBadge.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#3a3aaa")
+                $sysBadge.BorderThickness = [System.Windows.Thickness]::new(1)
+                $sysBadge.CornerRadius = [System.Windows.CornerRadius]::new(4)
+                $sysBadge.Padding = [System.Windows.Thickness]::new(6,2,6,2)
+                $sysBadge.VerticalAlignment = "Center"; $sysBadge.Margin = [System.Windows.Thickness]::new(8,0,0,0)
+                $sysTxt = [System.Windows.Controls.TextBlock]::new()
+                $sysTxt.Text = "СИСТЕМА"; $sysTxt.FontSize = 10; $sysTxt.FontWeight = "SemiBold"
+                $sysTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#8080ff")
+                $sysBadge.Child = $sysTxt
+                [System.Windows.Controls.Grid]::SetColumn($sysBadge, 2)
+                $dg.Children.Add($sysBadge) | Out-Null
+            }
+
+            # Кнопка SMART
+            $smBtn = [System.Windows.Controls.Button]::new()
+            $smBtn.Content = "🔍 SMART"; $smBtn.FontSize = 11
+            $smBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a2a42")
+            $smBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#7ab0e0")
+            $smBtn.BorderThickness = [System.Windows.Thickness]::new(0)
+            $smBtn.Cursor = [System.Windows.Input.Cursors]::Hand
+            $smBtn.Padding = [System.Windows.Thickness]::new(10,4,10,4)
+            $smBtn.VerticalAlignment = "Center"; $smBtn.Margin = [System.Windows.Thickness]::new(8,0,0,0)
+            $smBtn.Tag = $disk.PhysDisk
+            $smBtn.Add_Click({
+                $driveObj = $this.Tag
+                try {
+                    $physDisk = Get-PhysicalDisk | Where-Object {
+                        $driveObj -and ($_.FriendlyName -like "*$($driveObj.Model.Trim().Split(' ')[0])*")
+                    } | Select-Object -First 1
+                    if (-not $physDisk) { $physDisk = Get-PhysicalDisk | Select-Object -First 1 }
+                    $rel = $physDisk | Get-StorageReliabilityCounter
+                    $healthRu = switch ($physDisk.HealthStatus) {
+                        "Healthy"   {"✅ Здоров"} "Warning" {"⚠️ Предупреждение"}
+                        "Unhealthy" {"❌ Неисправен"} default {"❓ Неизвестно"}
+                    }
+                    $healthColor = switch ($physDisk.HealthStatus) {
+                        "Healthy" {"#2ecc71"} "Warning" {"#f39c12"} "Unhealthy" {"#e74c3c"} default {"#a0a0c0"}
+                    }
+                    [xml]$sx = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        Title="SMART — $($physDisk.FriendlyName)" Width="460" Height="420"
+        WindowStartupLocation="CenterScreen" Background="#12121f" ResizeMode="NoResize">
+  <StackPanel Margin="20">
+    <TextBlock Text="$($physDisk.FriendlyName)" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,0,0,4"/>
+    <TextBlock Text="$($physDisk.MediaType)  •  $([math]::Round($physDisk.Size/1GB)) ГБ" Foreground="#606080" FontSize="11" Margin="0,0,0,14"/>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="Состояние" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Text="$healthRu" Foreground="$healthColor" FontSize="12" FontWeight="Bold"/>
+      </Grid>
+    </Border>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="Температура" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Text="$(if($rel.Temperature){"$($rel.Temperature) °C"}else{"Нет данных"})" Foreground="$(if($rel.Temperature -gt 50){"#e74c3c"}elseif($rel.Temperature -gt 40){"#f39c12"}else{"#2ecc71"})" FontSize="12" FontWeight="Bold"/>
+      </Grid>
+    </Border>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="Часов наработки" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Text="$(if($rel.PowerOnHours){"$($rel.PowerOnHours) ч"}else{"Нет данных"})" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/>
+      </Grid>
+    </Border>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="Ошибки чтения" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Text="$(if($rel.ReadErrorsTotal){"$($rel.ReadErrorsTotal)"}else{"0"})" Foreground="$(if($rel.ReadErrorsTotal -gt 0){"#f39c12"}else{"#2ecc71"})" FontSize="12" FontWeight="Bold"/>
+      </Grid>
+    </Border>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="Ошибки записи" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Text="$(if($rel.WriteErrorsTotal){"$($rel.WriteErrorsTotal)"}else{"0"})" Foreground="$(if($rel.WriteErrorsTotal -gt 0){"#f39c12"}else{"#2ecc71"})" FontSize="12" FontWeight="Bold"/>
+      </Grid>
+    </Border>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,14">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="Износ" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Text="$(if($rel.Wear){"$($rel.Wear)%"}else{"Нет данных"})" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/>
+      </Grid>
+    </Border>
+    <TextBlock Text="⚠ Данные через Windows Storage API. Для детального анализа используйте CrystalDiskInfo." Foreground="#404060" FontSize="10" TextWrapping="Wrap"/>
+  </StackPanel>
+</Window>
+"@
+                    $sr = [System.Xml.XmlNodeReader]::new($sx)
+                    $sw = [Windows.Markup.XamlReader]::Load($sr)
+                    $sw.ShowDialog() | Out-Null
+                } catch {
+                    [System.Windows.MessageBox]::Show("Не удалось получить SMART данные:`n$_","SMART","OK","Warning")
+                }
+            })
+            $smBtn.Add_MouseEnter({ $this.Opacity = 0.8 })
+            $smBtn.Add_MouseLeave({ $this.Opacity = 1.0 })
+            [System.Windows.Controls.Grid]::SetColumn($smBtn, 3)
+
+            $dg.Children.Add($dl) | Out-Null; $dg.Children.Add($dinfo) | Out-Null; $dg.Children.Add($smBtn) | Out-Null
+            $drow.Child = $dg
+            $sysPanel.Children.Add($drow) | Out-Null
+        }
     }
 }
 
@@ -1058,6 +1364,129 @@ function Install-SelectedUpdates {
 }
 
 # ═══ Диагностика / Тест системы ═══
+# ═══ Автозагрузка ═══
+$script:StartupCheckboxes = @{}
+$script:TaskCheckboxes    = @{}
+
+function Build-StartupPanel {
+    $startupAppsPanel.Children.Clear()
+    $scheduledTasksPanel.Children.Clear()
+    $script:StartupCheckboxes.Clear()
+    $script:TaskCheckboxes.Clear()
+
+    # Реестр автозагрузки
+    $regPaths = @(
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run",
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run",
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"
+    )
+    $startupItems = @()
+    foreach ($rp in $regPaths) {
+        try {
+            $props = Get-ItemProperty -Path $rp -ErrorAction SilentlyContinue
+            if ($props) {
+                $props.PSObject.Properties |
+                    Where-Object { $_.Name -notin @("PSPath","PSParentPath","PSChildName","PSDrive","PSProvider") } |
+                    ForEach-Object { $startupItems += @{ Name=$_.Name; Value=$_.Value; RegKey=$rp } }
+            }
+        } catch {}
+    }
+
+    if ($startupItems.Count -eq 0) {
+        $lbl = [System.Windows.Controls.TextBlock]::new()
+        $lbl.Text = "Автозагрузка пуста"; $lbl.FontSize = 12
+        $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
+        $lbl.Margin = [System.Windows.Thickness]::new(4,8,0,0)
+        $startupAppsPanel.Children.Add($lbl) | Out-Null
+    }
+
+    foreach ($item in $startupItems) {
+        $card = [System.Windows.Controls.Border]::new()
+        $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
+        $card.CornerRadius = [System.Windows.CornerRadius]::new(6)
+        $card.Margin = [System.Windows.Thickness]::new(0,2,0,2)
+        $card.Padding = [System.Windows.Thickness]::new(10,7,10,7)
+        $g = [System.Windows.Controls.Grid]::new()
+        $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = [System.Windows.GridLength]::new(24)
+        $c2 = [System.Windows.Controls.ColumnDefinition]::new(); $c2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2)
+        $cb = [System.Windows.Controls.CheckBox]::new(); $cb.VerticalAlignment = "Center"
+        $cb.Tag = @{ Name=$item.Name; RegKey=$item.RegKey }
+        [System.Windows.Controls.Grid]::SetColumn($cb, 0)
+        $script:StartupCheckboxes["$($item.RegKey)|$($item.Name)"] = $cb
+        $stk = [System.Windows.Controls.StackPanel]::new(); $stk.VerticalAlignment = "Center"
+        $nm = [System.Windows.Controls.TextBlock]::new()
+        $nm.Text = $item.Name; $nm.FontSize = 12; $nm.FontWeight = "Medium"
+        $nm.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d0d0f0")
+        $nm.TextTrimming = "CharacterEllipsis"
+        $exe = try { [System.IO.Path]::GetFileName(($item.Value -replace '"','').Trim().Split(" ")[0]) } catch { $item.Value }
+        $sub = [System.Windows.Controls.TextBlock]::new()
+        $sub.Text = $exe; $sub.FontSize = 10; $sub.TextTrimming = "CharacterEllipsis"
+        $sub.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#404060")
+        $stk.Children.Add($nm) | Out-Null; $stk.Children.Add($sub) | Out-Null
+        [System.Windows.Controls.Grid]::SetColumn($stk, 1)
+        $g.Children.Add($cb) | Out-Null; $g.Children.Add($stk) | Out-Null
+        $card.Child = $g
+        $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
+        $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+        $startupAppsPanel.Children.Add($card) | Out-Null
+    }
+
+    # Запланированные задачи
+    try {
+        $tasks = @(Get-ScheduledTask -ErrorAction SilentlyContinue |
+            Where-Object { $_.State -ne "Disabled" -and $_.Triggers.Count -gt 0 } |
+            Where-Object { $_.TaskPath -notmatch "\Microsoft\Windows\(UpdateOrchestrator|WindowsUpdate|Plug and Play|Power Efficiency|Diagnosis)" } |
+            Sort-Object TaskName | Select-Object -First 60)
+    } catch { $tasks = @() }
+
+    if ($tasks.Count -eq 0) {
+        $lbl = [System.Windows.Controls.TextBlock]::new()
+        $lbl.Text = "Задачи не найдены"; $lbl.FontSize = 12
+        $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
+        $lbl.Margin = [System.Windows.Thickness]::new(4,8,0,0)
+        $scheduledTasksPanel.Children.Add($lbl) | Out-Null
+        return
+    }
+
+    foreach ($task in $tasks) {
+        $card = [System.Windows.Controls.Border]::new()
+        $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
+        $card.CornerRadius = [System.Windows.CornerRadius]::new(6)
+        $card.Margin = [System.Windows.Thickness]::new(0,2,0,2)
+        $card.Padding = [System.Windows.Thickness]::new(10,7,10,7)
+        $g = [System.Windows.Controls.Grid]::new()
+        $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = [System.Windows.GridLength]::new(24)
+        $c2 = [System.Windows.Controls.ColumnDefinition]::new(); $c2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2)
+        $cb = [System.Windows.Controls.CheckBox]::new(); $cb.VerticalAlignment = "Center"
+        $cb.Tag = @{ Name=$task.TaskName; Path=$task.TaskPath }
+        [System.Windows.Controls.Grid]::SetColumn($cb, 0)
+        $script:TaskCheckboxes["$($task.TaskPath)$($task.TaskName)"] = $cb
+        $stk = [System.Windows.Controls.StackPanel]::new(); $stk.VerticalAlignment = "Center"
+        $nm = [System.Windows.Controls.TextBlock]::new()
+        $nm.Text = $task.TaskName; $nm.FontSize = 12; $nm.FontWeight = "Medium"
+        $nm.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d0d0f0")
+        $nm.TextTrimming = "CharacterEllipsis"
+        $trigClass = if ($task.Triggers.Count -gt 0) { "$($task.Triggers[0].CimClass.CimClassName)" } else { "" }
+        $trigRu = switch -Wildcard ($trigClass) {
+            "*Logon*" {"При входе"} "*Boot*" {"При запуске"}
+            "*Daily*" {"Ежедневно"} "*Weekly*" {"Еженедельно"}
+            "*Time*"  {"По расписанию"} default {"Триггер"}
+        }
+        $sub = [System.Windows.Controls.TextBlock]::new()
+        $sub.Text = "$trigRu  •  $($task.TaskPath)"; $sub.FontSize = 10; $sub.TextTrimming = "CharacterEllipsis"
+        $sub.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#404060")
+        $stk.Children.Add($nm) | Out-Null; $stk.Children.Add($sub) | Out-Null
+        [System.Windows.Controls.Grid]::SetColumn($stk, 1)
+        $g.Children.Add($cb) | Out-Null; $g.Children.Add($stk) | Out-Null
+        $card.Child = $g
+        $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
+        $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+        $scheduledTasksPanel.Children.Add($card) | Out-Null
+    }
+}
+
 function Build-DiagPanel {
     $diagPanel.Children.Clear()
 
@@ -1204,7 +1633,12 @@ $installUpdatesBtn.Add_Click({ Install-SelectedUpdates })
 $runScriptsBtn.Add_Click({ Run-SelectedScripts })
 $selectAllBtn.Add_Click({ foreach ($cb in $script:ScriptCheckboxes.Values) { $cb.IsChecked = $true }; Update-SelectedCount })
 $deselectAllBtn.Add_Click({ foreach ($cb in $script:ScriptCheckboxes.Values) { $cb.IsChecked = $false }; Update-SelectedCount })
-$refreshBtn.Add_Click({ Write-Log "Обновление списка..."; Build-ScriptsPanel })
+$refreshBtn.Add_Click({
+    Download-Repo -Force
+    $scriptsFolderText.Text = $script:ScriptsFolder
+    Build-ScriptsPanel
+    Write-Log "✓ Список скриптов обновлён"
+})
 $selectRecommendedBtn.Add_Click({ Select-RecommendedScripts })
 
 # ─── Поиск в Модулях ───────────────────────────────────────────────────────
@@ -1296,6 +1730,30 @@ $copyLogBtn.Add_Click({
 
 $restorePointBtn.Add_Click({ Create-RestorePoint })
 
+$refreshStartupBtn.Add_Click({ Build-StartupPanel })
+
+$disableStartupBtn.Add_Click({
+    $count = 0
+    foreach ($kv in $script:StartupCheckboxes.GetEnumerator()) {
+        if (-not $kv.Value.IsChecked) { continue }
+        $tag = $kv.Value.Tag
+        try {
+            Remove-ItemProperty -Path $tag.RegKey -Name $tag.Name -Force -ErrorAction Stop
+            Write-Log "✓ Убрана автозагрузка: $($tag.Name)" -Color "Green"; $count++
+        } catch { Write-Log "✗ $($tag.Name): $_" -Color "Red" }
+    }
+    foreach ($kv in $script:TaskCheckboxes.GetEnumerator()) {
+        if (-not $kv.Value.IsChecked) { continue }
+        $tag = $kv.Value.Tag
+        try {
+            Disable-ScheduledTask -TaskName $tag.Name -TaskPath $tag.Path -ErrorAction Stop | Out-Null
+            Write-Log "✓ Задача отключена: $($tag.Name)" -Color "Green"; $count++
+        } catch { Write-Log "✗ $($tag.Name): $_" -Color "Red" }
+    }
+    if ($count -gt 0) { Write-Log "Отключено: $count"; Build-StartupPanel }
+    else { Write-Log "⚠ Нет выбранных элементов" -Color "Yellow" }
+})
+
 $presetOfficeBtn.Add_Click({ Select-Preset "Office-pack" })
 $presetGamesBtn.Add_Click({ Select-Preset "Games-pack" })
 
@@ -1341,6 +1799,7 @@ $window.Add_Loaded({
     Build-AppsPanel
     Build-SysPanel
     Build-DiagPanel
+    Build-StartupPanel
 
     Write-Log "✓ Готов к работе." -Color "Green"
 })
