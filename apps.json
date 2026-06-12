@@ -35,7 +35,7 @@
       {"Name": "BCUninstaller", "Id": "Klocman.BulkCrapUninstaller", "Description": "Бесплатный деинсталлятор программ с расширенными возможностями."},
       {"Name": "QuickLook", "Id": "QL-Win.QuickLook", "Description": "Быстрый предварительный просмотр файлов по нажатию пробела."},
       {"Name": "EarTrumpet", "Id": "File-New-Project.EarTrumpet", "Description": "Расширенный регулятор громкости для Windows."},
-      {"Name": "ExplorerPatcher", "Id": "valinet.ExplorerPatcher", "Description": "Патч для Проводника Windows, возвращающий старый вид."},
+      {"Name": "ExplorerPatcher", "Id": "valinet.ExplorerPatcher", "Description": "Патч для Проводника Windows, возвращающий старый вид. (WIN-11)"},
       {"Name": "NetTime", "Id": "MarkGriffiths.NetTime", "Description": "Утилита для синхронизации времени с NTP-серверами."},
       {"Name": "NormCap", "Id": "dynobo.NormCap", "Description": "Инструмент для захвата экрана с функцией OCR, позволяющий извлекать текст из любого места на рабочем столе."},
       {"Name": "LockHunter", "Id": "CrystalRich.LockHunter", "Description": "Бесплатный инструмент для разблокировки файлов, занятых неизвестными процессами, с возможностью их удаления или переименования."},
