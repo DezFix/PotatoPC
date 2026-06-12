@@ -1,5 +1,5 @@
-﻿# NAME: Disable Cortana
-# DESC: Disables Cortana and web search integration
+﻿# NAME: Отключить Cortana
+# DESC: Отключение интеграции с Cortana и веб-поиском
 # TAGS: 3
 # ICON: 🎤
 
