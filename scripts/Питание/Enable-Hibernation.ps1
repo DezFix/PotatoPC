@@ -1,6 +1,6 @@
 ﻿# NAME: Включение Гибернации
 # DESC: Включает гибернацию и проводит ее настройку
-# CATEGORY: Разное
+# TAGS: 1
 # ICON: ⚡
 
 Write-Host "=== Настройка гибернации Windows ===" -ForegroundColor Cyan
