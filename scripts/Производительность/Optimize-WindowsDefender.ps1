@@ -1,6 +1,6 @@
 ﻿# NAME: Windows Defender отпимизация
 # DESC: Оптимизация Windows Defender для снижения нагрузки на CPU (с предупреждением о компромиссах безопасности)
-# CATEGORY: Производительность
+# TAGS: 2
 # ICON: 🛡️
 
 #Requires -RunAsAdministrator
