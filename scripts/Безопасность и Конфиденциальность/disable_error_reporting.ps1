@@ -1,6 +1,6 @@
 ﻿# NAME: Отключение отчетов об ошибках (WER)
 # DESC: Отключает Windows Error Reporting и Compatibility Assistant
-# CATEGORY: Конфиденциальность
+# TAGS: 2
 # ICON: 🚫
 
 Write-Host "[+] Отключение отчетов об ошибках..." -ForegroundColor Yellow
