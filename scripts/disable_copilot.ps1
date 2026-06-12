@@ -1,5 +1,5 @@
-﻿# NAME: Disable Copilot
-# DESC: Disables Windows Copilot AI assistant
+﻿# NAME: Отключить Copilot
+# DESC: Отключает AI-ассистент Windows Copilot
 # TAGS: 3
 # ICON: 🤖
 
