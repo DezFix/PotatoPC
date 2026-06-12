@@ -1,6 +1,6 @@
 ﻿# NAME: Disable Cortana
 # DESC: Disables Cortana and web search integration
-# CATEGORY: Privacy
+# TAGS: 3
 # ICON: 🎤
 
 $regItems = @(
