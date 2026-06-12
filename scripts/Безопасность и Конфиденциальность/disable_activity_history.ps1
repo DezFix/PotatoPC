@@ -1,6 +1,6 @@
 ﻿# NAME: Отключение истории действий
 # DESC: Отключает сбор и синхронизацию истории действий пользователя
-# CATEGORY: Конфиденциальность
+# TAGS: 2
 # ICON: 📜
 
 $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
