@@ -1456,7 +1456,7 @@ function Build-StartupPanel {
     try {
         $tasks = @(Get-ScheduledTask -ErrorAction SilentlyContinue |
             Where-Object { $_.State -ne "Disabled" -and $_.Triggers.Count -gt 0 } |
-            Where-Object { $_.TaskPath -notmatch "\\Microsoft\\Windows\\(UpdateOrchestrator|WindowsUpdate|Plug and Play|Power Efficiency|Diagnosis)" } |
+            Where-Object { $_.TaskPath -notmatch "\\Microsoft\\" } |
             Sort-Object TaskName | Select-Object -First 60)
     } catch { $tasks = @() }
 
