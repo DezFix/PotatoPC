@@ -205,6 +205,9 @@ function Write-Log($msg, $color = "Default") {
         <Style x:Key="BtnGold" TargetType="Button" BasedOn="{StaticResource BtnPrimary}">
             <Setter Property="Background" Value="#d4a017"/>
         </Style>
+        <Style x:Key="BtnDanger" TargetType="Button" BasedOn="{StaticResource BtnPrimary}">
+            <Setter Property="Background" Value="#8b1a1a"/>
+        </Style>
         <Style TargetType="TabItem">
             <Setter Property="Foreground" Value="#9090b0"/>
             <Setter Property="Background" Value="#1a1a2e"/>
@@ -330,46 +333,92 @@ function Write-Log($msg, $color = "Default") {
                     </StackPanel>
                 </TabItem.Header>
                 <Grid Background="#12121f">
-                    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Grid Grid.Row="0" Margin="14,12,14,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Grid Grid.Column="0">
-                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                            <Border Grid.Row="0" Background="#1a1a2e" CornerRadius="8" Padding="12,8" Margin="0,0,0,6">
-                                <TextBlock Text="📋 Автозагрузка приложений" Foreground="#6c63ff" FontSize="12" FontWeight="SemiBold"/>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Панель фильтров + статистика -->
+                    <Border Grid.Row="0" Background="#16162a" Padding="14,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <!-- Кнопки-фильтры -->
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="StartupFilterAllBtn"  Content="📋 Все"              Height="28" FontSize="11" Margin="0,0,5,0" Style="{StaticResource BtnPrimary}"/>
+                                <Button x:Name="StartupFilterAppBtn"  Content="📦 Приложения"       Height="28" FontSize="11" Margin="0,0,5,0" Style="{StaticResource BtnSecondary}"/>
+                                <Button x:Name="StartupFilterTaskBtn" Content="🗓️ Задачи"           Height="28" FontSize="11" Style="{StaticResource BtnSecondary}"/>
+                            </StackPanel>
+                            <!-- Счётчик -->
+                            <TextBlock x:Name="StartupCountText" Grid.Column="1"
+                                       Foreground="#50507a" FontSize="11" VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"/>
+                            <!-- Поиск -->
+                            <Border Grid.Column="2" Background="#12121f" CornerRadius="6" BorderBrush="#2a2a45" BorderThickness="1" Width="220">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="🔍" FontSize="12" Foreground="#505070" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                    <TextBox x:Name="StartupSearchBox" Grid.Column="1"
+                                             Background="Transparent" Foreground="#c0c0e0" FontSize="11"
+                                             BorderThickness="0" Padding="6,5" VerticalAlignment="Center"
+                                             CaretBrush="#6c63ff"/>
+                                    <TextBlock x:Name="StartupSearchHint" Grid.Column="1"
+                                               Text="Поиск..." Foreground="#404060" FontSize="11"
+                                               VerticalAlignment="Center" Margin="6,0,0,0" IsHitTestVisible="False"/>
+                                    <Button x:Name="StartupSearchClear" Grid.Column="2" Content="✕"
+                                            Background="Transparent" Foreground="#505070" BorderThickness="0"
+                                            FontSize="11" Cursor="Hand" Padding="6,4" Visibility="Collapsed"/>
+                                </Grid>
                             </Border>
-                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                                <StackPanel x:Name="StartupAppsPanel" Margin="0,0,0,8"/>
-                            </ScrollViewer>
                         </Grid>
-                        <Grid Grid.Column="2">
-                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                            <Border Grid.Row="0" Background="#1a1a2e" CornerRadius="8" Padding="12,8" Margin="0,0,0,6">
-                                <TextBlock Text="🗓️ Запланированные задачи" Foreground="#6c63ff" FontSize="12" FontWeight="SemiBold"/>
-                            </Border>
-                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                                <StackPanel x:Name="ScheduledTasksPanel" Margin="0,0,0,8"/>
-                            </ScrollViewer>
+                    </Border>
+
+                    <!-- Заголовки колонок -->
+                    <Border Grid.Row="1" Background="#0e0e1e" Padding="14,5,14,5">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="24"/>
+                                <ColumnDefinition Width="28"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="130"/>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="80"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="2" Text="ПРИЛОЖЕНИЕ" Foreground="#30305a" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="3" Text="ИЗДАТЕЛЬ"   Foreground="#30305a" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="4" Text="ИСТОЧНИК"   Foreground="#30305a" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="5" Text="СТАТУС"     Foreground="#30305a" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Grid>
-                    </Grid>
-                    <Border Grid.Row="1" Background="#16162a" Padding="14,10">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="🔄 Обновить" x:Name="RefreshStartupBtn" Style="{StaticResource BtnSecondary}" Height="30" FontSize="11" Margin="0,0,8,0"/>
-                            <Button x:Name="DisableStartupBtn" Height="30" FontSize="11" Cursor="Hand" BorderThickness="0" Foreground="White" Padding="12,6">
-                                <Button.Content>❌ Отключить выбранные</Button.Content>
-                                <Button.Background><SolidColorBrush Color="#7a1f1f"/></Button.Background>
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.82"/></Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                        </StackPanel>
+                    </Border>
+
+                    <!-- Единый список -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
+                        <StackPanel x:Name="StartupAppsPanel" Margin="10,4,10,4"/>
+                    </ScrollViewer>
+
+                    <!-- Нижняя панель действий -->
+                    <Border Grid.Row="3" Background="#16162a" Padding="14,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock x:Name="StartupSelectedText" Foreground="#6060a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                <Button Content="✓ Все" x:Name="SelectAllStartupBtn"    Style="{StaticResource BtnSecondary}" Height="28" Width="60"  FontSize="11" Margin="0,0,5,0"/>
+                                <Button Content="✗ Снять" x:Name="DeselectAllStartupBtn" Style="{StaticResource BtnSecondary}" Height="28" Width="65"  FontSize="11"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="🔄 Обновить" x:Name="RefreshStartupBtn" Style="{StaticResource BtnSecondary}" Height="30" FontSize="11" Margin="0,0,8,0"/>
+                                <Button Content="⏸ Отключить выбранные" x:Name="DisableStartupBtn" Style="{StaticResource BtnDanger}" Height="30" FontSize="11" Margin="0,0,6,0"/>
+                                <Button Content="▶ Включить выбранные"  x:Name="EnableStartupBtn"  Style="{StaticResource BtnSecondary}" Height="30" FontSize="11"/>
+                            </StackPanel>
+                        </Grid>
                     </Border>
                 </Grid>
             </TabItem>
@@ -539,9 +588,21 @@ $installUpdatesBtn     = $window.FindName("InstallUpdatesBtn")
 $updateStatusText      = $window.FindName("UpdateStatusText")
 $updateCountText       = $window.FindName("UpdateCountText")
 $startupAppsPanel      = $window.FindName("StartupAppsPanel")
-$scheduledTasksPanel   = $window.FindName("ScheduledTasksPanel")
+$scheduledTasksPanel   = $null   # больше не используется (единый список)
 $refreshStartupBtn     = $window.FindName("RefreshStartupBtn")
 $disableStartupBtn     = $window.FindName("DisableStartupBtn")
+$enableStartupBtn      = $window.FindName("EnableStartupBtn")
+$selectAllStartupBtn   = $window.FindName("SelectAllStartupBtn")
+$deselectAllStartupBtn = $window.FindName("DeselectAllStartupBtn")
+$startupFilterAllBtn   = $window.FindName("StartupFilterAllBtn")
+$startupFilterAppBtn   = $window.FindName("StartupFilterAppBtn")
+$startupFilterTaskBtn  = $window.FindName("StartupFilterTaskBtn")
+$startupCountText      = $window.FindName("StartupCountText")
+$startupSelectedText   = $window.FindName("StartupSelectedText")
+$startupSearchBox      = $window.FindName("StartupSearchBox")
+$startupSearchHint     = $window.FindName("StartupSearchHint")
+$startupSearchClear    = $window.FindName("StartupSearchClear")
+$script:StartupFilter  = "All"   # All | Apps | Tasks
 $scriptSearchBox       = $window.FindName("ScriptSearchBox")
 $scriptSearchHint      = $window.FindName("ScriptSearchHint")
 $scriptSearchClear     = $window.FindName("ScriptSearchClear")
@@ -1252,76 +1313,94 @@ function Scan-FolderStartup {
     return $result
 }
 
+
+# Вспомогательная функция обновления счётчика выбранных
+function Update-StartupSelectedCount {
+    $apps  = ($script:StartupCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+    $tasks = ($script:TaskCheckboxes.Values    | Where-Object { $_.IsChecked }).Count
+    $total = $apps + $tasks
+    if ($total -eq 0) { $startupSelectedText.Text = "" }
+    else { $startupSelectedText.Text = "Выбрано: $total" }
+}
+
+# Применяет текущий фильтр и поиск к карточкам списка
+function Apply-StartupFilter {
+    $q = $startupSearchBox.Text.Trim().ToLower()
+    foreach ($child in $startupAppsPanel.Children) {
+        if ($child -isnot [System.Windows.Controls.Border]) { continue }
+        $tag = $child.Tag
+        if ($null -eq $tag) { $child.Visibility = "Visible"; continue }
+
+        # Фильтр по типу
+        $typeOk = switch ($script:StartupFilter) {
+            "Apps"  { $tag.Type -eq "App" }
+            "Tasks" { $tag.Type -eq "Task" }
+            default { $true }
+        }
+
+        # Поиск по имени/издателю
+        $searchOk = $q -eq "" -or
+                    $tag.Name.ToLower()      -like "*$q*" -or
+                    $tag.Publisher.ToLower() -like "*$q*"
+
+        $child.Visibility = if ($typeOk -and $searchOk) { "Visible" } else { "Collapsed" }
+    }
+}
+
 function Build-StartupPanel {
     $startupAppsPanel.Children.Clear()
-    $scheduledTasksPanel.Children.Clear()
     $script:StartupCheckboxes.Clear()
     $script:TaskCheckboxes.Clear()
 
-    # ── Сбор всех источников автозагрузки ──────────────────────────────────
+    # ── Сбор автозагрузки реестра + папок ─────────────────────────────────
     $startupItems = @()
-
-    # Реестр Run
     $approvedRun     = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedRun'
     $approvedRunOnce = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedRunOnce'
 
     $startupItems += Scan-RegistryStartup `
         -RootKey ([Microsoft.Win32.Registry]::CurrentUser) `
         -SubKeyPath 'Software\Microsoft\Windows\CurrentVersion\Run' `
-        -ApprovedSubKeyPath $approvedRun `
-        -LocationLabel 'HKCU\Run'
+        -ApprovedSubKeyPath $approvedRun -LocationLabel 'HKCU\Run'
 
     $startupItems += Scan-RegistryStartup `
         -RootKey ([Microsoft.Win32.Registry]::LocalMachine) `
         -SubKeyPath 'Software\Microsoft\Windows\CurrentVersion\Run' `
-        -ApprovedSubKeyPath $approvedRun `
-        -LocationLabel 'HKLM\Run'
+        -ApprovedSubKeyPath $approvedRun -LocationLabel 'HKLM\Run'
 
     $startupItems += Scan-RegistryStartup `
         -RootKey ([Microsoft.Win32.Registry]::LocalMachine) `
         -SubKeyPath 'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' `
-        -ApprovedSubKeyPath $approvedRun `
-        -LocationLabel 'HKLM\Run (x86)'
+        -ApprovedSubKeyPath $approvedRun -LocationLabel 'HKLM\Run (x86)'
 
-    # RunOnce
     $startupItems += Scan-RegistryStartup `
         -RootKey ([Microsoft.Win32.Registry]::CurrentUser) `
         -SubKeyPath 'Software\Microsoft\Windows\CurrentVersion\RunOnce' `
-        -ApprovedSubKeyPath $approvedRunOnce `
-        -LocationLabel 'HKCU\RunOnce'
+        -ApprovedSubKeyPath $approvedRunOnce -LocationLabel 'HKCU\RunOnce'
 
     $startupItems += Scan-RegistryStartup `
         -RootKey ([Microsoft.Win32.Registry]::LocalMachine) `
         -SubKeyPath 'Software\Microsoft\Windows\CurrentVersion\RunOnce' `
-        -ApprovedSubKeyPath $approvedRunOnce `
-        -LocationLabel 'HKLM\RunOnce'
+        -ApprovedSubKeyPath $approvedRunOnce -LocationLabel 'HKLM\RunOnce'
 
-    # Папки автозагрузки
     $userStartup   = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Startup)
     $commonStartup = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::CommonStartup)
 
     $startupItems += Scan-FolderStartup `
-        -DirPath $userStartup `
-        -LocationLabel 'Папка (пользователь)' `
+        -DirPath $userStartup -LocationLabel 'Папка (пользователь)' `
         -RootKeyForApproved ([Microsoft.Win32.Registry]::CurrentUser)
 
     $startupItems += Scan-FolderStartup `
-        -DirPath $commonStartup `
-        -LocationLabel 'Папка (все пользователи)' `
+        -DirPath $commonStartup -LocationLabel 'Папка (все польз.)' `
         -RootKeyForApproved ([Microsoft.Win32.Registry]::LocalMachine)
 
-    # ── Параллельное получение Publisher + иконок ──────────────────────────
+    # ── Параллельно: иконки + издатель ────────────────────────────────────
     if ($startupItems.Count -gt 0) {
         $jobs = $startupItems | ForEach-Object {
             $item = $_
             [System.Threading.Tasks.Task]::Run([Action]{
                 if ($null -eq $item.Publisher) {
                     $info = Get-AppPublisher -Command $item.Command
-                    if (-not [string]::IsNullOrWhiteSpace($info.Publisher)) {
-                        $item.Publisher = $info.Publisher
-                    } else {
-                        $item.Publisher = $item.Location
-                    }
+                    $item.Publisher = if (-not [string]::IsNullOrWhiteSpace($info.Publisher)) { $info.Publisher } else { $item.Location }
                 }
                 $item.Icon = Get-AppIcon -Command $item.Command
             })
@@ -1329,118 +1408,171 @@ function Build-StartupPanel {
         [System.Threading.Tasks.Task]::WhenAll($jobs) | Out-Null
     }
 
-    # ── Построение UI ──────────────────────────────────────────────────────
+    # ── Сбор задач планировщика ────────────────────────────────────────────
+    $scheduledTasks = @()
+    try {
+        $scheduledTasks = @(Get-ScheduledTask -ErrorAction SilentlyContinue |
+            Where-Object { $_.TaskPath -notmatch "\\Microsoft\\" } |
+            Sort-Object TaskName | Select-Object -First 60)
+    } catch {}
+
+    # ── Обновляем счётчик в шапке ─────────────────────────────────────────
+    $enabledCount = ($startupItems | Where-Object { $_.IsEnabled }).Count
+    $totalCount   = $startupItems.Count + $scheduledTasks.Count
+    $startupCountText.Text = "Приложений: $totalCount  •  Активных: $enabledCount  •  Задач: $($scheduledTasks.Count)"
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # СЕКЦИЯ 1: Автозагрузка приложений
+    # ═══════════════════════════════════════════════════════════════════════
     if ($startupItems.Count -eq 0) {
         $lbl = [System.Windows.Controls.TextBlock]::new()
-        $lbl.Text = "Автозагрузка пуста"; $lbl.FontSize = 12
+        $lbl.Text = "Элементы автозагрузки не найдены"
         $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
-        $lbl.Margin = [System.Windows.Thickness]::new(4,8,0,0)
+        $lbl.FontSize = 12; $lbl.Margin = [System.Windows.Thickness]::new(4,8,0,0)
+        $lbl.Tag = [PSCustomObject]@{ Type="App"; Name=""; Publisher="" }
         $startupAppsPanel.Children.Add($lbl) | Out-Null
     }
 
-    # Сортируем: сначала включённые, потом по имени
+    # Заголовок секции приложений
+    $secApp = [System.Windows.Controls.Border]::new()
+    $secApp.Margin = [System.Windows.Thickness]::new(0,8,0,4)
+    $secApp.Padding = [System.Windows.Thickness]::new(0,0,0,6)
+    $secApp.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
+    $secApp.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
+    $secApp.Tag = [PSCustomObject]@{ Type="App"; Name="__header__"; Publisher="" }
+    $secTxt = [System.Windows.Controls.TextBlock]::new()
+    $secTxt.Text = "📦 АВТОЗАГРУЗКА ПРИЛОЖЕНИЙ ($($startupItems.Count))"
+    $secTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
+    $secTxt.FontSize = 10; $secTxt.FontWeight = "SemiBold"
+    $secApp.Child = $secTxt
+    $startupAppsPanel.Children.Add($secApp) | Out-Null
+
+    # Сортируем: включённые сверху, потом по имени
     $sorted = $startupItems | Sort-Object { -([int]$_.IsEnabled) }, Name
 
     foreach ($item in $sorted) {
         $card = [System.Windows.Controls.Border]::new()
-        $card.CornerRadius = [System.Windows.CornerRadius]::new(6)
+        $card.CornerRadius = [System.Windows.CornerRadius]::new(7)
         $card.Margin = [System.Windows.Thickness]::new(0,2,0,2)
         $card.Padding = [System.Windows.Thickness]::new(10,7,10,7)
+        $card.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
 
-        # Отключённые — приглушённый фон
         if ($item.IsEnabled) {
-            $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
+            $card.Background   = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
+            $card.BorderBrush  = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
         } else {
-            $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#131320")
-            $card.Opacity = 0.65
+            $card.Background   = [Windows.Media.BrushConverter]::new().ConvertFrom("#111118")
+            $card.BorderBrush  = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a25")
+            $card.Opacity      = 0.6
         }
 
-        # Grid: [чекбокс][иконка][текст][бейдж статуса][бейдж источника]
+        # Tag для фильтрации
+        $card.Tag = [PSCustomObject]@{
+            Type      = "App"
+            Name      = $item.Name
+            Publisher = if ($item.Publisher) { $item.Publisher } else { "" }
+        }
+
+        # Grid: [cb][ico][имя+путь][издатель][источник][статус]
         $g = [System.Windows.Controls.Grid]::new()
-        foreach ($w in @(24, 28, 0, 'Auto', 'Auto')) {
+        $widths = @(24, 28, 0, 130, 90, 70)
+        foreach ($w in $widths) {
             $dc = [System.Windows.Controls.ColumnDefinition]::new()
-            if ($w -eq 0) { $dc.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star) }
-            elseif ($w -eq 'Auto') { $dc.Width = [System.Windows.GridLength]::Auto }
-            else { $dc.Width = [System.Windows.GridLength]::new([int]$w) }
+            if ($w -eq 0) { $dc.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star) }
+            else          { $dc.Width = [System.Windows.GridLength]::new($w) }
             $g.ColumnDefinitions.Add($dc)
         }
 
         # Чекбокс
         $cb = [System.Windows.Controls.CheckBox]::new()
         $cb.VerticalAlignment = "Center"
-        $cb.Tag = @{ Name=$item.Name; RegKey=$item.PathOrKey; Location=$item.Location; IsEnabled=$item.IsEnabled }
+        $cb.Tag = @{
+            Type        = "App"
+            Name        = $item.Name
+            RegKey      = $item.PathOrKey
+            Location    = $item.Location
+            IsEnabled   = $item.IsEnabled
+            Command     = $item.Command
+        }
+        $cb.Add_Checked({   Update-StartupSelectedCount })
+        $cb.Add_Unchecked({ Update-StartupSelectedCount })
         [System.Windows.Controls.Grid]::SetColumn($cb, 0)
-        $key = "$($item.PathOrKey)|$($item.Name)"
-        $script:StartupCheckboxes[$key] = $cb
+        $script:StartupCheckboxes["$($item.PathOrKey)|$($item.Name)"] = $cb
 
         # Иконка
-        $iconCtrl = [System.Windows.Controls.Image]::new()
-        $iconCtrl.Width = 18; $iconCtrl.Height = 18
-        $iconCtrl.VerticalAlignment = "Center"
-        $iconCtrl.Margin = [System.Windows.Thickness]::new(2,0,8,0)
-        if ($item.Icon) { $iconCtrl.Source = $item.Icon }
-        [System.Windows.Controls.Grid]::SetColumn($iconCtrl, 1)
+        $ico = [System.Windows.Controls.Image]::new()
+        $ico.Width = 18; $ico.Height = 18; $ico.VerticalAlignment = "Center"
+        $ico.Margin = [System.Windows.Thickness]::new(0,0,6,0)
+        if ($item.Icon) { $ico.Source = $item.Icon }
+        [System.Windows.Controls.Grid]::SetColumn($ico, 1)
 
-        # Текстовый блок (имя + издатель)
-        $stk = [System.Windows.Controls.StackPanel]::new()
-        $stk.VerticalAlignment = "Center"
+        # Имя + путь
+        $nameStack = [System.Windows.Controls.StackPanel]::new()
+        $nameStack.VerticalAlignment = "Center"
+        $nameStack.Margin = [System.Windows.Thickness]::new(0,0,8,0)
 
+        $nmColor = if ($item.IsEnabled) { "#d0d0f0" } else { "#606070" }
         $nm = [System.Windows.Controls.TextBlock]::new()
         $nm.Text = $item.Name; $nm.FontSize = 12; $nm.FontWeight = "Medium"
-        $nmColor = if ($item.IsEnabled) { "#d0d0f0" } else { "#606070" }
         $nm.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($nmColor)
         $nm.TextTrimming = "CharacterEllipsis"
 
-        $pub = [System.Windows.Controls.TextBlock]::new()
-        $pub.Text = if (-not [string]::IsNullOrWhiteSpace($item.Publisher)) { $item.Publisher } else { $item.Command }
-        $pub.FontSize = 10; $pub.TextTrimming = "CharacterEllipsis"
-        $pub.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#404060")
+        $cmdShort = try { [System.IO.Path]::GetFileName($item.Command.Trim('"').Split(' ')[0]) } catch { $item.Command }
+        $pathLbl = [System.Windows.Controls.TextBlock]::new()
+        $pathLbl.Text = $cmdShort; $pathLbl.FontSize = 10; $pathLbl.TextTrimming = "CharacterEllipsis"
+        $pathLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#353550")
+        $nameStack.Children.Add($nm) | Out-Null
+        $nameStack.Children.Add($pathLbl) | Out-Null
+        [System.Windows.Controls.Grid]::SetColumn($nameStack, 2)
 
-        $stk.Children.Add($nm) | Out-Null
-        $stk.Children.Add($pub) | Out-Null
-        [System.Windows.Controls.Grid]::SetColumn($stk, 2)
+        # Издатель
+        $pubVal = if (-not [string]::IsNullOrWhiteSpace($item.Publisher)) { $item.Publisher } else { "—" }
+        $pubTxt = [System.Windows.Controls.TextBlock]::new()
+        $pubTxt.Text = $pubVal; $pubTxt.FontSize = 11; $pubTxt.TextTrimming = "CharacterEllipsis"
+        $pubTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
+        $pubTxt.VerticalAlignment = "Center"
+        $pubTxt.Margin = [System.Windows.Thickness]::new(0,0,8,0)
+        [System.Windows.Controls.Grid]::SetColumn($pubTxt, 3)
 
-        # Бейдж статуса (Вкл/Выкл)
-        $statusBadge = [System.Windows.Controls.Border]::new()
-        $statusBadge.CornerRadius = [System.Windows.CornerRadius]::new(4)
-        $statusBadge.Padding = [System.Windows.Thickness]::new(6,2,6,2)
-        $statusBadge.Margin = [System.Windows.Thickness]::new(6,0,0,0)
-        $statusBadge.VerticalAlignment = "Center"
-        $statusBadge.BorderThickness = [System.Windows.Thickness]::new(1)
-        $statusTxt = [System.Windows.Controls.TextBlock]::new()
-        $statusTxt.FontSize = 10; $statusTxt.FontWeight = "SemiBold"
+        # Бейдж источника
+        $locB = [System.Windows.Controls.Border]::new()
+        $locB.CornerRadius = [System.Windows.CornerRadius]::new(4)
+        $locB.Padding = [System.Windows.Thickness]::new(5,2,5,2)
+        $locB.VerticalAlignment = "Center"
+        $locB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#14142a")
+        $locB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a2a50")
+        $locB.BorderThickness = [System.Windows.Thickness]::new(1)
+        $locT = [System.Windows.Controls.TextBlock]::new()
+        $locT.Text = $item.Location; $locT.FontSize = 9
+        $locT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#505080")
+        $locB.Child = $locT
+        [System.Windows.Controls.Grid]::SetColumn($locB, 4)
+
+        # Бейдж статуса
+        $stB = [System.Windows.Controls.Border]::new()
+        $stB.CornerRadius = [System.Windows.CornerRadius]::new(4)
+        $stB.Padding = [System.Windows.Thickness]::new(6,2,6,2)
+        $stB.VerticalAlignment = "Center"; $stB.HorizontalAlignment = "Center"
+        $stB.BorderThickness = [System.Windows.Thickness]::new(1)
+        $stT = [System.Windows.Controls.TextBlock]::new()
+        $stT.FontSize = 10; $stT.FontWeight = "SemiBold"
         if ($item.IsEnabled) {
-            $statusBadge.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#0d2d1a")
-            $statusBadge.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a6b35")
-            $statusTxt.Text = "● вкл"; $statusTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+            $stB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#0d2d1a")
+            $stB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a6b35")
+            $stT.Text = "● вкл"
+            $stT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
         } else {
-            $statusBadge.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d0d0d")
-            $statusBadge.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#6b1a1a")
-            $statusTxt.Text = "● выкл"; $statusTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
+            $stB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d0d0d")
+            $stB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#6b1a1a")
+            $stT.Text = "● выкл"
+            $stT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
         }
-        $statusBadge.Child = $statusTxt
-        [System.Windows.Controls.Grid]::SetColumn($statusBadge, 3)
+        $stB.Child = $stT
+        [System.Windows.Controls.Grid]::SetColumn($stB, 5)
 
-        # Бейдж источника (HKCU, HKLM, Папка…)
-        $locBadge = [System.Windows.Controls.Border]::new()
-        $locBadge.CornerRadius = [System.Windows.CornerRadius]::new(4)
-        $locBadge.Padding = [System.Windows.Thickness]::new(5,2,5,2)
-        $locBadge.Margin = [System.Windows.Thickness]::new(4,0,0,0)
-        $locBadge.VerticalAlignment = "Center"
-        $locBadge.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a3a")
-        $locBadge.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#3a3a6a")
-        $locBadge.BorderThickness = [System.Windows.Thickness]::new(1)
-        $locTxt = [System.Windows.Controls.TextBlock]::new()
-        $locTxt.Text = $item.Location; $locTxt.FontSize = 9
-        $locTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6060a0")
-        $locBadge.Child = $locTxt
-        [System.Windows.Controls.Grid]::SetColumn($locBadge, 4)
-
-        $g.Children.Add($cb) | Out-Null
-        $g.Children.Add($iconCtrl) | Out-Null
-        $g.Children.Add($stk) | Out-Null
-        $g.Children.Add($statusBadge) | Out-Null
-        $g.Children.Add($locBadge) | Out-Null
+        $g.Children.Add($cb) | Out-Null; $g.Children.Add($ico) | Out-Null
+        $g.Children.Add($nameStack) | Out-Null; $g.Children.Add($pubTxt) | Out-Null
+        $g.Children.Add($locB) | Out-Null; $g.Children.Add($stB) | Out-Null
         $card.Child = $g
 
         if ($item.IsEnabled) {
@@ -1450,49 +1582,67 @@ function Build-StartupPanel {
         $startupAppsPanel.Children.Add($card) | Out-Null
     }
 
-    Write-Log "Автозагрузка: найдено $($startupItems.Count) элементов (вкл: $(($startupItems|Where-Object{$_.IsEnabled}).Count))"
+    # ═══════════════════════════════════════════════════════════════════════
+    # СЕКЦИЯ 2: Запланированные задачи
+    # ═══════════════════════════════════════════════════════════════════════
+    $secTask = [System.Windows.Controls.Border]::new()
+    $secTask.Margin = [System.Windows.Thickness]::new(0,16,0,4)
+    $secTask.Padding = [System.Windows.Thickness]::new(0,0,0,6)
+    $secTask.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
+    $secTask.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
+    $secTask.Tag = [PSCustomObject]@{ Type="Task"; Name="__header__"; Publisher="" }
+    $secTaskTxt = [System.Windows.Controls.TextBlock]::new()
+    $secTaskTxt.Text = "🗓️ ЗАПЛАНИРОВАННЫЕ ЗАДАЧИ ($($scheduledTasks.Count))"
+    $secTaskTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
+    $secTaskTxt.FontSize = 10; $secTaskTxt.FontWeight = "SemiBold"
+    $secTask.Child = $secTaskTxt
+    $startupAppsPanel.Children.Add($secTask) | Out-Null
 
-    # ── Запланированные задачи ─────────────────────────────────────────────
-    try {
-        $tasks = @(Get-ScheduledTask -ErrorAction SilentlyContinue |
-            Where-Object { $_.State -ne "Disabled" -and $_.Triggers.Count -gt 0 } |
-            Where-Object { $_.TaskPath -notmatch "\\Microsoft\\" } |
-            Sort-Object TaskName | Select-Object -First 60)
-    } catch { $tasks = @() }
-
-    if ($tasks.Count -eq 0) {
+    if ($scheduledTasks.Count -eq 0) {
         $lbl = [System.Windows.Controls.TextBlock]::new()
-        $lbl.Text = "Задачи не найдены"; $lbl.FontSize = 12
+        $lbl.Text = "Сторонних задач не найдено"
         $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
-        $lbl.Margin = [System.Windows.Thickness]::new(4,8,0,0)
-        $scheduledTasksPanel.Children.Add($lbl) | Out-Null
-        return
+        $lbl.FontSize = 12; $lbl.Margin = [System.Windows.Thickness]::new(4,6,0,0)
+        $lbl.Tag = [PSCustomObject]@{ Type="Task"; Name=""; Publisher="" }
+        $startupAppsPanel.Children.Add($lbl) | Out-Null
     }
 
-    foreach ($task in $tasks) {
+    foreach ($task in $scheduledTasks) {
         $card = [System.Windows.Controls.Border]::new()
         $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
-        $card.CornerRadius = [System.Windows.CornerRadius]::new(6)
+        $card.CornerRadius = [System.Windows.CornerRadius]::new(7)
         $card.Margin = [System.Windows.Thickness]::new(0,2,0,2)
         $card.Padding = [System.Windows.Thickness]::new(10,7,10,7)
+        $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
+        $card.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
+        $card.Tag = [PSCustomObject]@{
+            Type      = "Task"
+            Name      = $task.TaskName
+            Publisher = ""
+        }
 
         $g = [System.Windows.Controls.Grid]::new()
-        $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = [System.Windows.GridLength]::new(24)
-        $c2 = [System.Windows.Controls.ColumnDefinition]::new(); $c2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
-        $c3 = [System.Windows.Controls.ColumnDefinition]::new(); $c3.Width = [System.Windows.GridLength]::Auto
-        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
+        $widths = @(24, 0, 90, 70)
+        foreach ($w in $widths) {
+            $dc = [System.Windows.Controls.ColumnDefinition]::new()
+            if ($w -eq 0) { $dc.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star) }
+            else          { $dc.Width = [System.Windows.GridLength]::new($w) }
+            $g.ColumnDefinitions.Add($dc)
+        }
 
         $cb = [System.Windows.Controls.CheckBox]::new(); $cb.VerticalAlignment = "Center"
-        $cb.Tag = @{ Name=$task.TaskName; Path=$task.TaskPath }
+        $cb.Tag = @{ Type="Task"; Name=$task.TaskName; Path=$task.TaskPath }
+        $cb.Add_Checked({   Update-StartupSelectedCount })
+        $cb.Add_Unchecked({ Update-StartupSelectedCount })
         [System.Windows.Controls.Grid]::SetColumn($cb, 0)
         $script:TaskCheckboxes["$($task.TaskPath)$($task.TaskName)"] = $cb
 
         $stk = [System.Windows.Controls.StackPanel]::new(); $stk.VerticalAlignment = "Center"
+        $stk.Margin = [System.Windows.Thickness]::new(0,0,8,0)
         $nm = [System.Windows.Controls.TextBlock]::new()
         $nm.Text = $task.TaskName; $nm.FontSize = 12; $nm.FontWeight = "Medium"
         $nm.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d0d0f0")
         $nm.TextTrimming = "CharacterEllipsis"
-
         $trigClass = if ($task.Triggers.Count -gt 0) { $task.Triggers[0].CimClass.CimClassName } else { "" }
         $trigRu = switch -Wildcard ($trigClass) {
             "*Logon*" {"При входе"} "*Boot*" {"При запуске"}
@@ -1500,33 +1650,58 @@ function Build-StartupPanel {
             "*Time*"  {"По расписанию"} default {"Триггер"}
         }
         $sub = [System.Windows.Controls.TextBlock]::new()
-        $sub.Text = "$trigRu  •  $($task.TaskPath)"; $sub.FontSize = 10; $sub.TextTrimming = "CharacterEllipsis"
-        $sub.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#404060")
+        $sub.Text = "$trigRu  •  $($task.TaskPath)"
+        $sub.FontSize = 10; $sub.TextTrimming = "CharacterEllipsis"
+        $sub.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#353550")
         $stk.Children.Add($nm) | Out-Null; $stk.Children.Add($sub) | Out-Null
         [System.Windows.Controls.Grid]::SetColumn($stk, 1)
 
         # Бейдж триггера
-        $trigBadge = [System.Windows.Controls.Border]::new()
-        $trigBadge.CornerRadius = [System.Windows.CornerRadius]::new(4)
-        $trigBadge.Padding = [System.Windows.Thickness]::new(5,2,5,2)
-        $trigBadge.Margin = [System.Windows.Thickness]::new(6,0,0,0)
-        $trigBadge.VerticalAlignment = "Center"
-        $trigBadge.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a3a")
-        $trigBadge.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#3a3a6a")
-        $trigBadge.BorderThickness = [System.Windows.Thickness]::new(1)
-        $trigTxt = [System.Windows.Controls.TextBlock]::new()
-        $trigTxt.Text = $trigRu; $trigTxt.FontSize = 9
-        $trigTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6060a0")
-        $trigBadge.Child = $trigTxt
-        [System.Windows.Controls.Grid]::SetColumn($trigBadge, 2)
+        $trigB = [System.Windows.Controls.Border]::new()
+        $trigB.CornerRadius = [System.Windows.CornerRadius]::new(4)
+        $trigB.Padding = [System.Windows.Thickness]::new(5,2,5,2)
+        $trigB.VerticalAlignment = "Center"
+        $trigB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#14142a")
+        $trigB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a2a50")
+        $trigB.BorderThickness = [System.Windows.Thickness]::new(1)
+        $trigT = [System.Windows.Controls.TextBlock]::new()
+        $trigT.Text = $trigRu; $trigT.FontSize = 9
+        $trigT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#505080")
+        $trigB.Child = $trigT
+        [System.Windows.Controls.Grid]::SetColumn($trigB, 2)
 
-        $g.Children.Add($cb) | Out-Null; $g.Children.Add($stk) | Out-Null; $g.Children.Add($trigBadge) | Out-Null
+        # Бейдж статуса задачи
+        $tStB = [System.Windows.Controls.Border]::new()
+        $tStB.CornerRadius = [System.Windows.CornerRadius]::new(4)
+        $tStB.Padding = [System.Windows.Thickness]::new(6,2,6,2)
+        $tStB.VerticalAlignment = "Center"; $tStB.HorizontalAlignment = "Center"
+        $tStB.BorderThickness = [System.Windows.Thickness]::new(1)
+        $tStT = [System.Windows.Controls.TextBlock]::new(); $tStT.FontSize = 10; $tStT.FontWeight = "SemiBold"
+        $isTaskEnabled = ($task.State -ne "Disabled")
+        if ($isTaskEnabled) {
+            $tStB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#0d2d1a")
+            $tStB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a6b35")
+            $tStT.Text = "● вкл"; $tStT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+        } else {
+            $tStB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d0d0d")
+            $tStB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#6b1a1a")
+            $tStT.Text = "● выкл"; $tStT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
+        }
+        $tStB.Child = $tStT
+        [System.Windows.Controls.Grid]::SetColumn($tStB, 3)
+
+        $g.Children.Add($cb) | Out-Null; $g.Children.Add($stk) | Out-Null
+        $g.Children.Add($trigB) | Out-Null; $g.Children.Add($tStB) | Out-Null
         $card.Child = $g
         $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
         $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
-        $scheduledTasksPanel.Children.Add($card) | Out-Null
+        $startupAppsPanel.Children.Add($card) | Out-Null
     }
+
+    Write-Log "Автозагрузка: $($startupItems.Count) приложений (вкл: $enabledCount), $($scheduledTasks.Count) задач"
+    Apply-StartupFilter
 }
+
 
 # ═══ Обработчики событий ═══
 $checkUpdatesBtn.Add_Click({ $updatesPanel.Children.Clear(); $script:UpdateCheckboxes.Clear(); Build-UpdatesPanel })
@@ -1559,23 +1734,156 @@ $copyLogBtn.Add_Click({ [System.Windows.Clipboard]::SetText($script:LogBox.Text)
 $restorePointBtn.Add_Click({ Create-RestorePoint })
 $refreshStartupBtn.Add_Click({ Build-StartupPanel })
 
+# Записывает байты в StartupApproved для включения/отключения
+function Set-StartupApprovedState {
+    param([string]$RegKey, [string]$ValueName, [bool]$Enable)
+    try {
+        # Определяем ветку approved по источнику
+        $isHKCU      = $RegKey -like "HKEY_CURRENT_USER*"
+        $isRunOnce   = $RegKey -like "*RunOnce*"
+        $approvedSub = if ($isRunOnce) {
+            'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedRunOnce'
+        } else {
+            'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedRun'
+        }
+        $rootKey = if ($isHKCU) { [Microsoft.Win32.Registry]::CurrentUser }
+                   else         { [Microsoft.Win32.Registry]::LocalMachine }
+
+        $approvedKey = $rootKey.OpenSubKey($approvedSub, $true)
+        if ($null -eq $approvedKey) {
+            $approvedKey = $rootKey.CreateSubKey($approvedSub)
+        }
+
+        # Читаем существующие байты или создаём шаблон (12 байт нулей)
+        $existing = $approvedKey.GetValue($ValueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+
+        # Явно приводим к [byte[]] — иначе PowerShell может вернуть [Object[]]
+        if ($existing -is [byte[]] -and $existing.Length -ge 4) {
+            $data = [byte[]]$existing
+        } else {
+            # Стандартный шаблон Windows: 12 байт, первый байт — статус
+            $data = [byte[]]@(0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00)
+        }
+
+        # байт[0]: 02=включено, 03=отключено
+        $statusByte = if ($Enable) { [byte]0x02 } else { [byte]0x03 }
+        $data[0] = $statusByte
+
+        # Явно передаём [byte[]] — не Object[], не Array
+        $byteArray = [byte[]]$data
+        $approvedKey.SetValue($ValueName, $byteArray, [Microsoft.Win32.RegistryValueKind]::Binary)
+        $approvedKey.Dispose()
+        return $true
+    } catch {
+        Write-Log "✗ StartupApproved для '$ValueName': $_" -Color "Red"
+        return $false
+    }
+}
+
+# Отключить выбранные
 $disableStartupBtn.Add_Click({
-    $count=0
-    foreach ($kv in $script:StartupCheckboxes.GetEnumerator()) {
-        if (-not $kv.Value.IsChecked) { continue }
-        $tag=$kv.Value.Tag
-        try { Remove-ItemProperty -Path $tag.RegKey -Name $tag.Name -Force -ErrorAction Stop; Write-Log "✓ Убрана автозагрузка: $($tag.Name)" -Color "Green"; $count++ }
-        catch { Write-Log "✗ $($tag.Name): $_" -Color "Red" }
+    $total = 0
+    $sel = @($script:StartupCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked })
+    foreach ($kv in $sel) {
+        $tag = $kv.Value.Tag
+        # Папки автозагрузки — переименовываем файл
+        if ($tag.Location -like "Папка*") {
+            try {
+                $src = $tag.Command
+                $dst = $src + ".disabled"
+                Rename-Item -Path $src -NewName $dst -Force -ErrorAction Stop
+                Write-Log "⏸ Отключено (папка): $($tag.Name)" -Color "Green"; $total++
+            } catch { Write-Log "✗ $($tag.Name): $_" -Color "Red" }
+        } else {
+            # Реестр — через StartupApproved (не удаляем запись!)
+            $ok = Set-StartupApprovedState -RegKey $tag.RegKey -ValueName $tag.Name -Enable $false
+            if ($ok) { Write-Log "⏸ Отключено: $($tag.Name)" -Color "Green"; $total++ }
+        }
     }
-    foreach ($kv in $script:TaskCheckboxes.GetEnumerator()) {
-        if (-not $kv.Value.IsChecked) { continue }
-        $tag=$kv.Value.Tag
-        try { Disable-ScheduledTask -TaskName $tag.Name -TaskPath $tag.Path -ErrorAction Stop | Out-Null; Write-Log "✓ Задача отключена: $($tag.Name)" -Color "Green"; $count++ }
-        catch { Write-Log "✗ $($tag.Name): $_" -Color "Red" }
+    foreach ($kv in @($script:TaskCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked })) {
+        $tag = $kv.Value.Tag
+        try {
+            Disable-ScheduledTask -TaskName $tag.Name -TaskPath $tag.Path -ErrorAction Stop | Out-Null
+            Write-Log "⏸ Задача отключена: $($tag.Name)" -Color "Green"; $total++
+        } catch { Write-Log "✗ $($tag.Name): $_" -Color "Red" }
     }
-    if ($count-gt 0) { Write-Log "Отключено: $count"; Build-StartupPanel }
+    if ($total -gt 0) { Write-Log "Отключено: $total элементов"; Build-StartupPanel }
     else { Write-Log "⚠ Нет выбранных элементов" -Color "Yellow" }
 })
+
+# Включить выбранные
+$enableStartupBtn.Add_Click({
+    $total = 0
+    $sel = @($script:StartupCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked })
+    foreach ($kv in $sel) {
+        $tag = $kv.Value.Tag
+        if ($tag.Location -like "Папка*") {
+            try {
+                $src = $tag.Command
+                # Убираем .disabled если есть
+                $dst = $src -replace '\.disabled$', ''
+                if ($src -ne $dst) { Rename-Item -Path $src -NewName $dst -Force -ErrorAction Stop }
+                Write-Log "▶ Включено (папка): $($tag.Name)" -Color "Green"; $total++
+            } catch { Write-Log "✗ $($tag.Name): $_" -Color "Red" }
+        } else {
+            $ok = Set-StartupApprovedState -RegKey $tag.RegKey -ValueName $tag.Name -Enable $true
+            if ($ok) { Write-Log "▶ Включено: $($tag.Name)" -Color "Green"; $total++ }
+        }
+    }
+    foreach ($kv in @($script:TaskCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked })) {
+        $tag = $kv.Value.Tag
+        try {
+            Enable-ScheduledTask -TaskName $tag.Name -TaskPath $tag.Path -ErrorAction Stop | Out-Null
+            Write-Log "▶ Задача включена: $($tag.Name)" -Color "Green"; $total++
+        } catch { Write-Log "✗ $($tag.Name): $_" -Color "Red" }
+    }
+    if ($total -gt 0) { Write-Log "Включено: $total элементов"; Build-StartupPanel }
+    else { Write-Log "⚠ Нет выбранных элементов" -Color "Yellow" }
+})
+
+# Выбрать/снять всё
+$selectAllStartupBtn.Add_Click({
+    foreach ($cb in $script:StartupCheckboxes.Values) { $cb.IsChecked = $true }
+    foreach ($cb in $script:TaskCheckboxes.Values)    { $cb.IsChecked = $true }
+    Update-StartupSelectedCount
+})
+$deselectAllStartupBtn.Add_Click({
+    foreach ($cb in $script:StartupCheckboxes.Values) { $cb.IsChecked = $false }
+    foreach ($cb in $script:TaskCheckboxes.Values)    { $cb.IsChecked = $false }
+    Update-StartupSelectedCount
+})
+
+# Фильтры
+$startupFilterAllBtn.Add_Click({
+    $script:StartupFilter = "All"
+    $startupFilterAllBtn.Style  = $window.FindResource("BtnPrimary")
+    $startupFilterAppBtn.Style  = $window.FindResource("BtnSecondary")
+    $startupFilterTaskBtn.Style = $window.FindResource("BtnSecondary")
+    Apply-StartupFilter
+})
+$startupFilterAppBtn.Add_Click({
+    $script:StartupFilter = "Apps"
+    $startupFilterAllBtn.Style  = $window.FindResource("BtnSecondary")
+    $startupFilterAppBtn.Style  = $window.FindResource("BtnPrimary")
+    $startupFilterTaskBtn.Style = $window.FindResource("BtnSecondary")
+    Apply-StartupFilter
+})
+$startupFilterTaskBtn.Add_Click({
+    $script:StartupFilter = "Tasks"
+    $startupFilterAllBtn.Style  = $window.FindResource("BtnSecondary")
+    $startupFilterAppBtn.Style  = $window.FindResource("BtnSecondary")
+    $startupFilterTaskBtn.Style = $window.FindResource("BtnPrimary")
+    Apply-StartupFilter
+})
+
+# Поиск
+$startupSearchBox.Add_TextChanged({
+    $q = $startupSearchBox.Text.Trim()
+    $startupSearchHint.Visibility  = if ($q -eq "") { "Visible" } else { "Collapsed" }
+    $startupSearchClear.Visibility = if ($q -eq "") { "Collapsed" } else { "Visible" }
+    Apply-StartupFilter
+})
+$startupSearchClear.Add_Click({ $startupSearchBox.Text = "" })
 
 $presetOfficeBtn.Add_Click({ Select-Preset "Office-pack" })
 $presetGamesBtn.Add_Click({ Select-Preset "Games-pack" })
