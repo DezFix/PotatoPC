@@ -259,7 +259,7 @@ function Write-Log($msg, $color = "Default") {
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="🛡️ Создать точку восстановления" x:Name="RestorePointBtn" Style="{StaticResource BtnSecondary}" Height="32" FontSize="12" Margin="0,0,12,0"/>
-                    <TextBlock x:Name="HeaderOsText" Foreground="#7070a0" FontSize="11" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="HeaderOsText" Foreground="#9898c8" FontSize="11" VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -283,8 +283,8 @@ function Write-Log($msg, $color = "Default") {
                             <Grid Grid.Row="0" Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Foreground="#6060a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"><Run Text="📂 Папка: "/></TextBlock>
-                                    <TextBlock x:Name="ScriptsFolderText" Foreground="#8080c0" FontSize="10" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="500"/>
+                                    <TextBlock Foreground="#b8b8e8" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"><Run Text="📂 Папка: "/></TextBlock>
+                                    <TextBlock x:Name="ScriptsFolderText" Foreground="#b0b0e0" FontSize="10" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="500"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                                     <Button Content="📂 Открыть" x:Name="OpenFolderBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="28" FontSize="11"/>
@@ -294,10 +294,10 @@ function Write-Log($msg, $color = "Default") {
                             <Border Grid.Row="1" Background="#12121f" CornerRadius="6" BorderBrush="#2a2a45" BorderThickness="1">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="🔍" FontSize="13" Foreground="#505070" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                    <TextBlock Text="🔍" FontSize="13" Foreground="#8080b0" VerticalAlignment="Center" Margin="10,0,0,0"/>
                                     <TextBox x:Name="ScriptSearchBox" Grid.Column="1" Background="Transparent" Foreground="#c0c0e0" FontSize="12" BorderThickness="0" Padding="8,6" VerticalAlignment="Center" CaretBrush="#6c63ff"/>
-                                    <TextBlock x:Name="ScriptSearchHint" Grid.Column="1" Text="Поиск по названию или описанию..." Foreground="#404060" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" IsHitTestVisible="False"/>
-                                    <Button x:Name="ScriptSearchClear" Grid.Column="2" Content="✕" Background="Transparent" Foreground="#505070" BorderThickness="0" FontSize="12" Cursor="Hand" Padding="8,4" Visibility="Collapsed"/>
+                                    <TextBlock x:Name="ScriptSearchHint" Grid.Column="1" Text="Поиск по названию или описанию..." Foreground="#9898c8" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" IsHitTestVisible="False"/>
+                                    <Button x:Name="ScriptSearchClear" Grid.Column="2" Content="✕" Background="Transparent" Foreground="#8080b0" BorderThickness="0" FontSize="12" Cursor="Hand" Padding="8,4" Visibility="Collapsed"/>
                                 </Grid>
                             </Border>
                         </Grid>
@@ -309,9 +309,9 @@ function Write-Log($msg, $color = "Default") {
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock x:Name="SelectedCountText" Foreground="#8080c0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                <TextBlock x:Name="SelectedCountText" Foreground="#b0b0e0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0"/>
                                 <CheckBox x:Name="RebootAfterScriptsChk" VerticalAlignment="Center" Cursor="Hand">
-                                    <CheckBox.Content><TextBlock Text="🔄 Перезагрузить после выполнения" Foreground="#8080c0" FontSize="11" VerticalAlignment="Center"/></CheckBox.Content>
+                                    <CheckBox.Content><TextBlock Text="🔄 Перезагрузить после выполнения" Foreground="#b0b0e0" FontSize="11" VerticalAlignment="Center"/></CheckBox.Content>
                                 </CheckBox>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -356,22 +356,22 @@ function Write-Log($msg, $color = "Default") {
                             </StackPanel>
                             <!-- Счётчик -->
                             <TextBlock x:Name="StartupCountText" Grid.Column="1"
-                                       Foreground="#50507a" FontSize="11" VerticalAlignment="Center"
+                                       Foreground="#c0c0ee" FontSize="11" VerticalAlignment="Center"
                                        HorizontalAlignment="Center"/>
                             <!-- Поиск -->
                             <Border Grid.Column="2" Background="#12121f" CornerRadius="6" BorderBrush="#2a2a45" BorderThickness="1" Width="220">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="🔍" FontSize="12" Foreground="#505070" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                    <TextBlock Text="🔍" FontSize="12" Foreground="#8080b0" VerticalAlignment="Center" Margin="8,0,0,0"/>
                                     <TextBox x:Name="StartupSearchBox" Grid.Column="1"
                                              Background="Transparent" Foreground="#c0c0e0" FontSize="11"
                                              BorderThickness="0" Padding="6,5" VerticalAlignment="Center"
                                              CaretBrush="#6c63ff"/>
                                     <TextBlock x:Name="StartupSearchHint" Grid.Column="1"
-                                               Text="Поиск..." Foreground="#404060" FontSize="11"
+                                               Text="Поиск..." Foreground="#9898c8" FontSize="11"
                                                VerticalAlignment="Center" Margin="6,0,0,0" IsHitTestVisible="False"/>
                                     <Button x:Name="StartupSearchClear" Grid.Column="2" Content="✕"
-                                            Background="Transparent" Foreground="#505070" BorderThickness="0"
+                                            Background="Transparent" Foreground="#8080b0" BorderThickness="0"
                                             FontSize="11" Cursor="Hand" Padding="6,4" Visibility="Collapsed"/>
                                 </Grid>
                             </Border>
@@ -385,14 +385,12 @@ function Write-Log($msg, $color = "Default") {
                                 <ColumnDefinition Width="24"/>
                                 <ColumnDefinition Width="28"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="130"/>
-                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="110"/>
                                 <ColumnDefinition Width="80"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="2" Text="ПРИЛОЖЕНИЕ" Foreground="#30305a" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="3" Text="ИЗДАТЕЛЬ"   Foreground="#30305a" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="4" Text="ИСТОЧНИК"   Foreground="#30305a" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="5" Text="СТАТУС"     Foreground="#30305a" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="ПРИЛОЖЕНИЕ" Foreground="#8888cc" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="3" Text="ИСТОЧНИК"   Foreground="#8888cc" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="4" Text="СТАТУС"     Foreground="#8888cc" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Grid>
                     </Border>
 
@@ -409,7 +407,7 @@ function Write-Log($msg, $color = "Default") {
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock x:Name="StartupSelectedText" Foreground="#6060a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                <TextBlock x:Name="StartupSelectedText" Foreground="#b8b8e8" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
                                 <Button Content="✓ Все" x:Name="SelectAllStartupBtn"    Style="{StaticResource BtnSecondary}" Height="28" Width="60"  FontSize="11" Margin="0,0,5,0"/>
                                 <Button Content="✗ Снять" x:Name="DeselectAllStartupBtn" Style="{StaticResource BtnSecondary}" Height="28" Width="65"  FontSize="11"/>
                             </StackPanel>
@@ -435,17 +433,17 @@ function Write-Log($msg, $color = "Default") {
                     <Border Grid.Row="0" Background="#1a1a2e" Padding="14,8">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <TextBlock Foreground="#6060a0" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"><Run Text="⚡ Пресеты:"/></TextBlock>
+                                <TextBlock Foreground="#b8b8e8" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"><Run Text="⚡ Пресеты:"/></TextBlock>
                                 <Button Content="🏢 Офисный пакет" x:Name="PresetOfficeBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="28" FontSize="11"/>
                                 <Button Content="🎮 Игровой пакет" x:Name="PresetGamesBtn" Style="{StaticResource BtnSecondary}" Height="28" FontSize="11"/>
                             </StackPanel>
                             <Border Background="#12121f" CornerRadius="6" BorderBrush="#2a2a45" BorderThickness="1">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="🔍" FontSize="13" Foreground="#505070" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                    <TextBlock Text="🔍" FontSize="13" Foreground="#8080b0" VerticalAlignment="Center" Margin="10,0,0,0"/>
                                     <TextBox x:Name="AppSearchBox" Grid.Column="1" Background="Transparent" Foreground="#c0c0e0" FontSize="12" BorderThickness="0" Padding="8,6" VerticalAlignment="Center" CaretBrush="#6c63ff"/>
-                                    <TextBlock x:Name="AppSearchHint" Grid.Column="1" Text="Поиск по названию или описанию..." Foreground="#404060" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" IsHitTestVisible="False"/>
-                                    <Button x:Name="AppSearchClear" Grid.Column="2" Content="✕" Background="Transparent" Foreground="#505070" BorderThickness="0" FontSize="12" Cursor="Hand" Padding="8,4" Visibility="Collapsed"/>
+                                    <TextBlock x:Name="AppSearchHint" Grid.Column="1" Text="Поиск по названию или описанию..." Foreground="#9898c8" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" IsHitTestVisible="False"/>
+                                    <Button x:Name="AppSearchClear" Grid.Column="2" Content="✕" Background="Transparent" Foreground="#8080b0" BorderThickness="0" FontSize="12" Cursor="Hand" Padding="8,4" Visibility="Collapsed"/>
                                 </Grid>
                             </Border>
                         </StackPanel>
@@ -475,7 +473,7 @@ function Write-Log($msg, $color = "Default") {
                     <Border Grid.Row="0" Background="#1a1a2e" Padding="14,8">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBlock x:Name="UpdateStatusText" Foreground="#6060a0" FontSize="11" VerticalAlignment="Center" Text="Нажмите «Проверить обновления» для получения списка доступных обновлений."/>
+                            <TextBlock x:Name="UpdateStatusText" Foreground="#b8b8e8" FontSize="11" VerticalAlignment="Center" Text="Нажмите «Проверить обновления» для получения списка доступных обновлений."/>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
                                 <Button Content="🔍 Проверить обновления" x:Name="CheckUpdatesBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="28" FontSize="11"/>
                                 <Button Content="✓ Все" x:Name="SelectAllUpdatesBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="28" Width="55" FontSize="11"/>
@@ -485,12 +483,12 @@ function Write-Log($msg, $color = "Default") {
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
                         <StackPanel x:Name="UpdatesPanel" Margin="14,10,14,10">
-                            <TextBlock Foreground="#50507a" FontSize="12" TextAlignment="Center" Margin="0,60,0,0" Text="📋 Список обновлений появится после нажатия «Проверить обновления»"/>
+                            <TextBlock Foreground="#c0c0ee" FontSize="12" TextAlignment="Center" Margin="0,60,0,0" Text="📋 Список обновлений появится после нажатия «Проверить обновления»"/>
                         </StackPanel>
                     </ScrollViewer>
                     <Border Grid.Row="2" Background="#16162a" Padding="12,10">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <TextBlock x:Name="UpdateCountText" Foreground="#8080c0" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock x:Name="UpdateCountText" Foreground="#b0b0e0" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
                             <Button Content="⬆ Обновить выбранные" x:Name="InstallUpdatesBtn" Style="{StaticResource BtnPrimary}" Height="30" FontSize="12"/>
                         </StackPanel>
                     </Border>
@@ -507,7 +505,7 @@ function Write-Log($msg, $color = "Default") {
                 <Grid Background="#12121f">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Border Grid.Row="0" Background="#1a1a2e" Padding="14,8">
-                        <TextBlock Foreground="#6060a0" FontSize="11" VerticalAlignment="Center"
+                        <TextBlock Foreground="#b8b8e8" FontSize="11" VerticalAlignment="Center"
                                    Text="⚠ Тесты запускаются в фоне — UI не блокируется. Результаты отображаются в консоли."/>
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -535,7 +533,7 @@ function Write-Log($msg, $color = "Default") {
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Border Background="#12122a" Padding="10,5">
-                        <TextBlock Text="  КОНСОЛЬ" Foreground="#404060" FontSize="10" FontWeight="SemiBold" FontFamily="Consolas" VerticalAlignment="Center"/>
+                        <TextBlock Text="  КОНСОЛЬ" Foreground="#9898c8" FontSize="10" FontWeight="SemiBold" FontFamily="Consolas" VerticalAlignment="Center"/>
                     </Border>
                     <TextBox x:Name="LogOutput" Grid.Row="1" Background="#0c0c18" Foreground="#50e050" FontFamily="Consolas" FontSize="12"
                              BorderThickness="0" Padding="10,6" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True"/>
@@ -543,7 +541,7 @@ function Write-Log($msg, $color = "Default") {
             </Border>
             <Border Grid.Column="1" Background="#16162a" BorderBrush="#1e1e38" BorderThickness="1,1,0,0" Padding="14,14">
                 <StackPanel VerticalAlignment="Top">
-                    <TextBlock Text="КОНСОЛЬ" Foreground="#404060" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                    <TextBlock Text="КОНСОЛЬ" Foreground="#9898c8" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,12"/>
                     <Button Content="🗑️ Очистить лог" x:Name="ClearLogBtn" Style="{StaticResource BtnSecondary}" Height="34" Margin="0,0,0,8" FontSize="12"/>
                     <Button Content="📋 Копировать лог" x:Name="CopyLogBtn" Style="{StaticResource BtnSecondary}" Height="34" Margin="0,0,0,16" FontSize="12"/>
                 </StackPanel>
@@ -627,7 +625,7 @@ function Build-ScriptsPanel {
     if ($scripts.Count -eq 0) {
         $empty = [System.Windows.Controls.TextBlock]::new()
         $empty.Text = "📂 Папка скриптов пуста.`nПапка: $($script:ScriptsFolder)"
-        $empty.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#505070")
+        $empty.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0")
         $empty.FontSize = 13; $empty.TextAlignment = "Center"; $empty.Margin = "0,60,0,0"
         $scriptsPanel.Children.Add($empty) | Out-Null
         Update-SelectedCount; return
@@ -758,10 +756,10 @@ function Build-ScriptsPanel {
             $descText = [System.Windows.Controls.TextBlock]::new()
             if ($isWin11Incompatible) {
                 $descText.Text = "Требуется Windows 11 — недоступно на вашей системе"
-                $descText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#3a2a2a")
+                $descText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#7a5a5a")
             } else {
                 $descText.Text = if ($script_item.Desc) { $script_item.Desc } else { $script_item.Path | Split-Path -Leaf }
-                $descText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
+                $descText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee")
             }
             $descText.FontSize = 11; $descText.Margin = [System.Windows.Thickness]::new(0,2,0,0)
             $descText.TextTrimming = "CharacterEllipsis"
@@ -782,7 +780,7 @@ function Build-ScriptsPanel {
             if ($isWin11Incompatible) {
                 $runOneBtn.IsEnabled = $false
                 $runOneBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a28")
-                $runOneBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#303040")
+                $runOneBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#505068")
             } else {
                 $runOneBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a2a4a")
                 $runOneBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
@@ -858,7 +856,7 @@ function Build-AppsPanel {
             $cb.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c8c8e0"); $cb.FontSize=13; $cb.FontWeight="Medium"
             $script:AppCheckboxes[$app.Id]=$cb
             $desc=[System.Windows.Controls.TextBlock]::new(); $desc.Text=$app.Description
-            $desc.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#50507a"); $desc.FontSize=11; $desc.Margin=[System.Windows.Thickness]::new(28,2,0,0); $desc.TextWrapping="Wrap"
+            $desc.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee"); $desc.FontSize=11; $desc.Margin=[System.Windows.Thickness]::new(28,2,0,0); $desc.TextWrapping="Wrap"
             $stk.Children.Add($cb) | Out-Null; $stk.Children.Add($desc) | Out-Null
             $card.Child=$stk
             $card.Add_MouseEnter({ $this.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
@@ -901,7 +899,7 @@ function Build-SysPanel {
         $c2=[System.Windows.Controls.ColumnDefinition]::new(); $c2.Width="*"
         $c3=[System.Windows.Controls.ColumnDefinition]::new(); $c3.Width="Auto"
         $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
-        $lbl=[System.Windows.Controls.TextBlock]::new(); $lbl.Text=$item.L; $lbl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#606080"); $lbl.FontSize=13; $lbl.VerticalAlignment="Center"
+        $lbl=[System.Windows.Controls.TextBlock]::new(); $lbl.Text=$item.L; $lbl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#9898b0"); $lbl.FontSize=13; $lbl.VerticalAlignment="Center"
         $val=[System.Windows.Controls.TextBlock]::new(); $val.Text=$item.V; $val.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#d0d0f0"); $val.FontSize=13; $val.FontWeight="SemiBold"; $val.TextWrapping="Wrap"; $val.VerticalAlignment="Center"
         [System.Windows.Controls.Grid]::SetColumn($val,1)
         $g.Children.Add($lbl) | Out-Null; $g.Children.Add($val) | Out-Null
@@ -929,7 +927,7 @@ function Build-SysPanel {
             $dl=[System.Windows.Controls.TextBlock]::new(); $dl.Text=$disk.Letter; $dl.FontSize=14; $dl.FontWeight="Bold"; $dl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#8080d0"); $dl.VerticalAlignment="Center"
             $di=[System.Windows.Controls.StackPanel]::new(); $di.VerticalAlignment="Center"
             $dm=[System.Windows.Controls.TextBlock]::new(); $dm.Text=$disk.Model; $dm.FontSize=12; $dm.FontWeight="Medium"; $dm.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#d0d0f0"); $dm.TextTrimming="CharacterEllipsis"
-            $ds=[System.Windows.Controls.TextBlock]::new(); $ds.Text="$($disk.FreeGB) ГБ своб. из $($disk.TotalGB) ГБ"; $ds.FontSize=10; $ds.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
+            $ds=[System.Windows.Controls.TextBlock]::new(); $ds.Text="$($disk.FreeGB) ГБ своб. из $($disk.TotalGB) ГБ"; $ds.FontSize=10; $ds.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee")
             $di.Children.Add($dm)|Out-Null; $di.Children.Add($ds)|Out-Null; [System.Windows.Controls.Grid]::SetColumn($di,1)
             if ($disk.IsSystem) {
                 $sb=[System.Windows.Controls.Border]::new(); $sb.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a4a"); $sb.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFrom("#3a3aaa"); $sb.BorderThickness=[System.Windows.Thickness]::new(1); $sb.CornerRadius=[System.Windows.CornerRadius]::new(4); $sb.Padding=[System.Windows.Thickness]::new(6,2,6,2); $sb.VerticalAlignment="Center"; $sb.Margin=[System.Windows.Thickness]::new(8,0,0,0)
@@ -957,7 +955,7 @@ function Build-SysPanel {
     <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки чтения" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$(if($rel.ReadErrorsTotal){"$($rel.ReadErrorsTotal)"}else{"0"})" Foreground="$(if($rel.ReadErrorsTotal -gt 0){"#f39c12"}else{"#2ecc71"})" FontSize="12" FontWeight="Bold"/></Grid></Border>
     <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки записи" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$(if($rel.WriteErrorsTotal){"$($rel.WriteErrorsTotal)"}else{"0"})" Foreground="$(if($rel.WriteErrorsTotal -gt 0){"#f39c12"}else{"#2ecc71"})" FontSize="12" FontWeight="Bold"/></Grid></Border>
     <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Износ" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$(if($rel.Wear){"$($rel.Wear)%"}else{"Нет данных"})" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <TextBlock Text="⚠ Данные через Windows Storage API. Для детального анализа используйте CrystalDiskInfo." Foreground="#404060" FontSize="10" TextWrapping="Wrap"/>
+    <TextBlock Text="⚠ Данные через Windows Storage API. Для детального анализа используйте CrystalDiskInfo." Foreground="#9898c8" FontSize="10" TextWrapping="Wrap"/>
   </StackPanel>
 </Window>
 "@
@@ -1055,7 +1053,7 @@ function Build-UpdatesPanel {
         [System.Windows.Controls.Grid]::SetColumn($cb,0); $script:UpdateCheckboxes[$pkg.Id]=$cb
         $info=[System.Windows.Controls.StackPanel]::new(); $info.VerticalAlignment="Center"
         $nm=[System.Windows.Controls.TextBlock]::new(); $nm.Text=$pkg.Name; $nm.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#e0e0f4"); $nm.FontSize=12; $nm.FontWeight="Medium"
-        $id=[System.Windows.Controls.TextBlock]::new(); $id.Text=$pkg.Id; $id.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#50507a"); $id.FontSize=10; $id.Margin=[System.Windows.Thickness]::new(0,1,0,0)
+        $id=[System.Windows.Controls.TextBlock]::new(); $id.Text=$pkg.Id; $id.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee"); $id.FontSize=10; $id.Margin=[System.Windows.Thickness]::new(0,1,0,0)
         $info.Children.Add($nm)|Out-Null; $info.Children.Add($id)|Out-Null; [System.Windows.Controls.Grid]::SetColumn($info,1)
         $ver=[System.Windows.Controls.TextBlock]::new(); $ver.Text="$($pkg.Version) → $($pkg.NewVersion)"; $ver.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c0a030"); $ver.FontSize=11; $ver.VerticalAlignment="Center"; [System.Windows.Controls.Grid]::SetColumn($ver,2)
         $g.Children.Add($cb)|Out-Null; $g.Children.Add($info)|Out-Null; $g.Children.Add($ver)|Out-Null; $card.Child=$g
@@ -1122,9 +1120,9 @@ function Build-DiagPanel {
         $titleRow=[System.Windows.Controls.StackPanel]::new(); $titleRow.Orientation="Horizontal"
         $ttl=[System.Windows.Controls.TextBlock]::new(); $ttl.Text=$test.Title; $ttl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#e0e0f4"); $ttl.FontSize=13; $ttl.FontWeight="SemiBold"
         # Метка статуса рядом с заголовком
-        $statusLbl=[System.Windows.Controls.TextBlock]::new(); $statusLbl.FontSize=11; $statusLbl.VerticalAlignment="Center"; $statusLbl.Margin=[System.Windows.Thickness]::new(10,0,0,0); $statusLbl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#505070"); $statusLbl.Text=""
+        $statusLbl=[System.Windows.Controls.TextBlock]::new(); $statusLbl.FontSize=11; $statusLbl.VerticalAlignment="Center"; $statusLbl.Margin=[System.Windows.Thickness]::new(10,0,0,0); $statusLbl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0"); $statusLbl.Text=""
         $titleRow.Children.Add($ttl)|Out-Null; $titleRow.Children.Add($statusLbl)|Out-Null
-        $dsc=[System.Windows.Controls.TextBlock]::new(); $dsc.Text=$test.Desc; $dsc.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#60607a"); $dsc.FontSize=11; $dsc.Margin=[System.Windows.Thickness]::new(0,3,0,0); $dsc.TextWrapping="Wrap"
+        $dsc=[System.Windows.Controls.TextBlock]::new(); $dsc.Text=$test.Desc; $dsc.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#b8b8cc"); $dsc.FontSize=11; $dsc.Margin=[System.Windows.Thickness]::new(0,3,0,0); $dsc.TextWrapping="Wrap"
         $txt.Children.Add($titleRow)|Out-Null; $txt.Children.Add($dsc)|Out-Null
         [System.Windows.Controls.Grid]::SetColumn($txt,1)
 
@@ -1427,7 +1425,7 @@ function Build-StartupPanel {
     if ($startupItems.Count -eq 0) {
         $lbl = [System.Windows.Controls.TextBlock]::new()
         $lbl.Text = "Элементы автозагрузки не найдены"
-        $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
+        $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee")
         $lbl.FontSize = 12; $lbl.Margin = [System.Windows.Thickness]::new(4,8,0,0)
         $lbl.Tag = [PSCustomObject]@{ Type="App"; Name=""; Publisher="" }
         $startupAppsPanel.Children.Add($lbl) | Out-Null
@@ -1473,9 +1471,9 @@ function Build-StartupPanel {
             Publisher = if ($item.Publisher) { $item.Publisher } else { "" }
         }
 
-        # Grid: [cb][ico][имя+путь][издатель][источник][статус]
+        # Grid: [cb][ico][имя+путь][источник][статус]
         $g = [System.Windows.Controls.Grid]::new()
-        $widths = @(24, 28, 0, 130, 90, 70)
+        $widths = @(24, 28, 0, 110, 80)
         foreach ($w in $widths) {
             $dc = [System.Windows.Controls.ColumnDefinition]::new()
             if ($w -eq 0) { $dc.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star) }
@@ -1506,47 +1504,38 @@ function Build-StartupPanel {
         if ($item.Icon) { $ico.Source = $item.Icon }
         [System.Windows.Controls.Grid]::SetColumn($ico, 1)
 
-        # Имя + путь
+        # Имя + путь к exe
         $nameStack = [System.Windows.Controls.StackPanel]::new()
         $nameStack.VerticalAlignment = "Center"
         $nameStack.Margin = [System.Windows.Thickness]::new(0,0,8,0)
 
-        $nmColor = if ($item.IsEnabled) { "#d0d0f0" } else { "#606070" }
+        $nmColor = if ($item.IsEnabled) { "#e8e8ff" } else { "#808090" }
         $nm = [System.Windows.Controls.TextBlock]::new()
-        $nm.Text = $item.Name; $nm.FontSize = 12; $nm.FontWeight = "Medium"
+        $nm.Text = $item.Name; $nm.FontSize = 12; $nm.FontWeight = "SemiBold"
         $nm.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($nmColor)
         $nm.TextTrimming = "CharacterEllipsis"
 
         $cmdShort = try { [System.IO.Path]::GetFileName($item.Command.Trim('"').Split(' ')[0]) } catch { $item.Command }
         $pathLbl = [System.Windows.Controls.TextBlock]::new()
         $pathLbl.Text = $cmdShort; $pathLbl.FontSize = 10; $pathLbl.TextTrimming = "CharacterEllipsis"
-        $pathLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#353550")
+        $pathLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#9898b8")
         $nameStack.Children.Add($nm) | Out-Null
         $nameStack.Children.Add($pathLbl) | Out-Null
         [System.Windows.Controls.Grid]::SetColumn($nameStack, 2)
-
-        # Издатель
-        $pubVal = if (-not [string]::IsNullOrWhiteSpace($item.Publisher)) { $item.Publisher } else { "—" }
-        $pubTxt = [System.Windows.Controls.TextBlock]::new()
-        $pubTxt.Text = $pubVal; $pubTxt.FontSize = 11; $pubTxt.TextTrimming = "CharacterEllipsis"
-        $pubTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
-        $pubTxt.VerticalAlignment = "Center"
-        $pubTxt.Margin = [System.Windows.Thickness]::new(0,0,8,0)
-        [System.Windows.Controls.Grid]::SetColumn($pubTxt, 3)
 
         # Бейдж источника
         $locB = [System.Windows.Controls.Border]::new()
         $locB.CornerRadius = [System.Windows.CornerRadius]::new(4)
         $locB.Padding = [System.Windows.Thickness]::new(5,2,5,2)
         $locB.VerticalAlignment = "Center"
-        $locB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#14142a")
-        $locB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a2a50")
+        $locB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a3a")
+        $locB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#3a3a6a")
         $locB.BorderThickness = [System.Windows.Thickness]::new(1)
         $locT = [System.Windows.Controls.TextBlock]::new()
-        $locT.Text = $item.Location; $locT.FontSize = 9
-        $locT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#505080")
+        $locT.Text = $item.Location; $locT.FontSize = 10
+        $locT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0")
         $locB.Child = $locT
-        [System.Windows.Controls.Grid]::SetColumn($locB, 4)
+        [System.Windows.Controls.Grid]::SetColumn($locB, 3)
 
         # Бейдж статуса
         $stB = [System.Windows.Controls.Border]::new()
@@ -1568,10 +1557,10 @@ function Build-StartupPanel {
             $stT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
         }
         $stB.Child = $stT
-        [System.Windows.Controls.Grid]::SetColumn($stB, 5)
+        [System.Windows.Controls.Grid]::SetColumn($stB, 4)
 
         $g.Children.Add($cb) | Out-Null; $g.Children.Add($ico) | Out-Null
-        $g.Children.Add($nameStack) | Out-Null; $g.Children.Add($pubTxt) | Out-Null
+        $g.Children.Add($nameStack) | Out-Null
         $g.Children.Add($locB) | Out-Null; $g.Children.Add($stB) | Out-Null
         $card.Child = $g
 
@@ -1601,7 +1590,7 @@ function Build-StartupPanel {
     if ($scheduledTasks.Count -eq 0) {
         $lbl = [System.Windows.Controls.TextBlock]::new()
         $lbl.Text = "Сторонних задач не найдено"
-        $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50507a")
+        $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee")
         $lbl.FontSize = 12; $lbl.Margin = [System.Windows.Thickness]::new(4,6,0,0)
         $lbl.Tag = [PSCustomObject]@{ Type="Task"; Name=""; Publisher="" }
         $startupAppsPanel.Children.Add($lbl) | Out-Null
@@ -1652,7 +1641,7 @@ function Build-StartupPanel {
         $sub = [System.Windows.Controls.TextBlock]::new()
         $sub.Text = "$trigRu  •  $($task.TaskPath)"
         $sub.FontSize = 10; $sub.TextTrimming = "CharacterEllipsis"
-        $sub.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#353550")
+        $sub.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#c0c0e8")
         $stk.Children.Add($nm) | Out-Null; $stk.Children.Add($sub) | Out-Null
         [System.Windows.Controls.Grid]::SetColumn($stk, 1)
 
@@ -1666,7 +1655,7 @@ function Build-StartupPanel {
         $trigB.BorderThickness = [System.Windows.Thickness]::new(1)
         $trigT = [System.Windows.Controls.TextBlock]::new()
         $trigT.Text = $trigRu; $trigT.FontSize = 9
-        $trigT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#505080")
+        $trigT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0")
         $trigB.Child = $trigT
         [System.Windows.Controls.Grid]::SetColumn($trigB, 2)
 
