@@ -975,13 +975,32 @@ function Run-SelectedScripts {
     $selected = $script:ScriptCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked }
     if (-not $selected) { Write-Log "⚠ Нет выбранных скриптов" -Color "Yellow"; return }
     $pathsList = @($selected | ForEach-Object { $_.Key })
-    $reboot = $rebootAfterChk.IsChecked
-    $count = $pathsList.Count
+    $reboot    = $rebootAfterChk.IsChecked
+    $count     = $pathsList.Count
     Write-Log "══════════════════════════════════════"
     Write-Log "▶ Запуск $count скриптов..."
     Write-Log "══════════════════════════════════════"
-    [System.Threading.Tasks.Task]::Run([Action]{
-        $ok=0; $fail=0
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.ApartmentState = "STA"
+    $rs.ThreadOptions  = "ReuseThread"
+    $rs.Open()
+    # Передаём переменные в runspace
+    $rs.SessionStateProxy.SetVariable("pathsList",   $pathsList)
+    $rs.SessionStateProxy.SetVariable("reboot",      $reboot)
+    $rs.SessionStateProxy.SetVariable("LogBox",      $script:LogBox)
+
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+    $ps.AddScript({
+        function Write-Log($msg, $color = "Default") {
+            $time = (Get-Date).ToString("HH:mm:ss")
+            $line = "[$time] $msg"
+            $LogBox.Dispatcher.Invoke([action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() })
+            $c = switch ($color) { "Green"{"Green"} "Red"{"Red"} "Yellow"{"Yellow"} default{"White"} }
+            Write-Host $line -ForegroundColor $c
+        }
+        $ok = 0; $fail = 0
         foreach ($scriptPath in $pathsList) {
             Write-Log "── $(Split-Path $scriptPath -Leaf)"
             try {
@@ -992,10 +1011,11 @@ function Run-SelectedScripts {
             }
         }
         Write-Log "══════════════════════════════════════"
-        Write-Log "Завершено: ✓$ok$(if($fail-gt 0){" ✗$fail ошибок"})"
+        Write-Log "Завершено: ✓$ok$(if($fail -gt 0){ " ✗$fail ошибок" })"
         Write-Log "══════════════════════════════════════"
         if ($reboot) { Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force }
     }) | Out-Null
+    $ps.BeginInvoke() | Out-Null
 }
 
 function Select-Preset($presetName) {
@@ -1066,17 +1086,38 @@ function Build-UpdatesPanel {
 }
 
 function Install-SelectedUpdates {
-    $sel=$script:UpdateCheckboxes.GetEnumerator()|Where-Object{$_.Value.IsChecked}
-    if (-not $sel){Write-Log "⚠ Нет выбранных" -Color "Yellow"; return}
-    $idList=@($sel|ForEach-Object{$_.Key})
+    $sel = $script:UpdateCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked }
+    if (-not $sel) { Write-Log "⚠ Нет выбранных" -Color "Yellow"; return }
+    $idList = @($sel | ForEach-Object { $_.Key })
     Write-Log "══ Обновление $($idList.Count) пакетов ══"
-    [System.Threading.Tasks.Task]::Run([Action]{
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.ApartmentState = "STA"; $rs.ThreadOptions = "ReuseThread"; $rs.Open()
+    $rs.SessionStateProxy.SetVariable("idList", $idList)
+    $rs.SessionStateProxy.SetVariable("LogBox", $script:LogBox)
+    $rs.SessionStateProxy.SetVariable("updatesPanel", $updatesPanel)
+    $rs.SessionStateProxy.SetVariable("updateStatusText", $updateStatusText)
+    $rs.SessionStateProxy.SetVariable("updateCountText", $updateCountText)
+
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+    $ps.AddScript({
+        function Write-Log($msg, $color = "Default") {
+            $time = (Get-Date).ToString("HH:mm:ss")
+            $line = "[$time] $msg"
+            $LogBox.Dispatcher.Invoke([action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() })
+            $c = switch ($color) { "Green"{"Green"} "Red"{"Red"} "Yellow"{"Yellow"} default{"White"} }
+            Write-Host $line -ForegroundColor $c
+        }
         foreach ($id in $idList) {
-            Write-Log "⬆ $id..."; winget upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1|ForEach-Object{Write-Log "   $_"}; Write-Log "   ✓" -Color "Green"
+            Write-Log "⬆ $id..."
+            winget upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
+                ForEach-Object { Write-Log "   $_" }
+            Write-Log "   ✓ Готово" -Color "Green"
         }
         Write-Log "══ Обновление завершено ══"
-        $script:LogBox.Dispatcher.Invoke([action]{ Build-UpdatesPanel })
     }) | Out-Null
+    $ps.BeginInvoke() | Out-Null
 }
 
 # ═══ Тест системы (с фоновым запуском + статус) ═══
@@ -1878,17 +1919,35 @@ $presetOfficeBtn.Add_Click({ Select-Preset "Office-pack" })
 $presetGamesBtn.Add_Click({ Select-Preset "Games-pack" })
 
 $installAppsBtn.Add_Click({
-    $sel=$script:AppCheckboxes.GetEnumerator()|Where-Object{$_.Value.IsChecked}
-    if (-not $sel){Write-Log "⚠ Нет выбранных приложений" -Color "Yellow"; return}
-    $idList=@($sel|ForEach-Object{$_.Key}); Write-Log "══ Установка приложений ══"
-    [System.Threading.Tasks.Task]::Run([Action]{
+    $sel = $script:AppCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked }
+    if (-not $sel) { Write-Log "⚠ Нет выбранных приложений" -Color "Yellow"; return }
+    $idList = @($sel | ForEach-Object { $_.Key })
+    Write-Log "══ Установка $($idList.Count) приложений ══"
+
+    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.ApartmentState = "STA"; $rs.ThreadOptions = "ReuseThread"; $rs.Open()
+    $rs.SessionStateProxy.SetVariable("idList", $idList)
+    $rs.SessionStateProxy.SetVariable("LogBox", $script:LogBox)
+
+    $ps = [System.Management.Automation.PowerShell]::Create()
+    $ps.Runspace = $rs
+    $ps.AddScript({
+        function Write-Log($msg, $color = "Default") {
+            $time = (Get-Date).ToString("HH:mm:ss")
+            $line = "[$time] $msg"
+            $LogBox.Dispatcher.Invoke([action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() })
+            $c = switch ($color) { "Green"{"Green"} "Red"{"Red"} "Yellow"{"Yellow"} default{"White"} }
+            Write-Host $line -ForegroundColor $c
+        }
         foreach ($id in $idList) {
-            Write-Log "⏳ $id..."
-            winget install --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1|ForEach-Object{Write-Log "   $_"}
+            Write-Log "⏳ Установка: $id..."
+            winget install --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
+                ForEach-Object { Write-Log "   $_" }
             Write-Log "✓ $id установлена" -Color "Green"
         }
         Write-Log "══ Установка завершена ══"
     }) | Out-Null
+    $ps.BeginInvoke() | Out-Null
 })
 $selectAllAppsBtn.Add_Click({ foreach($cb in $script:AppCheckboxes.Values){$cb.IsChecked=$true} })
 $deselectAllAppsBtn.Add_Click({ foreach($cb in $script:AppCheckboxes.Values){$cb.IsChecked=$false} })
