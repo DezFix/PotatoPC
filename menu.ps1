@@ -420,6 +420,42 @@ function Write-Log($msg, $color = "Default") {
                     </Border>
                 </Grid>
             </TabItem>
+            <!-- ПОЛЬЗОВАТЕЛИ -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="👤" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Пользователи" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid Background="#12121f">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Панель действий -->
+                    <Border Grid.Row="0" Background="#1a1a2e" Padding="14,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Foreground="#9898c8" FontSize="11" VerticalAlignment="Center"
+                                       Text="👥 Локальные учётные записи Windows. Изменения требуют прав администратора."/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="➕ Добавить пользователя" x:Name="AddUserBtn" Style="{StaticResource BtnPrimary}" Height="28" FontSize="11" Margin="0,0,8,0"/>
+                                <Button Content="🔄 Обновить" x:Name="RefreshUsersBtn" Style="{StaticResource BtnSecondary}" Height="28" FontSize="11"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Список пользователей -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
+                        <StackPanel x:Name="UsersPanel" Margin="16,12,16,12"/>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
             <!-- ПРИЛОЖЕНИЯ -->
             <TabItem>
                 <TabItem.Header>
@@ -601,6 +637,10 @@ $startupSearchBox      = $window.FindName("StartupSearchBox")
 $startupSearchHint     = $window.FindName("StartupSearchHint")
 $startupSearchClear    = $window.FindName("StartupSearchClear")
 $script:StartupFilter  = "All"   # All | Apps | Tasks
+
+$usersPanel       = $window.FindName("UsersPanel")
+$refreshUsersBtn  = $window.FindName("RefreshUsersBtn")
+$addUserBtn       = $window.FindName("AddUserBtn")
 $scriptSearchBox       = $window.FindName("ScriptSearchBox")
 $scriptSearchHint      = $window.FindName("ScriptSearchHint")
 $scriptSearchClear     = $window.FindName("ScriptSearchClear")
@@ -1123,6 +1163,262 @@ function Install-SelectedUpdates {
 # ═══ Тест системы (с фоновым запуском + статус) ═══
 function Build-DiagPanel {
     $diagPanel.Children.Clear()
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # СПЕЦИАЛЬНАЯ КАРТОЧКА: Тест интернета (скорость + пинг)
+    # ═══════════════════════════════════════════════════════════════════════
+    $netCard = [System.Windows.Controls.Border]::new()
+    $netCard.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
+    $netCard.CornerRadius = [System.Windows.CornerRadius]::new(10)
+    $netCard.Margin = [System.Windows.Thickness]::new(0,5,0,5)
+    $netCard.Padding = [System.Windows.Thickness]::new(16,14,16,14)
+    $netCard.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc7155")
+    $netCard.BorderThickness = [System.Windows.Thickness]::new(0,0,0,2)
+
+    $netOuter = [System.Windows.Controls.StackPanel]::new()
+
+    # ── Верхняя строка: иконка + заголовок + статус + кнопка ───────────────
+    $netTopGrid = [System.Windows.Controls.Grid]::new()
+    $ntc1 = [System.Windows.Controls.ColumnDefinition]::new(); $ntc1.Width = [System.Windows.GridLength]::new(44)
+    $ntc2 = [System.Windows.Controls.ColumnDefinition]::new(); $ntc2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+    $ntc3 = [System.Windows.Controls.ColumnDefinition]::new(); $ntc3.Width = [System.Windows.GridLength]::Auto
+    $netTopGrid.ColumnDefinitions.Add($ntc1); $netTopGrid.ColumnDefinitions.Add($ntc2); $netTopGrid.ColumnDefinitions.Add($ntc3)
+
+    $netIco = [System.Windows.Controls.TextBlock]::new()
+    $netIco.Text = "🌐"; $netIco.FontSize = 26; $netIco.VerticalAlignment = "Center"; $netIco.HorizontalAlignment = "Center"
+    [System.Windows.Controls.Grid]::SetColumn($netIco, 0)
+
+    $netTxtStack = [System.Windows.Controls.StackPanel]::new()
+    $netTxtStack.VerticalAlignment = "Center"; $netTxtStack.Margin = [System.Windows.Thickness]::new(12,0,12,0)
+    $netTitleRow = [System.Windows.Controls.StackPanel]::new(); $netTitleRow.Orientation = "Horizontal"
+    $netTtl = [System.Windows.Controls.TextBlock]::new()
+    $netTtl.Text = "Тест скорости интернета"; $netTtl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e0e0f4")
+    $netTtl.FontSize = 13; $netTtl.FontWeight = "SemiBold"
+    $netStatusLbl = [System.Windows.Controls.TextBlock]::new()
+    $netStatusLbl.FontSize = 11; $netStatusLbl.VerticalAlignment = "Center"; $netStatusLbl.Margin = [System.Windows.Thickness]::new(10,0,0,0)
+    $netStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0"); $netStatusLbl.Text = ""
+    $netTitleRow.Children.Add($netTtl) | Out-Null; $netTitleRow.Children.Add($netStatusLbl) | Out-Null
+    $netDsc = [System.Windows.Controls.TextBlock]::new()
+    $netDsc.Text = "Измеряет скорость скачивания, загрузки и задержку (пинг) до серверов в интернете."
+    $netDsc.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#b8b8cc"); $netDsc.FontSize = 11
+    $netDsc.Margin = [System.Windows.Thickness]::new(0,3,0,0); $netDsc.TextWrapping = "Wrap"
+    $netTxtStack.Children.Add($netTitleRow) | Out-Null; $netTxtStack.Children.Add($netDsc) | Out-Null
+    [System.Windows.Controls.Grid]::SetColumn($netTxtStack, 1)
+
+    $netBtn = [System.Windows.Controls.Button]::new()
+    $netBtn.Content = "▶ Запустить тест"
+    $netBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+    $netBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#0a1a0a")
+    $netBtn.BorderThickness = [System.Windows.Thickness]::new(0); $netBtn.Cursor = [System.Windows.Input.Cursors]::Hand
+    $netBtn.FontSize = 12; $netBtn.FontWeight = "SemiBold"; $netBtn.Padding = [System.Windows.Thickness]::new(14,8,14,8)
+    $netBtn.VerticalAlignment = "Center"
+    $netBtn.Add_MouseEnter({ $this.Opacity = 0.85 }); $netBtn.Add_MouseLeave({ $this.Opacity = 1.0 })
+    [System.Windows.Controls.Grid]::SetColumn($netBtn, 2)
+
+    $netTopGrid.Children.Add($netIco) | Out-Null
+    $netTopGrid.Children.Add($netTxtStack) | Out-Null
+    $netTopGrid.Children.Add($netBtn) | Out-Null
+    $netOuter.Children.Add($netTopGrid) | Out-Null
+
+    # ── Панель результатов (скрыта до запуска) ──────────────────────────────
+    $netResultsBorder = [System.Windows.Controls.Border]::new()
+    $netResultsBorder.Margin = [System.Windows.Thickness]::new(56,12,0,0)
+    $netResultsBorder.Visibility = "Collapsed"
+
+    $netResultsGrid = [System.Windows.Controls.Grid]::new()
+    $nrc1 = [System.Windows.Controls.ColumnDefinition]::new(); $nrc1.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+    $nrc2 = [System.Windows.Controls.ColumnDefinition]::new(); $nrc2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+    $nrc3 = [System.Windows.Controls.ColumnDefinition]::new(); $nrc3.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+    $netResultsGrid.ColumnDefinitions.Add($nrc1); $netResultsGrid.ColumnDefinitions.Add($nrc2); $netResultsGrid.ColumnDefinitions.Add($nrc3)
+
+    # Блок: Пинг
+    function New-NetMetricBlock {
+        param([string]$Icon, [string]$Label, [string]$Color)
+        $b = [System.Windows.Controls.Border]::new()
+        $b.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#12121f")
+        $b.CornerRadius = [System.Windows.CornerRadius]::new(8)
+        $b.Margin = [System.Windows.Thickness]::new(4,0,4,0)
+        $b.Padding = [System.Windows.Thickness]::new(12,10,12,10)
+        $stk = [System.Windows.Controls.StackPanel]::new(); $stk.HorizontalAlignment = "Center"
+        $iconTxt = [System.Windows.Controls.TextBlock]::new()
+        $iconTxt.Text = $Icon; $iconTxt.FontSize = 18; $iconTxt.HorizontalAlignment = "Center"; $iconTxt.Margin = [System.Windows.Thickness]::new(0,0,0,4)
+        $valTxt = [System.Windows.Controls.TextBlock]::new()
+        $valTxt.Text = "—"; $valTxt.FontSize = 20; $valTxt.FontWeight = "Bold"; $valTxt.HorizontalAlignment = "Center"
+        $valTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($Color)
+        $lblTxt = [System.Windows.Controls.TextBlock]::new()
+        $lblTxt.Text = $Label; $lblTxt.FontSize = 10; $lblTxt.HorizontalAlignment = "Center"; $lblTxt.Margin = [System.Windows.Thickness]::new(0,2,0,0)
+        $lblTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#8888b0")
+        $stk.Children.Add($iconTxt) | Out-Null; $stk.Children.Add($valTxt) | Out-Null; $stk.Children.Add($lblTxt) | Out-Null
+        $b.Child = $stk
+        return @{ Border=$b; ValueText=$valTxt }
+    }
+
+    $pingBlock = New-NetMetricBlock -Icon "📶" -Label "ПИНГ (мс)" -Color "#4a9eff"
+    $downBlock = New-NetMetricBlock -Icon "⬇️" -Label "СКАЧИВАНИЕ (Мбит/с)" -Color "#2ecc71"
+    $upBlock   = New-NetMetricBlock -Icon "⬆️" -Label "ЗАГРУЗКА (Мбит/с)" -Color "#f0c040"
+
+    [System.Windows.Controls.Grid]::SetColumn($pingBlock.Border, 0)
+    [System.Windows.Controls.Grid]::SetColumn($downBlock.Border, 1)
+    [System.Windows.Controls.Grid]::SetColumn($upBlock.Border, 2)
+    $netResultsGrid.Children.Add($pingBlock.Border) | Out-Null
+    $netResultsGrid.Children.Add($downBlock.Border) | Out-Null
+    $netResultsGrid.Children.Add($upBlock.Border) | Out-Null
+
+    $netResultsBorder.Child = $netResultsGrid
+    $netOuter.Children.Add($netResultsBorder) | Out-Null
+    $netCard.Child = $netOuter
+
+    # ── Логика теста ─────────────────────────────────────────────────────
+    $netBtn.Add_Click({
+        $netBtn.IsEnabled = $false
+        $netBtn.Content = "⏳ Тестирование..."
+        $netStatusLbl.Text = "● запущено"
+        $netStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+        $netResultsBorder.Visibility = "Visible"
+        $pingBlock.ValueText.Text = "…"
+        $downBlock.ValueText.Text = "…"
+        $upBlock.ValueText.Text = "…"
+
+        $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+        $rs.ApartmentState = "STA"; $rs.ThreadOptions = "ReuseThread"; $rs.Open()
+        $rs.SessionStateProxy.SetVariable("LogBox", $script:LogBox)
+        $rs.SessionStateProxy.SetVariable("netBtn", $netBtn)
+        $rs.SessionStateProxy.SetVariable("netStatusLbl", $netStatusLbl)
+        $rs.SessionStateProxy.SetVariable("pingValueText", $pingBlock.ValueText)
+        $rs.SessionStateProxy.SetVariable("downValueText", $downBlock.ValueText)
+        $rs.SessionStateProxy.SetVariable("upValueText", $upBlock.ValueText)
+
+        $ps = [System.Management.Automation.PowerShell]::Create()
+        $ps.Runspace = $rs
+        $ps.AddScript({
+            function Write-Log($msg, $color = "Default") {
+                $time = (Get-Date).ToString("HH:mm:ss")
+                $line = "[$time] $msg"
+                $LogBox.Dispatcher.Invoke([action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() })
+                $c = switch ($color) { "Green"{"Green"} "Red"{"Red"} "Yellow"{"Yellow"} default{"White"} }
+                Write-Host $line -ForegroundColor $c
+            }
+
+            # Принудительно включаем современные протоколы TLS — иначе WebClient/HttpClient
+            # могут падать на некоторых системах (особенно после .NET по умолчанию TLS1.0)
+            try {
+                [System.Net.ServicePointManager]::SecurityProtocol = `
+                    [System.Net.SecurityProtocolType]::Tls12 -bor [System.Net.SecurityProtocolType]::Tls13
+            } catch {
+                try { [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12 } catch {}
+            }
+
+            Write-Log "══ Тест интернета: запуск ══"
+
+            # ── 1. Пинг (github.com) ────────────────────────────────────
+            try {
+                Write-Log "📶 Измерение пинга до github.com..."
+                $pingHost = "github.com"
+                $pingTimes = @()
+                for ($i = 0; $i -lt 4; $i++) {
+                    try {
+                        $pr = Test-Connection -TargetName $pingHost -Count 1 -ErrorAction Stop
+                        if ($pr.PSObject.Properties.Name -contains 'Latency') { $pingTimes += $pr.Latency }
+                        elseif ($pr.PSObject.Properties.Name -contains 'ResponseTime') { $pingTimes += $pr.ResponseTime }
+                    } catch {
+                        # Фоллбэк на старый синтаксис (-ComputerName), если -TargetName не поддерживается
+                        try {
+                            $pr2 = Test-Connection -ComputerName $pingHost -Count 1 -ErrorAction Stop
+                            $pingTimes += $pr2.ResponseTime
+                        } catch {}
+                    }
+                }
+                if ($pingTimes.Count -gt 0) {
+                    $avgPing = [math]::Round(($pingTimes | Measure-Object -Average).Average)
+                    $pingValueText.Dispatcher.Invoke([action]{ $pingValueText.Text = "$avgPing" })
+                    Write-Log "📶 Пинг до github.com: $avgPing мс" -Color "Green"
+                } else {
+                    throw "Все попытки пинга не вернули результат (ICMP может быть заблокирован файрволом)"
+                }
+            } catch {
+                $errMsg = $_.Exception.Message
+                $pingValueText.Dispatcher.Invoke([action]{ $pingValueText.Text = "ошибка" })
+                Write-Log "✗ Не удалось измерить пинг: $errMsg" -Color "Red"
+            }
+
+            # ── 2. Скорость скачивания (файл с GitHub releases CDN) ─────────
+            try {
+                Write-Log "⬇️ Измерение скорости скачивания..."
+                # Используем крупный публичный файл с надёжного CDN (jsDelivr зеркалирует GitHub)
+                $testUrl = "https://speed.cloudflare.com/__down?bytes=25000000"
+                $tempFile = Join-Path $env:TEMP "potatopc_speedtest.bin"
+
+                $sw = [System.Diagnostics.Stopwatch]::StartNew()
+                $wc = [System.Net.WebClient]::new()
+                $wc.Headers.Add("User-Agent", "Mozilla/5.0 PotatoPC-SpeedTest")
+                $wc.DownloadFile($testUrl, $tempFile)
+                $sw.Stop()
+
+                $bytes = (Get-Item $tempFile).Length
+                Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+
+                $seconds = $sw.Elapsed.TotalSeconds
+                if ($seconds -gt 0.05 -and $bytes -gt 0) {
+                    $mbps = [math]::Round(($bytes * 8 / 1MB) / $seconds, 1)
+                    $downValueText.Dispatcher.Invoke([action]{ $downValueText.Text = "$mbps" })
+                    Write-Log "⬇️ Скачивание: $mbps Мбит/с ($([math]::Round($bytes/1MB,1)) МБ за $([math]::Round($seconds,2)) сек)" -Color "Green"
+                } else {
+                    throw "Получен пустой ответ или слишком быстрое завершение"
+                }
+            } catch {
+                $errMsg = $_.Exception.Message
+                $downValueText.Dispatcher.Invoke([action]{ $downValueText.Text = "ошибка" })
+                Write-Log "✗ Ошибка теста скачивания: $errMsg" -Color "Red"
+            }
+
+            # ── 3. Скорость загрузки ──────────────────────────────────────
+            try {
+                Write-Log "⬆️ Измерение скорости загрузки..."
+                $uploadSize = 5MB
+                $uploadData = [byte[]]::new($uploadSize)
+                [System.Random]::new().NextBytes($uploadData)
+
+                $uploadUrl = "https://speed.cloudflare.com/__up"
+                $sw2 = [System.Diagnostics.Stopwatch]::StartNew()
+                $wc2 = [System.Net.WebClient]::new()
+                $wc2.Headers.Add("Content-Type", "application/octet-stream")
+                $wc2.Headers.Add("User-Agent", "Mozilla/5.0 PotatoPC-SpeedTest")
+                $wc2.UploadData($uploadUrl, "POST", $uploadData) | Out-Null
+                $sw2.Stop()
+
+                $seconds2 = $sw2.Elapsed.TotalSeconds
+                if ($seconds2 -gt 0.05) {
+                    $mbpsUp = [math]::Round(($uploadSize * 8 / 1MB) / $seconds2, 1)
+                    $upValueText.Dispatcher.Invoke([action]{ $upValueText.Text = "$mbpsUp" })
+                    Write-Log "⬆️ Загрузка: $mbpsUp Мбит/с" -Color "Green"
+                } else {
+                    throw "Слишком быстрое завершение, не удалось измерить"
+                }
+            } catch {
+                $errMsg = $_.Exception.Message
+                $upValueText.Dispatcher.Invoke([action]{ $upValueText.Text = "ошибка" })
+                Write-Log "✗ Ошибка теста загрузки: $errMsg" -Color "Red"
+            }
+
+            Write-Log "══ Тест интернета завершён ══" -Color "Green"
+
+            $netBtn.Dispatcher.Invoke([action]{
+                $netBtn.IsEnabled = $true
+                $netBtn.Content = "▶ Запустить тест"
+                $netStatusLbl.Text = "✓ завершено"
+                $netStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+            })
+        }) | Out-Null
+        $ps.BeginInvoke() | Out-Null
+    }.GetNewClosure())
+
+    $netCard.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e35") })
+    $netCard.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+    $diagPanel.Children.Add($netCard) | Out-Null
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # ОСТАЛЬНЫЕ ТЕСТЫ (SFC, DISM, CHKDSK, RAM)
+    # ═══════════════════════════════════════════════════════════════════════
     $tests = @(
         @{ Title="Проверка системных файлов (SFC)"; Desc="Сканирует и восстанавливает повреждённые файлы Windows. Занимает 5–15 минут."; Icon="🛡️"; Color="#4a90d9"
            Action={ [System.Threading.Tasks.Task]::Run([Action]{ sfc /scannow 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "✓ SFC завершён" -Color "Green" }) | Out-Null } }
@@ -1201,7 +1497,7 @@ function Build-DiagPanel {
                     $localLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
                 })
             }) | Out-Null
-        })
+        }.GetNewClosure())
 
         [System.Windows.Controls.Grid]::SetColumn($btn,2)
         $g.Children.Add($ico)|Out-Null; $g.Children.Add($txt)|Out-Null; $g.Children.Add($btn)|Out-Null; $card.Child=$g
@@ -1732,6 +2028,628 @@ function Build-StartupPanel {
     Apply-StartupFilter
 }
 
+# ═══ Раздел: Пользователи ═══
+
+# Сопоставление SID групп с человекочитаемой ролью
+function Get-UserRoleLabel {
+    param($LocalUser)
+    try {
+        $isAdmin = $false
+        $adminGroup = Get-LocalGroupMember -Group "Администраторы" -ErrorAction SilentlyContinue
+        if (-not $adminGroup) { $adminGroup = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue }
+        if ($adminGroup) {
+            $isAdmin = @($adminGroup | Where-Object { $_.SID -eq $LocalUser.SID }).Count -gt 0
+        }
+        return $isAdmin
+    } catch { return $false }
+}
+
+function Build-UsersPanel {
+    $usersPanel.Children.Clear()
+
+    $users = @()
+    try {
+        $users = @(Get-LocalUser -ErrorAction Stop | Sort-Object { -([int]$_.Enabled) }, Name)
+    } catch {
+        Write-Log "✗ Не удалось получить список пользователей: $_" -Color "Red"
+    }
+
+    if ($users.Count -eq 0) {
+        $lbl = [System.Windows.Controls.TextBlock]::new()
+        $lbl.Text = "Пользователи не найдены или нет доступа к Get-LocalUser"
+        $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#9898b8")
+        $lbl.FontSize = 13; $lbl.TextAlignment = "Center"; $lbl.Margin = "0,60,0,0"
+        $usersPanel.Children.Add($lbl) | Out-Null
+        return
+    }
+
+    $currentUserName = $env:USERNAME
+
+    foreach ($u in $users) {
+        $isAdmin   = Get-UserRoleLabel -LocalUser $u
+        $isCurrent = ($u.Name -eq $currentUserName)
+
+        $card = [System.Windows.Controls.Border]::new()
+        $card.CornerRadius = [System.Windows.CornerRadius]::new(10)
+        $card.Margin = [System.Windows.Thickness]::new(0,5,0,5)
+        $card.Padding = [System.Windows.Thickness]::new(16,14,16,14)
+        $card.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
+
+        if ($u.Enabled) {
+            $card.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
+            $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
+        } else {
+            $card.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#15151f")
+            $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a25")
+            $card.Opacity = 0.7
+        }
+
+        $g = [System.Windows.Controls.Grid]::new()
+        $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = [System.Windows.GridLength]::new(44)
+        $c2 = [System.Windows.Controls.ColumnDefinition]::new(); $c2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+        $c3 = [System.Windows.Controls.ColumnDefinition]::new(); $c3.Width = [System.Windows.GridLength]::Auto
+        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
+
+        # Иконка-аватар
+        $avatarBorder = [System.Windows.Controls.Border]::new()
+        $avatarBorder.Width = 38; $avatarBorder.Height = 38
+        $avatarBorder.CornerRadius = [System.Windows.CornerRadius]::new(19)
+        $avatarBorder.VerticalAlignment = "Center"; $avatarBorder.HorizontalAlignment = "Center"
+        $avatarBgColor = if ($isAdmin) { "#3a2a6a" } else { "#2a2a45" }
+        $avatarBorder.Background = [Windows.Media.BrushConverter]::new().ConvertFrom($avatarBgColor)
+        $avatarTxt = [System.Windows.Controls.TextBlock]::new()
+        $avatarTxt.Text = if ($isAdmin) { "👑" } else { "👤" }
+        $avatarTxt.FontSize = 17; $avatarTxt.HorizontalAlignment = "Center"; $avatarTxt.VerticalAlignment = "Center"
+        $avatarBorder.Child = $avatarTxt
+        [System.Windows.Controls.Grid]::SetColumn($avatarBorder, 0)
+
+        # Имя + бейджи + детали
+        $infoStack = [System.Windows.Controls.StackPanel]::new()
+        $infoStack.VerticalAlignment = "Center"
+        $infoStack.Margin = [System.Windows.Thickness]::new(12,0,12,0)
+
+        $nameRow = [System.Windows.Controls.StackPanel]::new()
+        $nameRow.Orientation = "Horizontal"; $nameRow.VerticalAlignment = "Center"
+
+        $nameTxt = [System.Windows.Controls.TextBlock]::new()
+        $nameTxt.Text = $u.Name; $nameTxt.FontSize = 14; $nameTxt.FontWeight = "SemiBold"
+        $nameFgColor = if ($u.Enabled) { "#e8e8ff" } else { "#808090" }
+        $nameTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($nameFgColor)
+        $nameRow.Children.Add($nameTxt) | Out-Null
+
+        if ($isCurrent) {
+            $curB = [System.Windows.Controls.Border]::new()
+            $curB.CornerRadius = [System.Windows.CornerRadius]::new(4)
+            $curB.Padding = [System.Windows.Thickness]::new(5,1,5,1)
+            $curB.Margin = [System.Windows.Thickness]::new(7,0,0,0)
+            $curB.VerticalAlignment = "Center"
+            $curB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#0d2d2d")
+            $curB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a6b6b")
+            $curB.BorderThickness = [System.Windows.Thickness]::new(1)
+            $curT = [System.Windows.Controls.TextBlock]::new()
+            $curT.Text = "● текущий"; $curT.FontSize = 10; $curT.FontWeight = "SemiBold"
+            $curT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecccc")
+            $curB.Child = $curT
+            $nameRow.Children.Add($curB) | Out-Null
+        }
+
+        # Бейдж роли
+        $roleB = [System.Windows.Controls.Border]::new()
+        $roleB.CornerRadius = [System.Windows.CornerRadius]::new(4)
+        $roleB.Padding = [System.Windows.Thickness]::new(5,1,5,1)
+        $roleB.Margin = [System.Windows.Thickness]::new(7,0,0,0)
+        $roleB.VerticalAlignment = "Center"
+        $roleB.BorderThickness = [System.Windows.Thickness]::new(1)
+        $roleT = [System.Windows.Controls.TextBlock]::new()
+        $roleT.FontSize = 10; $roleT.FontWeight = "SemiBold"
+        if ($isAdmin) {
+            $roleB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d2200")
+            $roleB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#a07800")
+            $roleT.Text = "👑 Администратор"
+            $roleT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+        } else {
+            $roleB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#14142a")
+            $roleB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a2a50")
+            $roleT.Text = "Пользователь"
+            $roleT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0")
+        }
+        $roleB.Child = $roleT
+        $nameRow.Children.Add($roleB) | Out-Null
+
+        # Бейдж статуса вкл/выкл
+        $stB = [System.Windows.Controls.Border]::new()
+        $stB.CornerRadius = [System.Windows.CornerRadius]::new(4)
+        $stB.Padding = [System.Windows.Thickness]::new(5,1,5,1)
+        $stB.Margin = [System.Windows.Thickness]::new(7,0,0,0)
+        $stB.VerticalAlignment = "Center"
+        $stB.BorderThickness = [System.Windows.Thickness]::new(1)
+        $stT = [System.Windows.Controls.TextBlock]::new()
+        $stT.FontSize = 10; $stT.FontWeight = "SemiBold"
+        if ($u.Enabled) {
+            $stB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#0d2d1a")
+            $stB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a6b35")
+            $stT.Text = "● активен"; $stT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+        } else {
+            $stB.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d0d0d")
+            $stB.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#6b1a1a")
+            $stT.Text = "● отключен"; $stT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
+        }
+        $stB.Child = $stT
+        $nameRow.Children.Add($stB) | Out-Null
+
+        $infoStack.Children.Add($nameRow) | Out-Null
+
+        # Доп. информация: срок действия пароля, последний вход
+        $detailParts = @()
+        try {
+            if ($u.PasswordExpires) { $detailParts += "Пароль истекает: $($u.PasswordExpires.ToString('dd.MM.yyyy'))" }
+            else { $detailParts += "Пароль без срока действия" }
+        } catch { $detailParts += "Срок пароля: неизвестно" }
+        if ($u.LastLogon) { $detailParts += "Вход: $($u.LastLogon.ToString('dd.MM.yyyy HH:mm'))" }
+        if ($u.Description) { $detailParts += $u.Description }
+
+        $detailTxt = [System.Windows.Controls.TextBlock]::new()
+        $detailTxt.Text = ($detailParts -join "  •  ")
+        $detailTxt.FontSize = 10; $detailTxt.Margin = [System.Windows.Thickness]::new(0,3,0,0)
+        $detailTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#7070a0")
+        $detailTxt.TextTrimming = "CharacterEllipsis"
+        $infoStack.Children.Add($detailTxt) | Out-Null
+
+        [System.Windows.Controls.Grid]::SetColumn($infoStack, 1)
+
+        # Кнопка "Настроить"
+        $cfgBtn = [System.Windows.Controls.Button]::new()
+        $cfgBtn.Content = "⚙ Настроить"
+        $cfgBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a2a4a")
+        $cfgBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#b8b8e8")
+        $cfgBtn.BorderThickness = [System.Windows.Thickness]::new(0)
+        $cfgBtn.Cursor = [System.Windows.Input.Cursors]::Hand
+        $cfgBtn.FontSize = 11; $cfgBtn.FontWeight = "SemiBold"
+        $cfgBtn.Padding = [System.Windows.Thickness]::new(12,7,12,7)
+        $cfgBtn.VerticalAlignment = "Center"
+        $cfgBtn.Tag = $u.Name
+        $cfgBtn.Add_MouseEnter({ $this.Opacity = 0.8 })
+        $cfgBtn.Add_MouseLeave({ $this.Opacity = 1.0 })
+        $cfgBtn.Add_Click({
+            $userName = $this.Tag
+            Show-UserSettingsDialog -UserName $userName
+        })
+        [System.Windows.Controls.Grid]::SetColumn($cfgBtn, 2)
+
+        $g.Children.Add($avatarBorder) | Out-Null
+        $g.Children.Add($infoStack) | Out-Null
+        $g.Children.Add($cfgBtn) | Out-Null
+        $card.Child = $g
+
+        if ($u.Enabled) {
+            $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
+            $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+        }
+        $usersPanel.Children.Add($card) | Out-Null
+    }
+
+    Write-Log "Пользователи: найдено $($users.Count) (активных: $(($users | Where-Object {$_.Enabled}).Count))"
+}
+
+# ═══ Диалог настроек пользователя ═══
+function Show-UserSettingsDialog {
+    param([string]$UserName)
+
+    $user = $null
+    try { $user = Get-LocalUser -Name $UserName -ErrorAction Stop } catch {
+        Write-Log "✗ Не удалось загрузить пользователя $UserName : $_" -Color "Red"; return
+    }
+
+    $isAdminNow = Get-UserRoleLabel -LocalUser $user
+
+    [xml]$dialogXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Настройка: $UserName" Width="440" Height="650"
+        WindowStartupLocation="CenterScreen" Background="#12121f" ResizeMode="NoResize">
+    <Window.Resources>
+        <Style x:Key="DlgBtn" TargetType="Button">
+            <Setter Property="Background" Value="#6c63ff"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DlgBtnSecondary" TargetType="Button" BasedOn="{StaticResource DlgBtn}">
+            <Setter Property="Background" Value="#2a2a42"/>
+            <Setter Property="Foreground" Value="#c0c0dd"/>
+        </Style>
+        <Style x:Key="DlgTextBox" TargetType="PasswordBox">
+            <Setter Property="Background" Value="#1a1a2e"/>
+            <Setter Property="Foreground" Value="#e0e0ff"/>
+            <Setter Property="BorderBrush" Value="#2a2a45"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="CaretBrush" Value="#6c63ff"/>
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="22">
+        <TextBlock Text="⚙ Настройки пользователя" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,2"/>
+        <TextBlock Text="$UserName" Foreground="#6c63ff" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,16"/>
+
+        <!-- Смена пароля -->
+        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="🔑 Новый пароль" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <PasswordBox x:Name="NewPasswordBox" Style="{StaticResource DlgTextBox}" Margin="0,0,0,8"/>
+                <TextBlock Text="Подтверждение пароля" Foreground="#7070a0" FontSize="10" Margin="0,0,0,4"/>
+                <PasswordBox x:Name="ConfirmPasswordBox" Style="{StaticResource DlgTextBox}"/>
+                <Button Content="Изменить пароль" x:Name="ChangePasswordBtn" Style="{StaticResource DlgBtn}" Margin="0,10,0,0" HorizontalAlignment="Left"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Срок действия пароля -->
+        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="♾️ Пароль без срока действия" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold"/>
+                    <TextBlock Text="Отключает обязательную смену пароля по истечении срока" Foreground="#7070a0" FontSize="10" Margin="0,3,0,0" TextWrapping="Wrap" MaxWidth="240"/>
+                </StackPanel>
+                <CheckBox x:Name="NoExpireChk" Grid.Column="1" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- Роль -->
+        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="👑 Роль учётной записи" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton x:Name="RoleAdminRadio" Content="Администратор" GroupName="Role" Foreground="#c0c0e0" FontSize="12" Margin="0,0,20,0"/>
+                    <RadioButton x:Name="RoleUserRadio" Content="Пользователь" GroupName="Role" Foreground="#c0c0e0" FontSize="12"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Учётная запись активна -->
+        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="✅ Учётная запись активна" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <CheckBox x:Name="EnabledChk" Grid.Column="1" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <TextBlock x:Name="DialogStatusText" Foreground="#9898c8" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Закрыть" x:Name="CloseDialogBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0"/>
+            <Button Content="💾 Сохранить изменения" x:Name="SaveChangesBtn" Style="{StaticResource DlgBtn}"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
+"@
+
+    $dReader = [System.Xml.XmlNodeReader]::new($dialogXaml)
+    $dlg = [Windows.Markup.XamlReader]::Load($dReader)
+
+    $newPasswordBox     = $dlg.FindName("NewPasswordBox")
+    $confirmPasswordBox = $dlg.FindName("ConfirmPasswordBox")
+    $changePasswordBtn  = $dlg.FindName("ChangePasswordBtn")
+    $noExpireChk        = $dlg.FindName("NoExpireChk")
+    $roleAdminRadio     = $dlg.FindName("RoleAdminRadio")
+    $roleUserRadio      = $dlg.FindName("RoleUserRadio")
+    $enabledChk         = $dlg.FindName("EnabledChk")
+    $dialogStatusText   = $dlg.FindName("DialogStatusText")
+    $closeDialogBtn     = $dlg.FindName("CloseDialogBtn")
+    $saveChangesBtn     = $dlg.FindName("SaveChangesBtn")
+
+    # Предзаполняем текущее состояние
+    try { $noExpireChk.IsChecked = ($user.PasswordExpires -eq $null) } catch { $noExpireChk.IsChecked = $false }
+    $enabledChk.IsChecked = $user.Enabled
+    if ($isAdminNow) { $roleAdminRadio.IsChecked = $true } else { $roleUserRadio.IsChecked = $true }
+
+    # ── Смена пароля ──────────────────────────────────────────────────────
+    $changePasswordBtn.Add_Click({
+        $p1 = $newPasswordBox.Password
+        $p2 = $confirmPasswordBox.Password
+        if ([string]::IsNullOrWhiteSpace($p1)) {
+            $dialogStatusText.Text = "⚠ Введите новый пароль"
+            $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+            return
+        }
+        if ($p1 -ne $p2) {
+            $dialogStatusText.Text = "✗ Пароли не совпадают"
+            $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
+            return
+        }
+        try {
+            $secure = ConvertTo-SecureString $p1 -AsPlainText -Force
+            Set-LocalUser -Name $UserName -Password $secure -ErrorAction Stop
+            $dialogStatusText.Text = "✓ Пароль успешно изменён"
+            $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+            $newPasswordBox.Password = ""; $confirmPasswordBox.Password = ""
+            Write-Log "✓ Пароль изменён для $UserName" -Color "Green"
+        } catch {
+            $dialogStatusText.Text = "✗ Ошибка: $_"
+            $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
+            Write-Log "✗ Смена пароля для $UserName : $_" -Color "Red"
+        }
+    })
+
+    # ── Сохранить изменения (срок пароля, роль, активность) ────────────────
+    $saveChangesBtn.Add_Click({
+        $messages = @()
+        $hasError = $false
+
+        # Срок действия пароля
+        try {
+            Set-LocalUser -Name $UserName -PasswordNeverExpires $noExpireChk.IsChecked -ErrorAction Stop
+            $messages += if ($noExpireChk.IsChecked) { "Пароль: без срока действия" } else { "Пароль: со сроком действия" }
+        } catch {
+            $messages += "Ошибка срока пароля: $_"; $hasError = $true
+        }
+
+        # Активность учётной записи
+        try {
+            if ($enabledChk.IsChecked) { Enable-LocalUser -Name $UserName -ErrorAction Stop }
+            else { Disable-LocalUser -Name $UserName -ErrorAction Stop }
+            $messages += if ($enabledChk.IsChecked) { "Учётная запись: активна" } else { "Учётная запись: отключена" }
+        } catch {
+            $messages += "Ошибка активности: $_"; $hasError = $true
+        }
+
+        # Роль (группа)
+        try {
+            $wantsAdmin = $roleAdminRadio.IsChecked
+            $adminGroupName = "Администраторы"
+            $userGroupName  = "Пользователи"
+            if (-not (Get-LocalGroup -Name $adminGroupName -ErrorAction SilentlyContinue)) { $adminGroupName = "Administrators" }
+            if (-not (Get-LocalGroup -Name $userGroupName -ErrorAction SilentlyContinue))  { $userGroupName  = "Users" }
+
+            $currentlyAdmin = Get-UserRoleLabel -LocalUser (Get-LocalUser -Name $UserName)
+
+            if ($wantsAdmin -and -not $currentlyAdmin) {
+                Add-LocalGroupMember -Group $adminGroupName -Member $UserName -ErrorAction Stop
+                $messages += "Роль: повышен до Администратора"
+            } elseif (-not $wantsAdmin -and $currentlyAdmin) {
+                Remove-LocalGroupMember -Group $adminGroupName -Member $UserName -ErrorAction Stop
+                $messages += "Роль: понижен до Пользователя"
+            } else {
+                $messages += "Роль: без изменений"
+            }
+        } catch {
+            $messages += "Ошибка смены роли: $_"; $hasError = $true
+        }
+
+        $dialogStatusText.Text = ($messages -join "  •  ")
+        $statusFgColor = if ($hasError) { "#e74c3c" } else { "#2ecc71" }
+        $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($statusFgColor)
+
+        foreach ($m in $messages) {
+            Write-Log "$(if($hasError){'⚠'}else{'✓'}) $UserName : $m" -Color $(if($hasError){"Yellow"}else{"Green"})
+        }
+
+        if (-not $hasError) { Build-UsersPanel }
+    })
+
+    $closeDialogBtn.Add_Click({ $dlg.Close() })
+
+    $dlg.ShowDialog() | Out-Null
+}
+
+# ═══ Диалог создания нового пользователя ═══
+function Show-CreateUserDialog {
+    [xml]$dialogXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Новый пользователь" Width="440" Height="620"
+        WindowStartupLocation="CenterScreen" Background="#12121f" ResizeMode="NoResize">
+    <Window.Resources>
+        <Style x:Key="DlgBtn" TargetType="Button">
+            <Setter Property="Background" Value="#6c63ff"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DlgBtnSecondary" TargetType="Button" BasedOn="{StaticResource DlgBtn}">
+            <Setter Property="Background" Value="#2a2a42"/>
+            <Setter Property="Foreground" Value="#c0c0dd"/>
+        </Style>
+        <Style x:Key="DlgTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#1a1a2e"/>
+            <Setter Property="Foreground" Value="#e0e0ff"/>
+            <Setter Property="BorderBrush" Value="#2a2a45"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="CaretBrush" Value="#6c63ff"/>
+        </Style>
+        <Style x:Key="DlgPasswordBox" TargetType="PasswordBox">
+            <Setter Property="Background" Value="#1a1a2e"/>
+            <Setter Property="Foreground" Value="#e0e0ff"/>
+            <Setter Property="BorderBrush" Value="#2a2a45"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="CaretBrush" Value="#6c63ff"/>
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="22">
+        <TextBlock Text="➕ Новый пользователь" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,16"/>
+
+        <!-- Имя пользователя -->
+        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="👤 Имя пользователя" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBox x:Name="NewUserNameBox" Style="{StaticResource DlgTextBox}"/>
+                <TextBlock Text="Описание (необязательно)" Foreground="#9898c8" FontSize="10" Margin="0,8,0,4"/>
+                <TextBox x:Name="NewUserDescBox" Style="{StaticResource DlgTextBox}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Пароль -->
+        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="🔑 Пароль" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <PasswordBox x:Name="NewUserPasswordBox" Style="{StaticResource DlgPasswordBox}" Margin="0,0,0,8"/>
+                <TextBlock Text="Подтверждение пароля" Foreground="#9898c8" FontSize="10" Margin="0,0,0,4"/>
+                <PasswordBox x:Name="NewUserConfirmBox" Style="{StaticResource DlgPasswordBox}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Срок действия пароля -->
+        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="♾️ Пароль без срока действия" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold"/>
+                    <TextBlock Text="Отключает обязательную смену пароля по истечении срока" Foreground="#9898c8" FontSize="10" Margin="0,3,0,0" TextWrapping="Wrap" MaxWidth="240"/>
+                </StackPanel>
+                <CheckBox x:Name="NewUserNoExpireChk" Grid.Column="1" VerticalAlignment="Center" IsChecked="True"/>
+            </Grid>
+        </Border>
+
+        <!-- Роль -->
+        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="👑 Роль учётной записи" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton x:Name="NewUserRoleAdminRadio" Content="Администратор" GroupName="NewRole" Foreground="#c0c0e0" FontSize="12" Margin="0,0,20,0"/>
+                    <RadioButton x:Name="NewUserRoleUserRadio" Content="Пользователь" GroupName="NewRole" Foreground="#c0c0e0" FontSize="12" IsChecked="True"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <TextBlock x:Name="CreateUserStatusText" Foreground="#9898c8" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Отмена" x:Name="CancelCreateUserBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0"/>
+            <Button Content="➕ Создать пользователя" x:Name="ConfirmCreateUserBtn" Style="{StaticResource DlgBtn}"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
+"@
+
+    $dReader = [System.Xml.XmlNodeReader]::new($dialogXaml)
+    $dlg = [Windows.Markup.XamlReader]::Load($dReader)
+
+    $newUserNameBox       = $dlg.FindName("NewUserNameBox")
+    $newUserDescBox       = $dlg.FindName("NewUserDescBox")
+    $newUserPasswordBox   = $dlg.FindName("NewUserPasswordBox")
+    $newUserConfirmBox    = $dlg.FindName("NewUserConfirmBox")
+    $newUserNoExpireChk   = $dlg.FindName("NewUserNoExpireChk")
+    $newUserRoleAdminRadio = $dlg.FindName("NewUserRoleAdminRadio")
+    $newUserRoleUserRadio  = $dlg.FindName("NewUserRoleUserRadio")
+    $createUserStatusText = $dlg.FindName("CreateUserStatusText")
+    $cancelCreateUserBtn  = $dlg.FindName("CancelCreateUserBtn")
+    $confirmCreateUserBtn = $dlg.FindName("ConfirmCreateUserBtn")
+
+    $cancelCreateUserBtn.Add_Click({ $dlg.Close() })
+
+    $confirmCreateUserBtn.Add_Click({
+        $name = $newUserNameBox.Text.Trim()
+        $desc = $newUserDescBox.Text.Trim()
+        $p1   = $newUserPasswordBox.Password
+        $p2   = $newUserConfirmBox.Password
+
+        # ── Валидация ────────────────────────────────────────────────────
+        if ([string]::IsNullOrWhiteSpace($name)) {
+            $createUserStatusText.Text = "⚠ Введите имя пользователя"
+            $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+            return
+        }
+        if ($name -match '[\\/:\*\?"<>\|]') {
+            $createUserStatusText.Text = "⚠ Имя содержит недопустимые символы: \ / : * ? `" < > |"
+            $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+            return
+        }
+        if (Get-LocalUser -Name $name -ErrorAction SilentlyContinue) {
+            $createUserStatusText.Text = "✗ Пользователь '$name' уже существует"
+            $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
+            return
+        }
+        if ([string]::IsNullOrWhiteSpace($p1)) {
+            $createUserStatusText.Text = "⚠ Введите пароль"
+            $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+            return
+        }
+        if ($p1 -ne $p2) {
+            $createUserStatusText.Text = "✗ Пароли не совпадают"
+            $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
+            return
+        }
+
+        # ── Создание пользователя ───────────────────────────────────────
+        try {
+            $secure = ConvertTo-SecureString $p1 -AsPlainText -Force
+            $params = @{
+                Name                 = $name
+                Password             = $secure
+                PasswordNeverExpires = [bool]$newUserNoExpireChk.IsChecked
+                AccountNeverExpires  = $true
+            }
+            if (-not [string]::IsNullOrWhiteSpace($desc)) { $params.Description = $desc }
+
+            New-LocalUser @params -ErrorAction Stop | Out-Null
+            Write-Log "✓ Пользователь '$name' создан" -Color "Green"
+
+            # Назначаем роль
+            $wantsAdmin = [bool]$newUserRoleAdminRadio.IsChecked
+            $groupName = if ($wantsAdmin) { "Администраторы" } else { "Пользователи" }
+            if (-not (Get-LocalGroup -Name $groupName -ErrorAction SilentlyContinue)) {
+                $groupName = if ($wantsAdmin) { "Administrators" } else { "Users" }
+            }
+            try {
+                Add-LocalGroupMember -Group $groupName -Member $name -ErrorAction Stop
+                Write-Log "✓ '$name' добавлен в группу '$groupName'" -Color "Green"
+            } catch {
+                Write-Log "⚠ Не удалось добавить '$name' в группу '$groupName': $_" -Color "Yellow"
+            }
+
+            $createUserStatusText.Text = "✓ Пользователь '$name' успешно создан"
+            $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+
+            Build-UsersPanel
+            Start-Sleep -Milliseconds 600
+            $dlg.Close()
+        } catch {
+            $createUserStatusText.Text = "✗ Ошибка создания: $_"
+            $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
+            Write-Log "✗ Создание пользователя '$name': $_" -Color "Red"
+        }
+    })
+
+    $dlg.ShowDialog() | Out-Null
+}
+
+
+
 
 # ═══ Обработчики событий ═══
 $checkUpdatesBtn.Add_Click({ $updatesPanel.Children.Clear(); $script:UpdateCheckboxes.Clear(); Build-UpdatesPanel })
@@ -1763,6 +2681,8 @@ $clearLogBtn.Add_Click({ $script:LogBox.Clear() })
 $copyLogBtn.Add_Click({ [System.Windows.Clipboard]::SetText($script:LogBox.Text); Write-Log "✓ Лог скопирован" -Color "Green" })
 $restorePointBtn.Add_Click({ Create-RestorePoint })
 $refreshStartupBtn.Add_Click({ Build-StartupPanel })
+$refreshUsersBtn.Add_Click({ Build-UsersPanel })
+$addUserBtn.Add_Click({ Show-CreateUserDialog })
 
 # Записывает байты в StartupApproved для включения/отключения
 function Set-StartupApprovedState {
@@ -2020,6 +2940,7 @@ $window.Add_Loaded({
     Build-SysPanel
     Build-DiagPanel
     Build-StartupPanel
+    Build-UsersPanel
     Write-Log "✓ Готов к работе." -Color "Green"
 })
 
