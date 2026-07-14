@@ -246,7 +246,6 @@ function Run-SelectedScripts {
         Write-Log "══════════════════════════════════════"
         if ($reboot) { Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force }
     } -Variables @{ pathsList=$pathsList; reboot=$reboot }
-    $ps.BeginInvoke() | Out-Null
 }
 
 function Select-RecommendedScripts {
