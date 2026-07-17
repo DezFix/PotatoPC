@@ -177,7 +177,7 @@ function Show-UserSettingsDialog {
         Write-Log "✗ Не удалось загрузить пользователя $UserName : $_" -Color "Red"; return
     }
     $isAdminNow = Get-UserRoleLabel -LocalUser $user
-    [xml]$dialogXaml = @'
+    $dialogXaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Настройка: USERNAME" Width="440" Height="650"
@@ -267,7 +267,7 @@ function Show-UserSettingsDialog {
 </Window>
 '@
     $dialogXaml = $dialogXaml.Replace('USERNAME', $UserName)
-    $dReader = [System.Xml.XmlNodeReader]::new($dialogXaml)
+    $dReader = [System.Xml.XmlNodeReader]::new(([xml]$dialogXaml))
     $dlg = [Windows.Markup.XamlReader]::Load($dReader)
     $newPasswordBox     = $dlg.FindName("NewPasswordBox")
     $confirmPasswordBox = $dlg.FindName("ConfirmPasswordBox")
@@ -357,7 +357,7 @@ function Show-UserSettingsDialog {
 }
 
 function Show-CreateUserDialog {
-    [xml]$dialogXaml = @'
+    $dialogXaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Новый пользователь" Width="440" Height="620"
@@ -450,7 +450,7 @@ function Show-CreateUserDialog {
     </StackPanel>
 </Window>
 '@
-    $dReader = [System.Xml.XmlNodeReader]::new($dialogXaml)
+    $dReader = [System.Xml.XmlNodeReader]::new(([xml]$dialogXaml))
     $dlg = [Windows.Markup.XamlReader]::Load($dReader)
     $newUserNameBox        = $dlg.FindName("NewUserNameBox")
     $newUserDescBox        = $dlg.FindName("NewUserDescBox")

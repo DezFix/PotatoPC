@@ -242,7 +242,7 @@ function Run-SelectedScripts {
             }
         }
         Write-Log "══════════════════════════════════════"
-        Write-Log "Завершено: ✓$ok$(if($fail -gt 0){ " ✗$fail ошибок" })"
+        Write-Log "Завершено: ✓$ok$(if($fail -gt 0){ `" ✗$fail ошибок`" })"
         Write-Log "══════════════════════════════════════"
         if ($reboot) { Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force }
     } -Variables @{ pathsList=$pathsList; reboot=$reboot }

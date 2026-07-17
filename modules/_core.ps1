@@ -145,7 +145,6 @@ function Invoke-Async {
     $ps.BeginInvoke() | Out-Null
 }
 
-$script:SettingsPath = $null
 function Save-Settings {
     param([hashtable]$Settings)
     if (-not $script:SettingsPath) { return }
