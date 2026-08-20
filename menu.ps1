@@ -1,14 +1,23 @@
-#Requires -RunAsAdministrator
-<#
+﻿<#
 .SYNOPSIS
     PotatoPC Optimizer - Entry Point
 .DESCRIPTION
     Запуск: irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
 #>
 
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
     Write-Host "Требуются права администратора. Перезапуск..." -ForegroundColor Yellow
-    Start-Process powershell "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    try {
+        if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
+            Start-Process powershell "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+        } else {
+            Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command', 'irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex'
+        }
+    } catch {
+        Write-Host "Не удалось перезапустить с правами администратора. Запустите консоль от имени администратора вручную." -ForegroundColor Red
+        Read-Host "Нажмите Enter для выхода"
+    }
     exit
 }
 
@@ -37,7 +46,9 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
 
 $loadOrder = @("_config.ps1", "_core.ps1", "_xaml.ps1")
 foreach ($module in $loadOrder) {
-    . (Join-Path $script:ModuleDir $module)
+    $modulePath = Join-Path $script:ModuleDir $module
+    if (-not (Test-Path $modulePath)) { throw "Модуль не найден: $module" }
+    . $modulePath
 }
 
 $reader = [System.Xml.XmlNodeReader]::new($xaml)
@@ -49,7 +60,6 @@ $appsPanel             = $window.FindName("AppsPanel")
 $sysPanel              = $window.FindName("SysPanel")
 $updatesPanel          = $window.FindName("UpdatesPanel")
 $diagPanel             = $window.FindName("DiagPanel")
-$headerOsText          = $window.FindName("HeaderOsText")
 $scriptsFolderText     = $window.FindName("ScriptsFolderText")
 $selectedCountText     = $window.FindName("SelectedCountText")
 $runScriptsBtn         = $window.FindName("RunScriptsBtn")
@@ -60,9 +70,13 @@ $refreshBtn            = $window.FindName("RefreshBtn")
 $openFolderBtn         = $window.FindName("OpenFolderBtn")
 $clearLogBtn           = $window.FindName("ClearLogBtn")
 $copyLogBtn            = $window.FindName("CopyLogBtn")
+$toggleLogBtn          = $window.FindName("ToggleLogBtn")
+$logSplitter           = $window.FindName("LogSplitter")
+$logRow                = $window.FindName("LogRow")
 $installAppsBtn        = $window.FindName("InstallAppsBtn")
 $selectAllAppsBtn      = $window.FindName("SelectAllAppsBtn")
 $deselectAllAppsBtn    = $window.FindName("DeselectAllAppsBtn")
+$appCountText          = $window.FindName("AppCountText")
 $restorePointBtn       = $window.FindName("RestorePointBtn")
 $presetOfficeBtn       = $window.FindName("PresetOfficeBtn")
 $presetGamesBtn        = $window.FindName("PresetGamesBtn")
@@ -99,10 +113,27 @@ $appSearchClear        = $window.FindName("AppSearchClear")
 $ToolsBtn              = $window.FindName("ToolsBtn")
 $AdminBtn              = $window.FindName("AdminBtn")
 
+$script:LogExpanded = $true
+$toggleLogBtn.Add_Click({
+    if ($script:LogExpanded) {
+        $logRow.Height = [System.Windows.GridLength]::new(24)
+        $logSplitter.Visibility = "Collapsed"
+        $toggleLogBtn.Content = "▴ Развернуть"
+        $script:LogExpanded = $false
+    } else {
+        $logRow.Height = [System.Windows.GridLength]::new(150)
+        $logSplitter.Visibility = "Visible"
+        $toggleLogBtn.Content = "▾ Свернуть"
+        $script:LogExpanded = $true
+    }
+})
+
 $uiModules = @(
     "_scripts.ps1", "_apps.ps1", "_sysdiag.ps1", "_updates.ps1",
     "_startup.ps1", "_users.ps1", "_events.ps1"
 )
 foreach ($module in $uiModules) {
-    . (Join-Path $script:ModuleDir $module)
+    $modulePath = Join-Path $script:ModuleDir $module
+    if (-not (Test-Path $modulePath)) { throw "Модуль не найден: $module" }
+    . $modulePath
 }

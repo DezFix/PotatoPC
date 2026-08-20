@@ -1,6 +1,32 @@
 ﻿$script:StartupCheckboxes = @{}
 $script:TaskCheckboxes    = @{}
 $script:StartupFilter     = "All"
+$script:StartupPanelGen   = 0
+
+function Resolve-CommandPath {
+    param([string]$Command)
+    if ([string]::IsNullOrWhiteSpace($Command)) { return $null }
+    $cmd = $Command.Trim()
+    if ($cmd.StartsWith('"')) {
+        $end = $cmd.IndexOf('"', 1)
+        $path = if ($end -gt 0) { $cmd.Substring(1, $end - 1) } else { $cmd.Trim('"') }
+    } else {
+        $path = $cmd.Split(' ')[0]
+    }
+    $path = [System.Environment]::ExpandEnvironmentVariables($path.Trim('"', ' '))
+    if ([string]::IsNullOrWhiteSpace($path)) { return $null }
+    $exeIdx = $path.LastIndexOf('.exe', [System.StringComparison]::OrdinalIgnoreCase)
+    if ($exeIdx -gt 0) { $path = $path.Substring(0, $exeIdx + 4) }
+    if (-not [System.IO.File]::Exists($path) -and -not $path.Contains('\') -and -not $path.Contains('/')) {
+        foreach ($dir in ($env:PATH -split [System.IO.Path]::PathSeparator)) {
+            if ([string]::IsNullOrWhiteSpace($dir)) { continue }
+            $full = [System.IO.Path]::Combine($dir, $path)
+            if ([System.IO.File]::Exists($full)) { $path = $full; break }
+        }
+    }
+    if ([System.IO.File]::Exists($path)) { return $path }
+    return $null
+}
 
 function Get-StartupApprovedStatus {
     param($ApprovedKey, [string]$ValueName)
@@ -16,49 +42,25 @@ function Get-StartupApprovedStatus {
 
 function Get-AppPublisher {
     param([string]$Command)
-    try {
-        $path = $Command.Trim('"')
-        $exeIdx = $path.IndexOf('.exe', [System.StringComparison]::OrdinalIgnoreCase)
-        if ($exeIdx -gt 0) { $path = $path.Substring(0, $exeIdx + 4).Trim('"', ' ') }
-        $path = [System.Environment]::ExpandEnvironmentVariables($path)
-        if (-not [System.IO.File]::Exists($path)) {
-            if (-not $path.Contains('\') -and -not $path.Contains('/')) {
-                $envPath = $env:PATH -split [System.IO.Path]::PathSeparator
-                foreach ($dir in $envPath) {
-                    $full = [System.IO.Path]::Combine($dir, $path)
-                    if ([System.IO.File]::Exists($full)) { $path = $full; break }
-                }
-            }
-        }
-        if ([System.IO.File]::Exists($path)) {
+    $path = Resolve-CommandPath -Command $Command
+    if ($path) {
+        try {
             $fvi = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path)
             $pub = if (-not [string]::IsNullOrWhiteSpace($fvi.CompanyName)) { $fvi.CompanyName }
                    elseif (-not [string]::IsNullOrWhiteSpace($fvi.FileDescription)) { $fvi.FileDescription }
                    else { $null }
             return @{ Publisher=$pub; FilePath=$path }
-        }
-    } catch {}
+        } catch {}
+    }
     return @{ Publisher=$null; FilePath=$null }
 }
 
 function Get-AppIcon {
     param([string]$Command)
-    try {
-        $path = $Command.Trim('"')
-        $path = [System.Environment]::ExpandEnvironmentVariables($path)
-        $exeIdx = $path.IndexOf('.exe', [System.StringComparison]::OrdinalIgnoreCase)
-        if ($exeIdx -gt 0) { $path = $path.Substring(0, $exeIdx + 4).Trim('"', ' ') }
-        if (-not [System.IO.File]::Exists($path)) {
-            if (-not $path.Contains('\') -and -not $path.Contains('/')) {
-                $envPath = $env:PATH -split [System.IO.Path]::PathSeparator
-                foreach ($dir in $envPath) {
-                    $full = [System.IO.Path]::Combine($dir, $path)
-                    if ([System.IO.File]::Exists($full)) { $path = $full; break }
-                }
-            }
-        }
-        if ([System.IO.File]::Exists($path)) {
-            Add-Type -AssemblyName System.Drawing
+    $path = Resolve-CommandPath -Command $Command
+    if ($path) {
+        try {
+            Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
             $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($path)
             if ($icon) {
                 $bmp = $icon.ToBitmap()
@@ -71,11 +73,11 @@ function Get-AppIcon {
                 $img.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
                 $img.EndInit()
                 $img.Freeze()
-                $icon.Dispose(); $bmp.Dispose()
+                $icon.Dispose(); $bmp.Dispose(); $ms.Dispose()
                 return $img
             }
-        }
-    } catch {}
+        } catch {}
+    }
     return $null
 }
 
@@ -117,9 +119,11 @@ function Scan-FolderStartup {
             $fileName = [System.IO.Path]::GetFileName($file)
             if ($fileName -eq 'desktop.ini') { continue }
             $enabled = Get-StartupApprovedStatus -ApprovedKey $approvedKey -ValueName $fileName
-            $name    = [System.IO.Path]::GetFileNameWithoutExtension($fileName)
+            $displayName = $fileName -replace '\.disabled$', ''
+            $name = [System.IO.Path]::GetFileNameWithoutExtension($displayName)
+            if ([string]::IsNullOrWhiteSpace($name)) { $name = $displayName }
             $result += @{
-                Name      = if ([string]::IsNullOrWhiteSpace($name)) { $fileName } else { $name }
+                Name      = $name
                 Command   = $file
                 Location  = $LocationLabel
                 PathOrKey = $DirPath
@@ -134,11 +138,10 @@ function Scan-FolderStartup {
 }
 
 function Update-StartupSelectedCount {
-    $apps  = ($script:StartupCheckboxes.Values | Where-Object { $_.IsChecked }).Count
-    $tasks = ($script:TaskCheckboxes.Values    | Where-Object { $_.IsChecked }).Count
+    $apps  = @($script:StartupCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+    $tasks = @($script:TaskCheckboxes.Values    | Where-Object { $_.IsChecked }).Count
     $total = $apps + $tasks
-    if ($total -eq 0) { $startupSelectedText.Text = "" }
-    else { $startupSelectedText.Text = "Выбрано: $total" }
+    if ($startupSelectedText) { $startupSelectedText.Text = if ($total -eq 0) { "" } else { "Выбрано: $total" } }
 }
 
 function Apply-StartupFilter {
@@ -146,24 +149,20 @@ function Apply-StartupFilter {
     foreach ($child in $startupAppsPanel.Children) {
         if ($child -isnot [System.Windows.Controls.Border]) { continue }
         $tag = $child.Tag
-        if ($null -eq $tag) { $child.Visibility = "Visible"; continue }
+        if ($null -eq $tag -or -not $tag.Name) { $child.Visibility = "Visible"; continue }
         $typeOk = switch ($script:StartupFilter) {
             "Apps"  { $tag.Type -eq "App" }
             "Tasks" { $tag.Type -eq "Task" }
             default { $true }
         }
         $searchOk = $q -eq "" -or
-                    $tag.Name.ToLower()      -like "*$q*" -or
-                    $tag.Publisher.ToLower() -like "*$q*"
+                    "$($tag.Name)".ToLower()       -like "*$q*" -or
+                    "$($tag.Publisher)".ToLower()  -like "*$q*"
         $child.Visibility = if ($typeOk -and $searchOk) { "Visible" } else { "Collapsed" }
     }
 }
 
-function Build-StartupPanel {
-    $startupAppsPanel.Children.Clear()
-    $script:StartupCheckboxes.Clear()
-    $script:TaskCheckboxes.Clear()
-
+function Get-StartupData {
     $startupItems = @()
     $approvedRun     = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedRun'
     $approvedRunOnce = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedRunOnce'
@@ -203,22 +202,12 @@ function Build-StartupPanel {
         -DirPath $commonStartup -LocationLabel 'Папка (все польз.)' `
         -RootKeyForApproved ([Microsoft.Win32.Registry]::LocalMachine)
 
-    if ($startupItems.Count -gt 0) {
-        $jobs = $startupItems | ForEach-Object {
-            $item = $_
-            [System.Threading.Tasks.Task]::Run([Action]{
-                try {
-                    if ($null -eq $item.Publisher) {
-                        $info = Get-AppPublisher -Command $item.Command
-                        $item.Publisher = if (-not [string]::IsNullOrWhiteSpace($info.Publisher)) { $info.Publisher } else { $item.Location }
-                    }
-                    $item.Icon = Get-AppIcon -Command $item.Command
-                } catch {
-                    # ignore individual failures
-                }
-            })
+    foreach ($item in $startupItems) {
+        if ($null -eq $item.Publisher) {
+            $info = Get-AppPublisher -Command $item.Command
+            $item.Publisher = if (-not [string]::IsNullOrWhiteSpace($info.Publisher)) { $info.Publisher } else { $item.Location }
         }
-        try { [System.Threading.Tasks.Task]::WaitAll($jobs) } catch {}
+        $item.Icon = Get-AppIcon -Command $item.Command
     }
 
     $scheduledTasks = @()
@@ -228,8 +217,15 @@ function Build-StartupPanel {
             Sort-Object TaskName | Select-Object -First 60)
     } catch {}
 
-    $enabledCount = ($startupItems | Where-Object { $_.IsEnabled }).Count
-    $totalCount   = $startupItems.Count + $scheduledTasks.Count
+    return @{ Items=$startupItems; Tasks=$scheduledTasks }
+}
+
+function Render-StartupPanel {
+    param($Data)
+    $startupItems     = $Data.Items
+    $scheduledTasks   = $Data.Tasks
+    $enabledCount     = @($startupItems | Where-Object { $_.IsEnabled }).Count
+    $totalCount       = $startupItems.Count + $scheduledTasks.Count
     $startupCountText.Text = "Приложений: $totalCount  •  Активных: $enabledCount  •  Задач: $($scheduledTasks.Count)"
 
     if ($startupItems.Count -eq 0) {
@@ -309,7 +305,8 @@ function Build-StartupPanel {
         $nm.Text = $item.Name; $nm.FontSize = 12; $nm.FontWeight = "SemiBold"
         $nm.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($nmColor)
         $nm.TextTrimming = "CharacterEllipsis"
-        $cmdShort = try { [System.IO.Path]::GetFileName($item.Command.Trim('"').Split(' ')[0]) } catch { $item.Command }
+        $resolved = Resolve-CommandPath -Command $item.Command
+        $cmdShort = if ($resolved) { [System.IO.Path]::GetFileName($resolved) } else { $item.Command }
         $pathLbl = [System.Windows.Controls.TextBlock]::new()
         $pathLbl.Text = $cmdShort; $pathLbl.FontSize = 10; $pathLbl.TextTrimming = "CharacterEllipsis"
         $pathLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#9898b8")
@@ -465,4 +462,24 @@ function Build-StartupPanel {
     }
     Write-Log "Автозагрузка: $($startupItems.Count) приложений (вкл: $enabledCount), $($scheduledTasks.Count) задач"
     Apply-StartupFilter
+}
+
+function Build-StartupPanel {
+    $startupAppsPanel.Children.Clear()
+    $script:StartupCheckboxes.Clear()
+    $script:TaskCheckboxes.Clear()
+    $startupCountText.Text = "Загрузка..."
+    $script:StartupPanelGen++
+    $gen = $script:StartupPanelGen
+    Start-Background {
+        try {
+            $data = Get-StartupData
+            $window.Dispatcher.Invoke([action]{
+                if ($gen -ne $script:StartupPanelGen) { return }
+                Render-StartupPanel -Data $data
+            })
+        } catch {
+            Write-Log "Ошибка сканирования автозагрузки: $_" -Color "Red"
+        }
+    }
 }

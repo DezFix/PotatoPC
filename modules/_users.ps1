@@ -266,7 +266,7 @@ function Show-UserSettingsDialog {
     </StackPanel>
 </Window>
 '@
-    $dialogXaml = $dialogXaml.Replace('USERNAME', $UserName)
+    $dialogXaml = $dialogXaml.Replace('USERNAME', [System.Security.SecurityElement]::Escape($UserName))
     $dReader = [System.Xml.XmlNodeReader]::new(([xml]$dialogXaml))
     $dlg = [Windows.Markup.XamlReader]::Load($dReader)
     $newPasswordBox     = $dlg.FindName("NewPasswordBox")

@@ -1,12 +1,16 @@
-﻿function Build-SysPanel {
+﻿function ConvertTo-XmlText {
+    param([string]$Text)
+    return [System.Security.SecurityElement]::Escape($Text)
+}
+
+function Build-SysPanel {
     $sysInfo = Get-SystemInfo
-    $headerOsText.Text = $sysInfo.OS
     $allDisks = @()
     try {
-        foreach ($ld in (Get-WmiObject Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 })) {
+        foreach ($ld in (Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 })) {
             try {
-                $part = Get-WmiObject -Query "ASSOCIATORS OF {Win32_LogicalDisk.DeviceID='$($ld.DeviceID)'} WHERE AssocClass=Win32_LogicalDiskToPartition" | Select-Object -First 1
-                $phys = Get-WmiObject -Query "ASSOCIATORS OF {Win32_DiskPartition.DeviceID='$($part.DeviceID)'} WHERE AssocClass=Win32_DiskDriveToDiskPartition" | Select-Object -First 1
+                $part = Get-CimInstance -Query "ASSOCIATORS OF {Win32_LogicalDisk.DeviceID='$($ld.DeviceID)'} WHERE AssocClass=Win32_LogicalDiskToPartition" | Select-Object -First 1
+                $phys = Get-CimInstance -Query "ASSOCIATORS OF {Win32_DiskPartition.DeviceID='$($part.DeviceID)'} WHERE AssocClass=Win32_DiskDriveToDiskPartition" | Select-Object -First 1
                 $model = ($phys.Model -replace '\s+',' ').Trim()
             } catch { $model="Неизвестно"; $phys=$null }
             $allDisks += @{ Letter=$ld.DeviceID; Model=$model; FreeGB=[math]::Round($ld.FreeSpace/1GB,1); TotalGB=[math]::Round($ld.Size/1GB,1); IsSystem=($ld.DeviceID -eq "C:"); PhysDisk=$phys }
@@ -70,22 +74,39 @@
             $smBtn.Add_Click({
                 $driveObj=$this.Tag
                 try {
-                    $physDisk=Get-PhysicalDisk|Where-Object{$driveObj-and($_.FriendlyName-like "*$($driveObj.Model.Trim().Split(' ')[0])*")}|Select-Object -First 1
-                    if(-not $physDisk){$physDisk=Get-PhysicalDisk|Select-Object -First 1}
+                    $physDisk = $null
+                    if ($driveObj -and $driveObj.Model) {
+                        $firstWord = $driveObj.Model.Trim().Split(' ')[0]
+                        if ($firstWord) {
+                            $physDisk = Get-PhysicalDisk | Where-Object { $_.FriendlyName -like "*$firstWord*" } | Select-Object -First 1
+                        }
+                    }
+                    if (-not $physDisk) { $physDisk = Get-PhysicalDisk | Select-Object -First 1 }
+                    if (-not $physDisk) { throw "Физический диск не найден" }
                     $rel=$physDisk|Get-StorageReliabilityCounter
                     $healthRu=switch($physDisk.HealthStatus){"Healthy"{"Здоров"}"Warning"{"Предупреждение"}"Unhealthy"{"Неисправен"}default{"Неизвестно"}}
                     $healthColor=switch($physDisk.HealthStatus){"Healthy"{"#2ecc71"}"Warning"{"#f39c12"}"Unhealthy"{"#e74c3c"}default{"#a0a0c0"}}
+                    $tempVal  = if ($rel -and $rel.Temperature)      { "$([math]::Round($rel.Temperature)) °C" } else { "Нет данных" }
+                    $tempCol  = if ($rel -and $rel.Temperature -gt 50) { "#e74c3c" } elseif ($rel -and $rel.Temperature -gt 40) { "#f39c12" } else { "#2ecc71" }
+                    $powerVal = if ($rel -and $rel.PowerOnHours)     { "$($rel.PowerOnHours) ч" } else { "Нет данных" }
+                    $readVal  = if ($rel -and $rel.ReadErrorsTotal)  { "$($rel.ReadErrorsTotal)" } else { "0" }
+                    $readCol  = if ($rel -and $rel.ReadErrorsTotal -gt 0)  { "#f39c12" } else { "#2ecc71" }
+                    $writeVal = if ($rel -and $rel.WriteErrorsTotal) { "$($rel.WriteErrorsTotal)" } else { "0" }
+                    $writeCol = if ($rel -and $rel.WriteErrorsTotal -gt 0) { "#f39c12" } else { "#2ecc71" }
+                    $wearVal  = if ($rel -and $rel.Wear)             { "$($rel.Wear)%" } else { "Нет данных" }
+                    $fName    = ConvertTo-XmlText -Text ([string]$physDisk.FriendlyName)
+                    $mediaTxt = ConvertTo-XmlText -Text ([string]$physDisk.MediaType)
                     [xml]$sx=@"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Title="SMART" Width="460" Height="420" WindowStartupLocation="CenterScreen" Background="#12121f" ResizeMode="NoResize">
   <StackPanel Margin="20">
-    <TextBlock Text="$($physDisk.FriendlyName)" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,0,0,4"/>
-    <TextBlock Text="$($physDisk.MediaType)  -  $([math]::Round($physDisk.Size/1GB)) ГБ" Foreground="#606080" FontSize="11" Margin="0,0,0,14"/>
+    <TextBlock Text="$fName" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,0,0,4"/>
+    <TextBlock Text="$mediaTxt  -  $([math]::Round($physDisk.Size/1GB)) ГБ" Foreground="#606080" FontSize="11" Margin="0,0,0,14"/>
     <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Состояние" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$healthRu" Foreground="$healthColor" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Температура" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$(if($rel.Temperature){"$($rel.Temperature) °C"}else{"Нет данных"})" Foreground="$(if($rel.Temperature -gt 50){"#e74c3c"}elseif($rel.Temperature -gt 40){"#f39c12"}else{"#2ecc71"})" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Часов наработки" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$(if($rel.PowerOnHours){"$($rel.PowerOnHours) ч"}else{"Нет данных"})" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки чтения" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$(if($rel.ReadErrorsTotal){"$($rel.ReadErrorsTotal)"}else{"0"})" Foreground="$(if($rel.ReadErrorsTotal -gt 0){"#f39c12"}else{"#2ecc71"})" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки записи" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$(if($rel.WriteErrorsTotal){"$($rel.WriteErrorsTotal)"}else{"0"})" Foreground="$(if($rel.WriteErrorsTotal -gt 0){"#f39c12"}else{"#2ecc71"})" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Износ" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$(if($rel.Wear){"$($rel.Wear)%"}else{"Нет данных"})" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Температура" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$tempVal" Foreground="$tempCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Часов наработки" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$powerVal" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки чтения" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$readVal" Foreground="$readCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки записи" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$writeVal" Foreground="$writeCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Износ" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$wearVal" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
     <TextBlock Text="Данные через Windows Storage API. Для детального анализа используйте CrystalDiskInfo." Foreground="#9898c8" FontSize="10" TextWrapping="Wrap"/>
   </StackPanel>
 </Window>
@@ -106,20 +127,20 @@ function Build-DiagPanel {
 
     $tests = @(
         @{ Title="Проверка системных файлов (SFC)"; Desc="Сканирует и восстанавливает повреждённые файлы Windows. Занимает 5-15 минут."; Icon="S"; Color="#4a90d9"
-           Action={ [System.Threading.Tasks.Task]::Run([Action]{ sfc /scannow 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "SFC завершён" -Color "Green" }) | Out-Null } }
+           Action={ Start-Background { sfc /scannow 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "SFC завершён" -Color "Green" } } }
         @{ Title="Восстановление Windows (DISM)"; Desc="Восстанавливает образ через Windows Update. Требует интернет. Занимает 10-30 минут."; Icon="D"; Color="#7c63ff"
-           Action={ [System.Threading.Tasks.Task]::Run([Action]{ DISM /Online /Cleanup-Image /RestoreHealth 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "DISM завершён" -Color "Green" }) | Out-Null } }
+           Action={ Start-Background { DISM /Online /Cleanup-Image /RestoreHealth 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "DISM завершён" -Color "Green" } } }
         @{ Title="Проверка диска C: (CHKDSK)"; Desc="Проверяет ФС на ошибки. Полная проверка - при перезагрузке."; Icon="C"; Color="#2da86a"
            Action={
                $confirm=[System.Windows.MessageBox]::Show("CHKDSK запланирован на следующую перезагрузку.`nПерезагрузить сейчас?","CHKDSK","YesNo","Question")
-               Start-Process -WindowStyle Hidden -NoNewWindow cmd -ArgumentList "/c echo Y | chkdsk C: /f /r" -Wait
+               Start-Process cmd -WindowStyle Hidden -ArgumentList '/c','echo Y|chkdsk C: /f /r' -Wait
                if($confirm-eq"Yes"){Write-Log "Перезагрузка через 30 сек..."; shutdown /r /t 30 /c "PotatoPC CHKDSK"}
                else{Write-Log "CHKDSK выполнится при следующей перезагрузке." -Color "Yellow"}
            } }
         @{ Title="Диагностика RAM"; Desc="Windows Memory Diagnostic. Требует перезагрузку."; Icon="R"; Color="#d4601a"
            Action={
                $confirm=[System.Windows.MessageBox]::Show("Диагностика запустится после перезагрузки.`nПерезагрузить сейчас?","RAM","YesNo","Question")
-               if($confirm-eq"Yes"){Write-Log "Запуск MdSched..."; MdSched.exe}
+               if($confirm-eq"Yes"){Write-Log "Запуск MdSched..."; Start-Process MdSched.exe}
                else{Write-Log "Диагностика RAM отменена." -Color "Yellow"}
            } }
     )
@@ -166,7 +187,7 @@ function Build-DiagPanel {
 
             try { & $localAction } catch { Write-Log "X $_" -Color "Red" }
 
-            [System.Threading.Tasks.Task]::Run([Action]{
+            Start-Background {
                 Start-Sleep -Milliseconds 500
                 $localBtn.Dispatcher.Invoke([action]{
                     $localBtn.IsEnabled = $true
@@ -174,7 +195,7 @@ function Build-DiagPanel {
                     $localLbl.Text = "запущено в фоне"
                     $localLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
                 })
-            }) | Out-Null
+            }
         }.GetNewClosure())
 
         [System.Windows.Controls.Grid]::SetColumn($btn,2)

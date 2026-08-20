@@ -1,5 +1,15 @@
 ﻿$script:ScriptCheckboxes = @{}
 
+function Read-ScriptHeader {
+    param([string]$Path)
+    try {
+        $text = [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false, $true))
+    } catch {
+        try { $text = [System.IO.File]::ReadAllText($Path) } catch { $text = "" }
+    }
+    return $text.Split([string[]]@("`r`n", "`n"), [System.StringSplitOptions]::None) | Select-Object -First 20
+}
+
 function Load-Scripts {
     $result = @()
     $files = Get-ChildItem -Path $script:ScriptsFolder -Filter "*.ps1" -Recurse -ErrorAction SilentlyContinue | Sort-Object Name
@@ -16,14 +26,12 @@ function Load-Scripts {
             Win11Only   = $false
             Path        = $file.FullName
         }
-        $lines = Get-Content $file.FullName -TotalCount 15 -ErrorAction SilentlyContinue
-        foreach ($line in $lines) {
+        foreach ($line in (Read-ScriptHeader -Path $file.FullName)) {
             if ($line -match '^#\s*NAME:\s*(.+)')        { $meta.Name        = $Matches[1].Trim() }
             if ($line -match '^#\s*DESC:\s*(.+)')        { $meta.Desc        = $Matches[1].Trim() }
             if ($line -match '^#\s*ICON:\s*(.+)')        { $meta.Icon        = $Matches[1].Trim() }
             if ($line -match '^#\s*RECOMMENDED:\s*true') { $meta.Recommended = $true }
             if ($line -match '^#\s*TAGS:\s*(\d)')        { $meta.Tag         = [int]$Matches[1].Trim() }
-            if ($line -match '^#\s*WIN11:\s*true')       { $meta.Win11Only   = $true }
             if ($line -match '^#\s*TAGS:.*win11')        { $meta.Win11Only   = $true }
         }
         $result += $meta
@@ -32,9 +40,9 @@ function Load-Scripts {
 }
 
 function Update-SelectedCount {
-    $count = ($script:ScriptCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+    $count = @($script:ScriptCheckboxes.Values | Where-Object { $_.IsChecked }).Count
     $total = $script:ScriptCheckboxes.Count
-    $selectedCountText.Text = "Выбрано: $count из $total скриптов"
+    if ($selectedCountText) { $selectedCountText.Text = "Выбрано: $count из $total скриптов" }
 }
 
 function Build-ScriptsPanel {
@@ -186,14 +194,14 @@ function Build-ScriptsPanel {
                 $runOneBtn.Add_Click({
                     $scriptPath = $this.Tag
                     Write-Log "══ Запуск: $(Split-Path $scriptPath -Leaf) ══"
-                    [System.Threading.Tasks.Task]::Run([Action]{
+                    Start-Background {
                         try {
                             & $scriptPath 2>&1 | ForEach-Object { Write-Log "  $_" }
                             Write-Log "✓ Выполнено успешно" -Color "Green"
                         } catch {
                             Write-Log "✗ Ошибка: $_" -Color "Red"
                         }
-                    }) | Out-Null
+                    }
                 })
             }
             [System.Windows.Controls.Grid]::SetColumn($runOneBtn, 3)
@@ -224,13 +232,6 @@ function Run-SelectedScripts {
     Write-Log "▶ Запуск $count скриптов..."
     Write-Log "══════════════════════════════════════"
     Invoke-Async -ScriptBlock {
-        function Write-Log($msg, $color = "Default") {
-            $time = (Get-Date).ToString("HH:mm:ss")
-            $line = "[$time] $msg"
-            $LogBox.Dispatcher.Invoke([action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() })
-            $c = switch($color){"Green"{"Green"}"Red"{"Red"}"Yellow"{"Yellow"}default{"White"}}
-            Write-Host $line -ForegroundColor $c
-        }
         $ok=0; $fail=0
         foreach ($scriptPath in $pathsList) {
             Write-Log "── $(Split-Path $scriptPath -Leaf)"

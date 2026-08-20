@@ -1,34 +1,37 @@
 ﻿$script:UpdateCheckboxes = @{}
 
-function Build-UpdatesPanel {
-    $updatesPanel.Children.Clear(); $script:UpdateCheckboxes.Clear()
-    $updateStatusText.Text = "Идёт проверка обновлений..."; $updateCountText.Text = ""
-    Write-Log "🔍 Проверка обновлений через winget..."
-    $rawOutput = winget upgrade --accept-source-agreements 2>&1 | Out-String
-    $lines = $rawOutput -split "`n" | Where-Object { $_ -match '\S' }
-    $packages = @(); $headerFound = $false
+function ConvertFrom-WingetUpgradeOutput {
+    param([string]$RawOutput)
+    $packages = @()
+    if ([string]::IsNullOrWhiteSpace($RawOutput)) { return $packages }
+    $lines = $RawOutput -split "`n" | Where-Object { $_ -match '\S' }
+    $headerFound = $false
     foreach ($line in $lines) {
-        if ($line -match '^\s*-+\s*$') { $headerFound=$true; continue }
-        if (-not $headerFound -or $line -match '^\s*$') { continue }
+        if ($line -match '^\s*-+\s*$') { $headerFound = $true; continue }
+        if (-not $headerFound) { continue }
         $parts = $line -split '\s{2,}' | Where-Object { $_.Trim() -ne '' }
-        if ($parts.Count -ge 4) {
-            $name       = $parts[0].Trim()
-            $id         = $parts[1].Trim()
-            $version    = $parts[2].Trim()
-            $newVersion = $parts[3].Trim()
-            if ($version -match '^(winget|msstore|Unknown|Name)$') { continue }
-            if ($newVersion -match '^(winget|msstore|Unknown)$') { continue }
-            if ($version -notmatch '\d' -or $newVersion -notmatch '\d') { continue }
-            if ($id -match '^\d+[\.\d]+$') { continue }
-            $packages += @{
-                Name       = $name
-                Id         = $id
-                Version    = $version
-                NewVersion = $newVersion
-            }
+        if ($parts.Count -lt 4) { continue }
+        $name       = $parts[0].Trim()
+        $id         = $parts[1].Trim()
+        $version    = $parts[2].Trim()
+        $newVersion = $parts[3].Trim()
+        if ($version -match '^(winget|msstore|Unknown|Name)$') { continue }
+        if ($newVersion -match '^(winget|msstore|Unknown)$') { continue }
+        if ($version -notmatch '\d' -or $newVersion -notmatch '\d') { continue }
+        if ($id -match '^\d+[\.\d]+$') { continue }
+        $packages += @{
+            Name       = $name
+            Id         = $id
+            Version    = $version
+            NewVersion = $newVersion
         }
     }
-    if ($packages.Count -eq 0) {
+    return $packages
+}
+
+function Render-UpdatesPanel {
+    param($Packages)
+    if ($Packages.Count -eq 0) {
         $lbl = [System.Windows.Controls.TextBlock]::new()
         $lbl.Text = "✅ Все пакеты актуальны — обновлений нет."
         $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50e050")
@@ -57,7 +60,7 @@ function Build-UpdatesPanel {
     $hdr.Child = $hg
     $updatesPanel.Children.Add($hdr) | Out-Null
 
-    foreach ($pkg in $packages) {
+    foreach ($pkg in $Packages) {
         $card = [System.Windows.Controls.Border]::new()
         $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
         $card.CornerRadius = [System.Windows.CornerRadius]::new(7)
@@ -69,8 +72,8 @@ function Build-UpdatesPanel {
         $c3 = [System.Windows.Controls.ColumnDefinition]::new(); $c3.Width = [System.Windows.GridLength]::Auto
         $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
         $cb = [System.Windows.Controls.CheckBox]::new(); $cb.VerticalAlignment = "Center"; $cb.Tag = $pkg.Id
-        $cb.Add_Checked({   $updateCountText.Text = "Выбрано: $(($script:UpdateCheckboxes.Values | Where-Object {$_.IsChecked}).Count)" })
-        $cb.Add_Unchecked({ $updateCountText.Text = "Выбрано: $(($script:UpdateCheckboxes.Values | Where-Object {$_.IsChecked}).Count)" })
+        $cb.Add_Checked({   Update-UpdateCount })
+        $cb.Add_Unchecked({ Update-UpdateCount })
         [System.Windows.Controls.Grid]::SetColumn($cb, 0)
         $script:UpdateCheckboxes[$pkg.Id] = $cb
         $info = [System.Windows.Controls.StackPanel]::new(); $info.VerticalAlignment = "Center"
@@ -103,8 +106,32 @@ function Build-UpdatesPanel {
         $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
         $updatesPanel.Children.Add($card) | Out-Null
     }
-    $updateStatusText.Text = "Найдено обновлений: $($packages.Count)"; $updateCountText.Text = "Выбрано: 0"
-    Write-Log "🔄 Найдено $($packages.Count) обновлений"
+    $updateStatusText.Text = "Найдено обновлений: $($Packages.Count)"
+    $updateCountText.Text = "Выбрано: 0"
+    Write-Log "🔄 Найдено $($Packages.Count) обновлений"
+}
+
+function Update-UpdateCount {
+    $count = @($script:UpdateCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+    if ($updateCountText) { $updateCountText.Text = "Выбрано: $count" }
+}
+
+function Build-UpdatesPanel {
+    $updatesPanel.Children.Clear()
+    $script:UpdateCheckboxes.Clear()
+    $updateStatusText.Text = "Идёт проверка обновлений..."; $updateCountText.Text = ""
+    Start-Background {
+        try {
+            $raw = winget upgrade --accept-source-agreements 2>&1 | Out-String
+            $packages = ConvertFrom-WingetUpgradeOutput -RawOutput $raw
+        } catch {
+            $packages = @()
+            Write-Log "Ошибка проверки обновлений: $_" -Color "Red"
+        }
+        try {
+            $window.Dispatcher.Invoke([action]{ Render-UpdatesPanel -Packages $packages })
+        } catch {}
+    }
 }
 
 function Install-SelectedUpdates {
@@ -113,19 +140,14 @@ function Install-SelectedUpdates {
     $idList = @($sel | ForEach-Object { $_.Key })
     Write-Log "══ Обновление $($idList.Count) пакетов ══"
     Invoke-Async -ScriptBlock {
-        function Write-Log($msg, $color = "Default") {
-            $time = (Get-Date).ToString("HH:mm:ss")
-            $line = "[$time] $msg"
-            $LogBox.Dispatcher.Invoke([action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() })
-            $c = switch($color){"Green"{"Green"}"Red"{"Red"}"Yellow"{"Yellow"}default{"White"}}
-            Write-Host $line -ForegroundColor $c
-        }
+        $ok = 0; $fail = 0
         foreach ($id in $idList) {
             Write-Log "⬆ $id..."
             winget upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
                 ForEach-Object { Write-Log "   $_" }
-            Write-Log "   ✓ Готово" -Color "Green"
+            if ($LASTEXITCODE -eq 0) { Write-Log "   ✓ Готово" -Color "Green"; $ok++ }
+            else { Write-Log "   ✗ Ошибка (код $LASTEXITCODE)" -Color "Red"; $fail++ }
         }
-        Write-Log "══ Обновление завершено ══"
+        Write-Log "══ Обновление завершено: ✓$ok$(if($fail -gt 0){ `" ✗$fail`" }) ══"
     } -Variables @{ idList = $idList }
 }
