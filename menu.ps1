@@ -1,13 +1,13 @@
-﻿<#
+<#
 .SYNOPSIS
     PotatoPC Optimizer - Entry Point
 .DESCRIPTION
-    Запуск: irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
+    Run: irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
 #>
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    Write-Host "Требуются права администратора. Перезапуск..." -ForegroundColor Yellow
+    Write-Host "Administrator rights required. Relaunching..." -ForegroundColor Yellow
     try {
         if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
             Start-Process powershell "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
@@ -15,8 +15,8 @@ if (-not $isAdmin) {
             Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command', 'irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex'
         }
     } catch {
-        Write-Host "Не удалось перезапустить с правами администратора. Запустите консоль от имени администратора вручную." -ForegroundColor Red
-        Read-Host "Нажмите Enter для выхода"
+        Write-Host "Failed to relaunch as administrator. Run the console manually as administrator." -ForegroundColor Red
+        Read-Host "Press Enter to exit"
     }
     exit
 }
@@ -34,20 +34,20 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
     $zipUrl  = "https://github.com/DezFix/PotatoPC/archive/refs/heads/main.zip"
     $zipPath = Join-Path $env:TEMP "PotatoPC\repo.zip"
     New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) -Force | Out-Null
-    Write-Host "Загрузка PotatoPC Optimizer..." -ForegroundColor Cyan
+    Write-Host "Downloading PotatoPC Optimizer..." -ForegroundColor Cyan
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
     Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     $repoFolder = Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory |
                   Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if (-not $repoFolder) { throw "Не удалось загрузить репозиторий" }
+    if (-not $repoFolder) { throw "Failed to download repository" }
     $script:ModuleDir = Join-Path $repoFolder.FullName "modules"
 }
 
 $loadOrder = @("_config.ps1", "_core.ps1", "_xaml.ps1")
 foreach ($module in $loadOrder) {
     $modulePath = Join-Path $script:ModuleDir $module
-    if (-not (Test-Path $modulePath)) { throw "Модуль не найден: $module" }
+    if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
     . $modulePath
 }
 
@@ -113,27 +113,12 @@ $appSearchClear        = $window.FindName("AppSearchClear")
 $ToolsBtn              = $window.FindName("ToolsBtn")
 $AdminBtn              = $window.FindName("AdminBtn")
 
-$script:LogExpanded = $true
-$toggleLogBtn.Add_Click({
-    if ($script:LogExpanded) {
-        $logRow.Height = [System.Windows.GridLength]::new(24)
-        $logSplitter.Visibility = "Collapsed"
-        $toggleLogBtn.Content = "▴ Развернуть"
-        $script:LogExpanded = $false
-    } else {
-        $logRow.Height = [System.Windows.GridLength]::new(150)
-        $logSplitter.Visibility = "Visible"
-        $toggleLogBtn.Content = "▾ Свернуть"
-        $script:LogExpanded = $true
-    }
-})
-
 $uiModules = @(
     "_scripts.ps1", "_apps.ps1", "_sysdiag.ps1", "_updates.ps1",
     "_startup.ps1", "_users.ps1", "_events.ps1"
 )
 foreach ($module in $uiModules) {
     $modulePath = Join-Path $script:ModuleDir $module
-    if (-not (Test-Path $modulePath)) { throw "Модуль не найден: $module" }
+    if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
     . $modulePath
 }
