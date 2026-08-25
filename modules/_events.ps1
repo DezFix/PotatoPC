@@ -1,18 +1,5 @@
 ﻿# ═══ Сворачивание/разворачивание лога ═══
-$script:LogExpanded = $true
-$toggleLogBtn.Add_Click({
-    if ($script:LogExpanded) {
-        $logRow.Height = [System.Windows.GridLength]::new(24)
-        $logSplitter.Visibility = "Collapsed"
-        $toggleLogBtn.Content = "▴ Развернуть"
-        $script:LogExpanded = $false
-    } else {
-        $logRow.Height = [System.Windows.GridLength]::new(150)
-        $logSplitter.Visibility = "Visible"
-        $toggleLogBtn.Content = "▾ Свернуть"
-        $script:LogExpanded = $true
-    }
-})
+$toggleLogBtn.Add_Click({ Set-LogExpanded -Expand (-not $script:LogState) })
 
 # ═══ Поиск в модулях ═══
 $scriptSearchBox.Add_TextChanged({

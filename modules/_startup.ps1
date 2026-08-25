@@ -255,7 +255,7 @@ function Render-StartupPanel {
         $card = [System.Windows.Controls.Border]::new()
         $card.CornerRadius = [System.Windows.CornerRadius]::new(7)
         $card.Margin = [System.Windows.Thickness]::new(0,2,0,2)
-        $card.Padding = [System.Windows.Thickness]::new(10,7,10,7)
+        $card.Padding = [System.Windows.Thickness]::new(10,5,10,5)
         $card.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
         if ($item.IsEnabled) {
             $card.Background   = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
@@ -349,6 +349,7 @@ function Render-StartupPanel {
         $g.Children.Add($nameStack) | Out-Null
         $g.Children.Add($locB) | Out-Null; $g.Children.Add($stB) | Out-Null
         $card.Child = $g
+        Add-CardFx -Card $card
         if ($item.IsEnabled) {
             $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
             $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
@@ -383,7 +384,7 @@ function Render-StartupPanel {
         $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
         $card.CornerRadius = [System.Windows.CornerRadius]::new(7)
         $card.Margin = [System.Windows.Thickness]::new(0,2,0,2)
-        $card.Padding = [System.Windows.Thickness]::new(10,7,10,7)
+        $card.Padding = [System.Windows.Thickness]::new(10,5,10,5)
         $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
         $card.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
         $card.Tag = [PSCustomObject]@{
@@ -456,6 +457,7 @@ function Render-StartupPanel {
         $g.Children.Add($cb) | Out-Null; $g.Children.Add($stk) | Out-Null
         $g.Children.Add($trigB) | Out-Null; $g.Children.Add($tStB) | Out-Null
         $card.Child = $g
+        Add-CardFx -Card $card
         $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
         $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
         $startupAppsPanel.Children.Add($card) | Out-Null

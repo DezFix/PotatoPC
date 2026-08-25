@@ -113,6 +113,53 @@ $appSearchClear        = $window.FindName("AppSearchClear")
 $ToolsBtn              = $window.FindName("ToolsBtn")
 $AdminBtn              = $window.FindName("AdminBtn")
 
+# --- Restore saved UI state ---
+$script:LogHeight = 150
+$script:LogState  = $false
+$ui = Get-UIState
+if ($ui) {
+    try {
+        if ($ui.LogHeight -ge 60 -and $ui.LogHeight -le 600) { $script:LogHeight = [double]$ui.LogHeight }
+        if ($null -ne $ui.Width  -and $ui.Width  -ge 500) { $window.Width  = [double]$ui.Width }
+        if ($null -ne $ui.Height -and $ui.Height -ge 400) { $window.Height = [double]$ui.Height }
+        if ($null -ne $ui.Left -and $null -ne $ui.Top) {
+            $vsL = [System.Windows.SystemParameters]::VirtualScreenLeft
+            $vsT = [System.Windows.SystemParameters]::VirtualScreenTop
+            $vsW = [System.Windows.SystemParameters]::VirtualScreenWidth
+            $vsH = [System.Windows.SystemParameters]::VirtualScreenHeight
+            $l  = [Math]::Max($vsL - $window.Width + 120, [Math]::Min([double]$ui.Left, $vsL + $vsW - 120))
+            $tp = [Math]::Max($vsT - 20, [Math]::Min([double]$ui.Top, $vsT + $vsH - 80))
+            if ($ui.State -ne "Maximized") { $window.Left = $l; $window.Top = $tp }
+        }
+        if ($ui.State -eq "Maximized") { $window.WindowState = "Maximized" }
+        if ($null -ne $ui.Tab -and $ui.Tab -ge 0 -and $ui.Tab -lt $MainTabControl.Items.Count) {
+            $MainTabControl.SelectedIndex = [int]$ui.Tab
+        }
+        $script:LogState = [bool]$ui.LogExpanded
+    } catch {}
+}
+Set-LogExpanded -Expand $script:LogState -Instant
+$logSplitter.Add_DragDelta({ if ($logRow.Height.Value -gt 32) { $script:LogHeight = $logRow.Height.Value } })
+
+# --- Window entrance animation ---
+$window.Opacity = 0
+$contentTf = [System.Windows.Media.TranslateTransform]::new(0, 10)
+$window.Content.RenderTransform = $contentTf
+$script:FadedIn = $false
+$window.Add_ContentRendered({
+    if ($script:FadedIn) { return }
+    $script:FadedIn = $true
+    try {
+        $dur = [System.Windows.Duration]::new([TimeSpan]::FromMilliseconds(220))
+        $oa = [System.Windows.Media.Animation.DoubleAnimation]::new(0, 1, $dur)
+        $ta = [System.Windows.Media.Animation.DoubleAnimation]::new(10, 0, $dur)
+        $window.BeginAnimation([System.Windows.Window]::OpacityProperty, $oa)
+        $contentTf.BeginAnimation([System.Windows.Media.TranslateTransform]::YProperty, $ta)
+    } catch { $window.Opacity = 1; $contentTf.Y = 0 }
+})
+
+$window.Add_Closing({ Save-UIState })
+
 $uiModules = @(
     "_scripts.ps1", "_apps.ps1", "_sysdiag.ps1", "_updates.ps1",
     "_startup.ps1", "_users.ps1", "_events.ps1"

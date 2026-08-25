@@ -60,8 +60,8 @@ function Build-ScriptsPanel {
     $grouped = $scripts | Group-Object { $_.Category } | Sort-Object Name
     foreach ($group in $grouped) {
         $catBorder = [System.Windows.Controls.Border]::new()
-        $catBorder.Margin = [System.Windows.Thickness]::new(0,16,0,6)
-        $catBorder.Padding = [System.Windows.Thickness]::new(0,0,0,6)
+        $catBorder.Margin = [System.Windows.Thickness]::new(0,10,0,4)
+        $catBorder.Padding = [System.Windows.Thickness]::new(0,0,0,4)
         $catBorder.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
         $catBorder.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
         $catText = [System.Windows.Controls.TextBlock]::new()
@@ -74,8 +74,8 @@ function Build-ScriptsPanel {
             $isWin11Incompatible = $script_item.Win11Only -and ($script:WindowsMajorVersion -lt 11)
             $card = [System.Windows.Controls.Border]::new()
             $card.CornerRadius = [System.Windows.CornerRadius]::new(8)
-            $card.Margin = [System.Windows.Thickness]::new(0,3,0,3)
-            $card.Padding = [System.Windows.Thickness]::new(14,10,14,10)
+            $card.Margin = [System.Windows.Thickness]::new(0,2,0,2)
+            $card.Padding = [System.Windows.Thickness]::new(10,6,10,6)
             if ($isWin11Incompatible) {
                 $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#141420")
                 $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a1a2a")
@@ -88,6 +88,7 @@ function Build-ScriptsPanel {
             } else {
                 $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
             }
+            Add-CardFx -Card $card
             $grid = [System.Windows.Controls.Grid]::new()
             $col1 = [System.Windows.Controls.ColumnDefinition]::new(); $col1.Width = [System.Windows.GridLength]::new(32)
             $col2 = [System.Windows.Controls.ColumnDefinition]::new(); $col2.Width = [System.Windows.GridLength]::Auto
@@ -108,14 +109,14 @@ function Build-ScriptsPanel {
             $script:ScriptCheckboxes[$script_item.Path] = $cb
             $icon = [System.Windows.Controls.TextBlock]::new()
             $icon.Text = $script_item.Icon
-            $icon.FontSize = 18; $icon.VerticalAlignment = "Center"; $icon.Margin = [System.Windows.Thickness]::new(0,0,12,0)
+            $icon.FontSize = 16; $icon.VerticalAlignment = "Center"; $icon.Margin = [System.Windows.Thickness]::new(0,0,8,0)
             [System.Windows.Controls.Grid]::SetColumn($icon, 1)
             $textStack = [System.Windows.Controls.StackPanel]::new()
             $textStack.VerticalAlignment = "Center"
             $nameRow = [System.Windows.Controls.StackPanel]::new()
             $nameRow.Orientation = "Horizontal"; $nameRow.VerticalAlignment = "Center"
             $nameText = [System.Windows.Controls.TextBlock]::new()
-            $nameText.Text = $script_item.Name; $nameText.FontSize = 13; $nameText.FontWeight = "Medium"
+            $nameText.Text = $script_item.Name; $nameText.FontSize = 12; $nameText.FontWeight = "Medium"
             $nameText.VerticalAlignment = "Center"
             $nameColor = if ($isWin11Incompatible) { "#505060" } elseif ($script_item.Recommended) { "#d4a017" } else { "#e0e0f4" }
             $nameText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($nameColor)

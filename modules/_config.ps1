@@ -5,6 +5,7 @@ $script:RepoZipUrl    = "https://github.com/DezFix/PotatoPC/archive/refs/heads/m
 $script:AppsJsonUrl   = "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/apps.json"
 $script:LogPath       = Join-Path $script:WorkFolder "potatopc.log"
 $script:SettingsPath  = Join-Path $script:WorkFolder "settings.json"
+$script:UIStatePath   = Join-Path $env:LOCALAPPDATA "PotatoPC\ui.json"
 
 function Get-WindowsMajorVersion {
     try {

@@ -195,6 +195,7 @@ function Invoke-Async {
         [hashtable]$Variables = @{},
         [scriptblock]$OnComplete = $null
     )
+    if (-not $script:LogState) { Set-LogExpanded -Expand $true }
     $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
     $rs.ApartmentState = "STA"
     $rs.ThreadOptions  = "ReuseThread"
@@ -222,6 +223,154 @@ function Save-Settings {
         if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
         $Settings | ConvertTo-Json -Compress | Out-File -FilePath $script:SettingsPath -Encoding UTF8 -Force
     } catch { Write-Log "Не удалось сохранить настройки: $_" -Color "Yellow" }
+}
+
+function Get-UIState {
+    try {
+        if ($script:UIStatePath -and (Test-Path $script:UIStatePath)) {
+            return (Get-Content $script:UIStatePath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop)
+        }
+    } catch {}
+    return $null
+}
+
+function Save-UIState {
+    try {
+        if (-not $window) { return }
+        $dir = Split-Path $script:UIStatePath -Parent
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        @{
+            Left        = $window.Left
+            Top         = $window.Top
+            Width       = $window.Width
+            Height      = $window.Height
+            State       = [string]$window.WindowState
+            Tab         = $MainTabControl.SelectedIndex
+            LogExpanded = $script:LogState
+            LogHeight   = $script:LogHeight
+        } | ConvertTo-Json -Compress | Out-File -FilePath $script:UIStatePath -Encoding UTF8 -Force
+    } catch {}
+}
+
+# ── Плавное сворачивание/разворачивание лога ──
+if (-not ('PotatoPC.GridLengthAnimation' -as [type])) {
+    try {
+        Add-Type -ReferencedAssemblies @('PresentationFramework', 'PresentationCore', 'WindowsBase') -TypeDefinition @"
+using System;
+using System.Windows;
+using System.Windows.Media.Animation;
+
+namespace PotatoPC
+{
+    public class GridLengthAnimation : AnimationTimeline
+    {
+        public static readonly DependencyProperty FromProperty =
+            DependencyProperty.Register("From", typeof(GridLength?), typeof(GridLengthAnimation));
+        public static readonly DependencyProperty ToProperty =
+            DependencyProperty.Register("To", typeof(GridLength?), typeof(GridLengthAnimation));
+
+        public GridLength? From
+        {
+            get { return (GridLength?)GetValue(FromProperty); }
+            set { SetValue(FromProperty, value); }
+        }
+        public GridLength? To
+        {
+            get { return (GridLength?)GetValue(ToProperty); }
+            set { SetValue(ToProperty, value); }
+        }
+
+        public override Type TargetPropertyType
+        {
+            get { return typeof(GridLength); }
+        }
+
+        protected override Freezable CreateInstanceCore()
+        {
+            return new GridLengthAnimation();
+        }
+
+        public override object GetCurrentValue(object defaultOriginValue, object defaultDestinationValue, AnimationClock animationClock)
+        {
+            double fromVal = ((GridLength)defaultOriginValue).Value;
+            double toVal   = ((GridLength)defaultDestinationValue).Value;
+            if (From.HasValue) { fromVal = From.Value.Value; }
+            if (To.HasValue)   { toVal   = To.Value.Value; }
+            if (animationClock.CurrentProgress.HasValue)
+            {
+                double p = animationClock.CurrentProgress.Value;
+                return new GridLength(fromVal + (toVal - fromVal) * p);
+            }
+            return new GridLength(toVal);
+        }
+    }
+}
+"@
+    } catch {}
+}
+
+function Set-LogExpanded {
+    param([bool]$Expand, [switch]$Instant)
+    try {
+        if (-not $logRow) { return }
+        $script:LogState = $Expand
+        if ($Expand) {
+            $target = [double]$script:LogHeight
+        } else {
+            # свёрнутая высота = реальная высота тулбара консоли + запас
+            $hdrNeed = 30.0
+            try {
+                $h = $LogHeaderBorder.ActualHeight
+                if ($h -le 0) { $h = $LogHeaderBorder.DesiredSize.Height }
+                if ($h -gt 0) { $hdrNeed = [Math]::Ceiling($h) }
+            } catch {}
+            try { $hdrNeed += $LogOuterBorder.BorderThickness.Top } catch {}
+            $target = $hdrNeed + 4
+        }
+        $logSplitter.Visibility = if ($Expand) { "Visible" } else { "Collapsed" }
+        $toggleLogBtn.Content   = if ($Expand) { "▾ Свернуть" } else { "▴ Развернуть" }
+        $from = $logRow.Height.Value
+        if ([Math]::Abs($target - $from) -lt 1) { return }
+        $heightProp = [System.Windows.Controls.RowDefinition]::HeightProperty
+        if ($Instant) {
+            try { $logRow.ApplyAnimationClock($heightProp, $null) } catch {}
+            $logRow.SetValue($heightProp, [System.Windows.GridLength]::new($target))
+            return
+        }
+        try {
+            # базовое значение сразу = цель: после завершения часов значение останется верным
+            $logRow.SetValue($heightProp, [System.Windows.GridLength]::new($target))
+            $anim = New-Object PotatoPC.GridLengthAnimation
+            $anim.From     = [System.Windows.GridLength]::new($from)
+            $anim.To       = [System.Windows.GridLength]::new($target)
+            $anim.Duration = [System.Windows.Duration]::new([TimeSpan]::FromMilliseconds(160))
+            $clock = $anim.CreateClock()
+            $clock.Completed.Add({ $logRow.ApplyAnimationClock($heightProp, $null) }.GetNewClosure())
+            $logRow.ApplyAnimationClock($heightProp, $clock)
+        } catch {
+            $logRow.SetValue($heightProp, [System.Windows.GridLength]::new($target))
+        }
+    } catch {}
+}
+
+# ── Hover-эффект карточек (сдвиг 2px) ──
+function Add-CardFx {
+    param([System.Windows.Controls.Border]$Card)
+    try {
+        $Card.RenderTransform = [System.Windows.Media.TranslateTransform]::new()
+        $Card.Add_MouseEnter({
+            param($s, $e)
+            $a = [System.Windows.Media.Animation.DoubleAnimation]::new()
+            $a.To = 2; $a.Duration = [System.Windows.Duration]::new([TimeSpan]::FromMilliseconds(110))
+            $s.RenderTransform.BeginAnimation([System.Windows.Media.TranslateTransform]::XProperty, $a)
+        })
+        $Card.Add_MouseLeave({
+            param($s, $e)
+            $a = [System.Windows.Media.Animation.DoubleAnimation]::new()
+            $a.To = 0; $a.Duration = [System.Windows.Duration]::new([TimeSpan]::FromMilliseconds(140))
+            $s.RenderTransform.BeginAnimation([System.Windows.Media.TranslateTransform]::XProperty, $a)
+        })
+    } catch {}
 }
 
 function Load-Settings {

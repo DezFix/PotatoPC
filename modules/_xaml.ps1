@@ -1,8 +1,8 @@
 ﻿[xml]$xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PotatoPC Optimizer" Height="720" Width="1080"
-        MinHeight="580" MinWidth="900" WindowStartupLocation="CenterScreen" Background="#12121f">
+        Title="PotatoPC Optimizer" Height="680" Width="1040"
+        MinHeight="560" MinWidth="860" UseLayoutRounding="True" WindowStartupLocation="CenterScreen" Background="#12121f">
     <Window.Resources>
         <Style x:Key="BtnPrimary" TargetType="Button">
             <Setter Property="Background" Value="#6c63ff"/>
@@ -11,15 +11,53 @@
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="12,7">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="sc" ScaleX="1" ScaleY="1"/>
+                            </Border.RenderTransform>
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.85"/></Trigger>
-                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.7"/></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="sc" Storyboard.TargetProperty="ScaleX" To="1.04" Duration="0:0:0.12"/>
+                                            <DoubleAnimation Storyboard.TargetName="sc" Storyboard.TargetProperty="ScaleY" To="1.04" Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="sc" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.15"/>
+                                            <DoubleAnimation Storyboard.TargetName="sc" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.15"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="sc" Storyboard.TargetProperty="ScaleX" To="0.96" Duration="0:0:0.05"/>
+                                            <DoubleAnimation Storyboard.TargetName="sc" Storyboard.TargetProperty="ScaleY" To="0.96" Duration="0:0:0.05"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="sc" Storyboard.TargetProperty="ScaleX" To="1.04" Duration="0:0:0.08"/>
+                                            <DoubleAnimation Storyboard.TargetName="sc" Storyboard.TargetProperty="ScaleY" To="1.04" Duration="0:0:0.08"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -46,7 +84,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}" BorderThickness="0,0,0,3" BorderBrush="Transparent" Padding="13,8">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" BorderThickness="0,0,0,3" BorderBrush="Transparent" Padding="11,6">
                             <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -68,10 +106,10 @@
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="52"/>
+            <RowDefinition Height="42"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="4"/>
-            <RowDefinition x:Name="LogRow" Height="150" MinHeight="24"/>
+            <RowDefinition x:Name="LogRow" Height="150" MinHeight="32"/>
         </Grid.RowDefinitions>
         <!-- ШАПКА -->
         <Border Grid.Row="0" Background="#16162a">
@@ -81,16 +119,16 @@
                     <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="🥔" FontSize="20" Foreground="#6c63ff" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <TextBlock Text="PotatoPC Optimizer" Foreground="#ffffff" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <TextBlock Text="🥔" FontSize="18" Foreground="#6c63ff" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock Text="PotatoPC Optimizer" Foreground="#ffffff" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
                     <Border Background="#6c63ff" CornerRadius="4" Padding="5,2" Margin="8,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="v4.1" Foreground="#ffffff" FontSize="10" FontWeight="SemiBold"/>
+                        <TextBlock Text="v4.2" Foreground="#ffffff" FontSize="10" FontWeight="SemiBold"/>
                     </Border>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="🛠️" x:Name="ToolsBtn" Style="{StaticResource BtnSecondary}" Height="30" FontSize="12" Margin="0,0,6,0" Padding="9,0" ToolTip="Панель управления Windows"/>
-                    <Button Content="⚙️" x:Name="AdminBtn" Style="{StaticResource BtnSecondary}" Height="30" FontSize="12" Margin="0,0,8,0" Padding="9,0" ToolTip="Управление компьютером"/>
-                    <Button Content="🛡️ Точка восстановления" x:Name="RestorePointBtn" Style="{StaticResource BtnSecondary}" Height="30" FontSize="11" Padding="10,0" ToolTip="Создать точку восстановления системы"/>
+                    <Button Content="🛠️" x:Name="ToolsBtn" Style="{StaticResource BtnSecondary}" Height="26" FontSize="12" Margin="0,0,6,0" Padding="9,0" ToolTip="Панель управления Windows"/>
+                    <Button Content="⚙️" x:Name="AdminBtn" Style="{StaticResource BtnSecondary}" Height="26" FontSize="12" Margin="0,0,8,0" Padding="9,0" ToolTip="Управление компьютером"/>
+                    <Button Content="🛡️ Точка восстановления" x:Name="RestorePointBtn" Style="{StaticResource BtnSecondary}" Height="26" FontSize="11" Padding="10,0" ToolTip="Создать точку восстановления системы"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -108,7 +146,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Background="#1a1a2e" Padding="16,6">
+                    <Border Grid.Row="0" Background="#1a1a2e" Padding="12,5">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                             <Grid Grid.Row="0" Margin="0,0,0,6">
@@ -134,9 +172,9 @@
                         </Grid>
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
-                        <StackPanel x:Name="ScriptsPanel" Margin="16,10,16,10"/>
+                        <StackPanel x:Name="ScriptsPanel" Margin="12,8,12,8"/>
                     </ScrollViewer>
-                    <Border Grid.Row="2" Background="#16162a" Padding="12,8">
+                    <Border Grid.Row="2" Background="#16162a" Padding="10,6">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -146,10 +184,10 @@
                                 </CheckBox>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <Button Content="⭐ Рекомендованное" x:Name="SelectRecommendedBtn" Style="{StaticResource BtnGold}" Margin="0,0,5,0" Height="28" FontSize="11" Width="132"/>
-                                <Button Content="✓ Все" x:Name="SelectAllBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,5,0" Height="28" FontSize="11" Width="64"/>
-                                <Button Content="✗ Снять" x:Name="DeselectAllBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,10,0" Height="28" FontSize="11" Width="64"/>
-                                <Button Content="▶ Запустить выбранные" x:Name="RunScriptsBtn" Style="{StaticResource BtnPrimary}" Height="28" FontSize="12" Padding="14,5"/>
+                                <Button Content="⭐ Рекомендованное" x:Name="SelectRecommendedBtn" Style="{StaticResource BtnGold}" Margin="0,0,5,0" Height="26" FontSize="11" Width="132"/>
+                                <Button Content="✓ Все" x:Name="SelectAllBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,5,0" Height="26" FontSize="11" Width="64"/>
+                                <Button Content="✗ Снять" x:Name="DeselectAllBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,10,0" Height="26" FontSize="11" Width="64"/>
+                                <Button Content="▶ Запустить выбранные" x:Name="RunScriptsBtn" Style="{StaticResource BtnPrimary}" Height="26" FontSize="12" Padding="14,5"/>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -170,7 +208,7 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Background="#16162a" Padding="14,8">
+                    <Border Grid.Row="0" Background="#16162a" Padding="10,5">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -203,7 +241,7 @@
                             </Border>
                         </Grid>
                     </Border>
-                    <Border Grid.Row="1" Background="#0e0e1e" Padding="14,4,14,4">
+                    <Border Grid.Row="1" Background="#0e0e1e" Padding="10,3,10,3">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="24"/>
@@ -220,7 +258,7 @@
                     <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
                         <StackPanel x:Name="StartupAppsPanel" Margin="10,4,10,4"/>
                     </ScrollViewer>
-                    <Border Grid.Row="3" Background="#16162a" Padding="14,8">
+                    <Border Grid.Row="3" Background="#16162a" Padding="10,5">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -228,13 +266,13 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock x:Name="StartupSelectedText" Foreground="#b8b8e8" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                                <Button Content="✓ Все" x:Name="SelectAllStartupBtn"    Style="{StaticResource BtnSecondary}" Height="28" Width="60"  FontSize="11" Margin="0,0,5,0"/>
-                                <Button Content="✗ Снять" x:Name="DeselectAllStartupBtn" Style="{StaticResource BtnSecondary}" Height="28" Width="65"  FontSize="11"/>
+                                <Button Content="✓ Все" x:Name="SelectAllStartupBtn"    Style="{StaticResource BtnSecondary}" Height="26" Width="60"  FontSize="11" Margin="0,0,5,0"/>
+                                <Button Content="✗ Снять" x:Name="DeselectAllStartupBtn" Style="{StaticResource BtnSecondary}" Height="26" Width="65"  FontSize="11"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <Button Content="🔄" x:Name="RefreshStartupBtn" Style="{StaticResource BtnSecondary}" Height="28" FontSize="11" Padding="9,0" Margin="0,0,8,0" ToolTip="Обновить список автозагрузки"/>
-                                <Button Content="⏸ Отключить выбранные" x:Name="DisableStartupBtn" Style="{StaticResource BtnDanger}" Height="28" FontSize="11" Margin="0,0,6,0"/>
-                                <Button Content="▶ Включить выбранные"  x:Name="EnableStartupBtn"  Style="{StaticResource BtnSecondary}" Height="28" FontSize="11"/>
+                                <Button Content="🔄" x:Name="RefreshStartupBtn" Style="{StaticResource BtnSecondary}" Height="26" FontSize="11" Padding="9,0" Margin="0,0,8,0" ToolTip="Обновить список автозагрузки"/>
+                                <Button Content="⏸ Отключить выбранные" x:Name="DisableStartupBtn" Style="{StaticResource BtnDanger}" Height="26" FontSize="11" Margin="0,0,6,0"/>
+                                <Button Content="▶ Включить выбранные"  x:Name="EnableStartupBtn"  Style="{StaticResource BtnSecondary}" Height="26" FontSize="11"/>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -253,7 +291,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Background="#1a1a2e" Padding="14,6">
+                    <Border Grid.Row="0" Background="#1a1a2e" Padding="10,5">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -268,7 +306,7 @@
                         </Grid>
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
-                        <StackPanel x:Name="UsersPanel" Margin="16,10,16,10"/>
+                        <StackPanel x:Name="UsersPanel" Margin="12,8,12,8"/>
                     </ScrollViewer>
                 </Grid>
             </TabItem>
@@ -282,7 +320,7 @@
                 </TabItem.Header>
                 <Grid Background="#12121f">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Border Grid.Row="0" Background="#1a1a2e" Padding="14,6">
+                    <Border Grid.Row="0" Background="#1a1a2e" Padding="10,5">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <TextBlock Foreground="#b8b8e8" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"><Run Text="⚡ Пресеты:"/></TextBlock>
@@ -301,16 +339,16 @@
                         </StackPanel>
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
-                        <StackPanel x:Name="AppsPanel" Margin="14,8,14,8"/>
+                        <StackPanel x:Name="AppsPanel" Margin="12,6,12,6"/>
                     </ScrollViewer>
-                    <Border Grid.Row="2" Background="#16162a" Padding="12,8">
+                    <Border Grid.Row="2" Background="#16162a" Padding="10,6">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <TextBlock x:Name="AppCountText" Foreground="#b0b0e0" FontSize="11" VerticalAlignment="Center"/>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="✓ Все" x:Name="SelectAllAppsBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,5,0" Height="28" Width="60" FontSize="11"/>
-                                <Button Content="✗ Снять" x:Name="DeselectAllAppsBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,10,0" Height="28" Width="65" FontSize="11"/>
-                                <Button Content="📦 Установить выбранные" x:Name="InstallAppsBtn" Style="{StaticResource BtnPrimary}" Height="28" FontSize="12"/>
+                                <Button Content="✓ Все" x:Name="SelectAllAppsBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,5,0" Height="26" Width="60" FontSize="11"/>
+                                <Button Content="✗ Снять" x:Name="DeselectAllAppsBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,10,0" Height="26" Width="65" FontSize="11"/>
+                                <Button Content="📦 Установить выбранные" x:Name="InstallAppsBtn" Style="{StaticResource BtnPrimary}" Height="26" FontSize="12"/>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -326,7 +364,7 @@
                 </TabItem.Header>
                 <Grid Background="#12121f">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Border Grid.Row="0" Background="#1a1a2e" Padding="14,6">
+                    <Border Grid.Row="0" Background="#1a1a2e" Padding="10,5">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <TextBlock x:Name="UpdateStatusText" Foreground="#b8b8e8" FontSize="11" VerticalAlignment="Center" Text="Нажмите «Проверить обновления» для получения списка доступных обновлений."/>
@@ -338,14 +376,14 @@
                         </Grid>
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
-                        <StackPanel x:Name="UpdatesPanel" Margin="14,8,14,8">
+                        <StackPanel x:Name="UpdatesPanel" Margin="12,6,12,6">
                             <TextBlock Foreground="#c0c0ee" FontSize="12" TextAlignment="Center" Margin="0,60,0,0" Text="📋 Список обновлений появится после нажатия «Проверить обновления»"/>
                         </StackPanel>
                     </ScrollViewer>
-                    <Border Grid.Row="2" Background="#16162a" Padding="12,8">
+                    <Border Grid.Row="2" Background="#16162a" Padding="10,6">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                             <TextBlock x:Name="UpdateCountText" Foreground="#b0b0e0" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <Button Content="⬆ Обновить выбранные" x:Name="InstallUpdatesBtn" Style="{StaticResource BtnPrimary}" Height="28" FontSize="12"/>
+                            <Button Content="⬆ Обновить выбранные" x:Name="InstallUpdatesBtn" Style="{StaticResource BtnPrimary}" Height="26" FontSize="12"/>
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -360,12 +398,12 @@
                 </TabItem.Header>
                 <Grid Background="#12121f">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <Border Grid.Row="0" Background="#1a1a2e" Padding="14,6">
+                    <Border Grid.Row="0" Background="#1a1a2e" Padding="10,5">
                         <TextBlock Foreground="#b8b8e8" FontSize="11" VerticalAlignment="Center"
                                    Text="⚠ Тесты запускаются в фоне — UI не блокируется. Результаты отображаются в консоли."/>
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="DiagPanel" Margin="16,12,16,12"/>
+                        <StackPanel x:Name="DiagPanel" Margin="12,8,12,8"/>
                     </ScrollViewer>
                 </Grid>
             </TabItem>
@@ -378,7 +416,7 @@
                     </StackPanel>
                 </TabItem.Header>
                 <ScrollViewer Background="#12121f" VerticalScrollBarVisibility="Auto">
-                    <StackPanel x:Name="SysPanel" Margin="24,16"/>
+                    <StackPanel x:Name="SysPanel" Margin="16,12"/>
                 </ScrollViewer>
             </TabItem>
         </TabControl>
@@ -386,10 +424,10 @@
         <GridSplitter x:Name="LogSplitter" Grid.Row="2" HorizontalAlignment="Stretch" Height="4"
                       Background="#1e1e38" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" Cursor="SizeNS"/>
         <!-- ЛОГ -->
-        <Border Grid.Row="3" Background="#0c0c18" BorderBrush="#1e1e38" BorderThickness="0,1,0,0">
+        <Border x:Name="LogOuterBorder" Grid.Row="3" Background="#0c0c18" BorderBrush="#1e1e38" BorderThickness="0,1,0,0">
             <Grid>
                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                <Border Background="#12122a" Padding="8,3">
+                <Border x:Name="LogHeaderBorder" Background="#12122a" Padding="8,3">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>

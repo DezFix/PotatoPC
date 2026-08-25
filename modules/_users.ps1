@@ -33,8 +33,8 @@ function Build-UsersPanel {
         $isCurrent = ($u.Name -eq $currentUserName)
         $card = [System.Windows.Controls.Border]::new()
         $card.CornerRadius = [System.Windows.CornerRadius]::new(10)
-        $card.Margin = [System.Windows.Thickness]::new(0,5,0,5)
-        $card.Padding = [System.Windows.Thickness]::new(16,14,16,14)
+        $card.Margin = [System.Windows.Thickness]::new(0,3,0,3)
+        $card.Padding = [System.Windows.Thickness]::new(12,9,12,9)
         $card.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
         if ($u.Enabled) {
             $card.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
@@ -44,6 +44,7 @@ function Build-UsersPanel {
             $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a25")
             $card.Opacity = 0.7
         }
+        Add-CardFx -Card $card
         $g = [System.Windows.Controls.Grid]::new()
         $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = [System.Windows.GridLength]::new(44)
         $c2 = [System.Windows.Controls.ColumnDefinition]::new(); $c2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)

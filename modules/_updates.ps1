@@ -102,6 +102,7 @@ function Render-UpdatesPanel {
         [System.Windows.Controls.Grid]::SetColumn($verStack, 2)
         $g.Children.Add($cb) | Out-Null; $g.Children.Add($info) | Out-Null; $g.Children.Add($verStack) | Out-Null
         $card.Child = $g
+        Add-CardFx -Card $card
         $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
         $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
         $updatesPanel.Children.Add($card) | Out-Null

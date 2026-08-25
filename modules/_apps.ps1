@@ -44,7 +44,7 @@ function Build-AppsPanel {
             if (-not $app -or [string]::IsNullOrWhiteSpace([string]$app.Id)) { continue }
             $card=[System.Windows.Controls.Border]::new()
             $card.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
-            $card.CornerRadius=[System.Windows.CornerRadius]::new(6); $card.Margin=[System.Windows.Thickness]::new(0,2,0,2); $card.Padding=[System.Windows.Thickness]::new(12,8,12,8)
+            $card.CornerRadius=[System.Windows.CornerRadius]::new(6); $card.Margin=[System.Windows.Thickness]::new(0,2,0,2); $card.Padding=[System.Windows.Thickness]::new(10,6,10,6)
             $stk=[System.Windows.Controls.StackPanel]::new(); $stk.VerticalAlignment="Center"
             $cb=[System.Windows.Controls.CheckBox]::new(); $cb.Content=$app.Name; $cb.Tag=$app.Id
             $cb.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c8c8e0"); $cb.FontSize=13; $cb.FontWeight="Medium"
@@ -54,8 +54,7 @@ function Build-AppsPanel {
             $desc.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee"); $desc.FontSize=11; $desc.Margin=[System.Windows.Thickness]::new(28,2,0,0); $desc.TextWrapping="Wrap"
             $stk.Children.Add($cb) | Out-Null; $stk.Children.Add($desc) | Out-Null
             $card.Child=$stk
-            $card.Add_MouseEnter({ $this.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
-            $card.Add_MouseLeave({ $this.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+            Add-CardFx -Card $card
             $appsPanel.Children.Add($card) | Out-Null
         }
     }

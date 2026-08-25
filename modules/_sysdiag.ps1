@@ -200,6 +200,7 @@ function Build-DiagPanel {
 
         [System.Windows.Controls.Grid]::SetColumn($btn,2)
         $g.Children.Add($ico)|Out-Null; $g.Children.Add($txt)|Out-Null; $g.Children.Add($btn)|Out-Null; $card.Child=$g
+        Add-CardFx -Card $card
         $card.Add_MouseEnter({ $this.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e35") })
         $card.Add_MouseLeave({ $this.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
         $diagPanel.Children.Add($card)|Out-Null
