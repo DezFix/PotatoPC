@@ -31,19 +31,11 @@ function Build-UsersPanel {
     foreach ($u in $users) {
         $isAdmin   = Get-UserRoleLabel -LocalUser $u
         $isCurrent = ($u.Name -eq $currentUserName)
-        $card = [System.Windows.Controls.Border]::new()
+        $card = New-Card -Dimmed:(-not $u.Enabled)
         $card.CornerRadius = [System.Windows.CornerRadius]::new(10)
         $card.Margin = [System.Windows.Thickness]::new(0,3,0,3)
         $card.Padding = [System.Windows.Thickness]::new(12,9,12,9)
-        $card.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
-        if ($u.Enabled) {
-            $card.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
-            $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
-        } else {
-            $card.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#15151f")
-            $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a25")
-            $card.Opacity = 0.7
-        }
+        if (-not $u.Enabled) { $card.Opacity = 0.7 }
         Add-CardFx -Card $card
         $g = [System.Windows.Controls.Grid]::new()
         $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = [System.Windows.GridLength]::new(44)

@@ -84,6 +84,7 @@ function Get-AppIcon {
 function Scan-RegistryStartup {
     param($RootKey, [string]$SubKeyPath, [string]$ApprovedSubKeyPath, [string]$LocationLabel)
     $result = @()
+    $key = $null; $approvedKey = $null
     try {
         $key = $RootKey.OpenSubKey($SubKeyPath)
         if ($null -eq $key) { return $result }
@@ -102,9 +103,10 @@ function Scan-RegistryStartup {
                 Icon        = $null
             }
         }
-        $key.Dispose()
-        if ($approvedKey) { $approvedKey.Dispose() }
-    } catch {}
+    } catch {} finally {
+        try { if ($key) { $key.Dispose() } } catch {}
+        try { if ($approvedKey) { $approvedKey.Dispose() } } catch {}
+    }
     return $result
 }
 
@@ -112,6 +114,7 @@ function Scan-FolderStartup {
     param([string]$DirPath, [string]$LocationLabel, $RootKeyForApproved)
     $result = @()
     if ([string]::IsNullOrWhiteSpace($DirPath) -or -not (Test-Path $DirPath)) { return $result }
+    $approvedKey = $null
     try {
         $approvedPath = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedStartupFolder'
         $approvedKey  = $RootKeyForApproved.OpenSubKey($approvedPath)
@@ -132,8 +135,9 @@ function Scan-FolderStartup {
                 Icon      = $null
             }
         }
-        if ($approvedKey) { $approvedKey.Dispose() }
-    } catch {}
+    } catch {} finally {
+        try { if ($approvedKey) { $approvedKey.Dispose() } } catch {}
+    }
     return $result
 }
 
@@ -252,19 +256,7 @@ function Render-StartupPanel {
 
     $sorted = $startupItems | Sort-Object { -([int]$_.IsEnabled) }, Name
     foreach ($item in $sorted) {
-        $card = [System.Windows.Controls.Border]::new()
-        $card.CornerRadius = [System.Windows.CornerRadius]::new(7)
-        $card.Margin = [System.Windows.Thickness]::new(0,2,0,2)
-        $card.Padding = [System.Windows.Thickness]::new(10,5,10,5)
-        $card.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
-        if ($item.IsEnabled) {
-            $card.Background   = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
-            $card.BorderBrush  = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
-        } else {
-            $card.Background   = [Windows.Media.BrushConverter]::new().ConvertFrom("#111118")
-            $card.BorderBrush  = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a25")
-            $card.Opacity      = 0.6
-        }
+        $card = New-Card -Dimmed:(-not $item.IsEnabled)
         $card.Tag = [PSCustomObject]@{
             Type      = "App"
             Name      = $item.Name
@@ -380,13 +372,7 @@ function Render-StartupPanel {
     }
 
     foreach ($task in $scheduledTasks) {
-        $card = [System.Windows.Controls.Border]::new()
-        $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
-        $card.CornerRadius = [System.Windows.CornerRadius]::new(7)
-        $card.Margin = [System.Windows.Thickness]::new(0,2,0,2)
-        $card.Padding = [System.Windows.Thickness]::new(10,5,10,5)
-        $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
-        $card.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
+        $card = New-Card
         $card.Tag = [PSCustomObject]@{
             Type      = "Task"
             Name      = $task.TaskName

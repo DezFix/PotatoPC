@@ -42,9 +42,7 @@ function Build-AppsPanel {
         $h.Child=$t; $appsPanel.Children.Add($h) | Out-Null
         foreach ($app in $category.Value) {
             if (-not $app -or [string]::IsNullOrWhiteSpace([string]$app.Id)) { continue }
-            $card=[System.Windows.Controls.Border]::new()
-            $card.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
-            $card.CornerRadius=[System.Windows.CornerRadius]::new(6); $card.Margin=[System.Windows.Thickness]::new(0,2,0,2); $card.Padding=[System.Windows.Thickness]::new(10,6,10,6)
+            $card=New-Card
             $stk=[System.Windows.Controls.StackPanel]::new(); $stk.VerticalAlignment="Center"
             $cb=[System.Windows.Controls.CheckBox]::new(); $cb.Content=$app.Name; $cb.Tag=$app.Id
             $cb.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c8c8e0"); $cb.FontSize=13; $cb.FontWeight="Medium"

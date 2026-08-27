@@ -61,11 +61,7 @@ function Render-UpdatesPanel {
     $updatesPanel.Children.Add($hdr) | Out-Null
 
     foreach ($pkg in $Packages) {
-        $card = [System.Windows.Controls.Border]::new()
-        $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
-        $card.CornerRadius = [System.Windows.CornerRadius]::new(7)
-        $card.Margin = [System.Windows.Thickness]::new(0,3,0,3)
-        $card.Padding = [System.Windows.Thickness]::new(12,8,12,8)
+        $card = New-Card
         $g = [System.Windows.Controls.Grid]::new()
         $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = [System.Windows.GridLength]::new(28)
         $c2 = [System.Windows.Controls.ColumnDefinition]::new(); $c2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)

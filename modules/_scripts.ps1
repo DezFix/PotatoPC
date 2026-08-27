@@ -59,35 +59,11 @@ function Build-ScriptsPanel {
     }
     $grouped = $scripts | Group-Object { $_.Category } | Sort-Object Name
     foreach ($group in $grouped) {
-        $catBorder = [System.Windows.Controls.Border]::new()
-        $catBorder.Margin = [System.Windows.Thickness]::new(0,10,0,4)
-        $catBorder.Padding = [System.Windows.Thickness]::new(0,0,0,4)
-        $catBorder.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
-        $catBorder.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
-        $catText = [System.Windows.Controls.TextBlock]::new()
-        $catText.Text = $group.Name.ToUpper()
-        $catText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
-        $catText.FontSize = 11; $catText.FontWeight = "SemiBold"
-        $catBorder.Child = $catText
+        $catBorder = New-CategoryHeader -Title $group.Name
         $scriptsPanel.Children.Add($catBorder) | Out-Null
         foreach ($script_item in $group.Group) {
             $isWin11Incompatible = $script_item.Win11Only -and ($script:WindowsMajorVersion -lt 11)
-            $card = [System.Windows.Controls.Border]::new()
-            $card.CornerRadius = [System.Windows.CornerRadius]::new(8)
-            $card.Margin = [System.Windows.Thickness]::new(0,2,0,2)
-            $card.Padding = [System.Windows.Thickness]::new(10,6,10,6)
-            if ($isWin11Incompatible) {
-                $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#141420")
-                $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a1a2a")
-                $card.BorderThickness = [System.Windows.Thickness]::new(0,0,3,0)
-                $card.Opacity = 0.55
-            } elseif ($script_item.Recommended) {
-                $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
-                $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#d4a017")
-                $card.BorderThickness = [System.Windows.Thickness]::new(0,0,3,0)
-            } else {
-                $card.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e")
-            }
+            $card = New-Card -Large -Incompatible:$isWin11Incompatible -Recommended:($script_item.Recommended -and -not $isWin11Incompatible)
             Add-CardFx -Card $card
             $grid = [System.Windows.Controls.Grid]::new()
             $col1 = [System.Windows.Controls.ColumnDefinition]::new(); $col1.Width = [System.Windows.GridLength]::new(32)
@@ -147,20 +123,7 @@ function Build-ScriptsPanel {
                 $nameRow.Children.Add($w11b) | Out-Null
             }
             if (-not $isWin11Incompatible -and $script_item.Tag -in 1,2,3) {
-                $tagBorder = [System.Windows.Controls.Border]::new()
-                $tagBorder.CornerRadius = [System.Windows.CornerRadius]::new(4)
-                $tagBorder.Padding = [System.Windows.Thickness]::new(5,1,5,1)
-                $tagBorder.Margin  = [System.Windows.Thickness]::new(7,0,0,0)
-                $tagBorder.VerticalAlignment = "Center"
-                $tagBorder.BorderThickness = [System.Windows.Thickness]::new(1)
-                $tagTxt = [System.Windows.Controls.TextBlock]::new()
-                $tagTxt.FontSize = 10; $tagTxt.FontWeight = "SemiBold"
-                switch ($script_item.Tag) {
-                    1 { $tagBorder.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#0d2d1a"); $tagBorder.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a6b35"); $tagTxt.Text="● безопасно"; $tagTxt.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71") }
-                    2 { $tagBorder.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#2d2200"); $tagBorder.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFrom("#a07800"); $tagTxt.Text="● осторожно"; $tagTxt.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040") }
-                    3 { $tagBorder.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#2d0d0d"); $tagBorder.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFrom("#8b1a1a"); $tagTxt.Text="● опасно"; $tagTxt.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c") }
-                }
-                $tagBorder.Child = $tagTxt
+                $tagBorder = New-TagBadge -Tag $script_item.Tag
                 $nameRow.Children.Add($tagBorder) | Out-Null
             }
             $textStack.Children.Add($nameRow) | Out-Null
