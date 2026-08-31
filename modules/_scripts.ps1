@@ -160,10 +160,12 @@ function Build-ScriptsPanel {
                     Write-Log "══ Запуск: $(Split-Path $scriptPath -Leaf) ══"
                     Start-Background {
                         try {
-                            & $scriptPath 2>&1 | ForEach-Object { Write-Log "  $_" }
-                            Write-Log "✓ Выполнено успешно" -Color "Green"
+                            $ok = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 3 -TimeoutSec 120
+                            if ($ok) { Write-Log "✓ Выполнено успешно" -Color "Green" }
+                            else { Write-Log "✗ Завершился с ошибкой (см. лог)" -Color Yellow }
                         } catch {
-                            Write-Log "✗ Ошибка: $_" -Color "Red"
+                            Write-Log "✗ КРИТИЧНО: $_" -Color Red
+                            Write-Log "Останавливаю. Проблемный скрипт: $scriptPath" -Color Red
                         }
                     }
                 })
@@ -196,20 +198,29 @@ function Run-SelectedScripts {
     Write-Log "▶ Запуск $count скриптов..."
     Write-Log "══════════════════════════════════════"
     Invoke-Async -ScriptBlock {
-        $ok=0; $fail=0
+        $ok=0; $fail=0; $aborted=$false; $abortedScript=$null
         foreach ($scriptPath in $pathsList) {
             Write-Log "── $(Split-Path $scriptPath -Leaf)"
             try {
-                & $scriptPath 2>&1 | ForEach-Object { Write-Log "   $_" }
-                Write-Log "   ✓ Готово" -Color "Green"; $ok++
+                $res = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 3 -TimeoutSec 120
+                if ($res) { Write-Log "   ✓ Готово" -Color "Green"; $ok++ }
+                else { Write-Log "   ✗ Ошибка (код выхода)" -Color Yellow; $fail++ }
             } catch {
-                Write-Log "   ✗ Ошибка: $_" -Color "Red"; $fail++
+                $fail++; $aborted=$true; $abortedScript=$scriptPath
+                Write-Log "   ✗ КРИТИЧНО: $_" -Color Red
+                Write-Log "Останавливаю всю очередь. Проблемный скрипт: $scriptPath" -Color Red
+                break
             }
         }
         Write-Log "══════════════════════════════════════"
-        Write-Log "Завершено: ✓$ok$(if($fail -gt 0){ `" ✗$fail ошибок`" })"
+        if ($aborted) {
+            Write-Log "ПРЕРВАНО: $abortedScript завис 3 раза. Выполнено: ✓$ok ✗$fail" -Color Red
+            Write-Log "ОШИБКА: $abortedScript" -Color Red
+        } else {
+            Write-Log "Завершено: ✓$ok$(if($fail -gt 0){ `" ✗$fail ошибок`" })" -Color Green
+        }
         Write-Log "══════════════════════════════════════"
-        if ($reboot) { Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force }
+        if (-not $aborted -and $reboot) { Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force }
     } -Variables @{ pathsList=$pathsList; reboot=$reboot }
 }
 

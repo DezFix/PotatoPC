@@ -30,6 +30,54 @@ $script:AsyncLogWriter = {
     }
 }
 
+function Invoke-ScriptFileWithRetry {
+    param([string]$FilePath, [int]$MaxAttempts = 3, [int]$TimeoutSec = 120)
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        Write-Log "[$attempt/$MaxAttempts] Запуск: $(Split-Path $FilePath -Leaf)"
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
+        if (-not (Test-Path $psi.FileName)) { $psi.FileName = "powershell" }
+        $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$FilePath`""
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
+        $proc = $null
+        try {
+            $proc = [System.Diagnostics.Process]::Start($psi)
+            $outTask = $proc.StandardOutput.ReadToEndAsync()
+            $errTask = $proc.StandardError.ReadToEndAsync()
+            $exited = $proc.WaitForExit($TimeoutSec * 1000)
+            if (-not $exited) {
+                Write-Log "ЗАВИС: $(Split-Path $FilePath -Leaf) не отвечает ${TimeoutSec}c, убиваю PID $($proc.Id)..." -Color Yellow
+                try { $proc.Kill() } catch {}
+                try { $null = $proc.WaitForExit(5000) } catch {}
+                if ($attempt -eq $MaxAttempts) {
+                    throw "Скрипт `"$FilePath`" завис 3 раза подряд (таймаут ${TimeoutSec}c)"
+                }
+                Write-Log "Перезапуск $(Split-Path $FilePath -Leaf) (попытка $($attempt+1)/$MaxAttempts)" -Color Yellow
+                continue
+            }
+            $stdout = $outTask.Result
+            $stderr = $errTask.Result
+            if ($stdout) { $stdout -split "`r?`n" | Where-Object { $_.Trim() -ne "" } | ForEach-Object { Write-Log "   $_" } }
+            if ($stderr) { $stderr -split "`r?`n" | Where-Object { $_.Trim() -ne "" } | ForEach-Object { Write-Log "   $_" -Color Yellow } }
+            if ($proc.ExitCode -ne 0) {
+                Write-Log "Скрипт $(Split-Path $FilePath -Leaf) завершился с кодом $($proc.ExitCode)" -Color Yellow
+                return $false
+            }
+            return $true
+        } catch {
+            if ($_.Exception.Message -like "*завис 3 раза*") { throw }
+            Write-Log "Ошибка запуска $(Split-Path $FilePath -Leaf): $_" -Color Red
+            if ($attempt -eq $MaxAttempts) { throw "Скрипт `"$FilePath`" упал 3 раза: $_" }
+        } finally {
+            if ($proc) { try { $proc.Dispose() } catch {} }
+        }
+    }
+    return $false
+}
+
 function Download-Repo {
     param([switch]$Force)
     $zipPath = Join-Path $script:WorkFolder "repo.zip"
@@ -207,6 +255,11 @@ function Invoke-Async {
     $ps = [System.Management.Automation.PowerShell]::Create()
     $ps.Runspace = $rs
     $ps.AddScript($script:AsyncLogWriter) | Out-Null
+    # инжект хелпера ретраев чтобы был доступен внутри Invoke-Async
+    try {
+        $retrySrc = ${function:Invoke-ScriptFileWithRetry}.ToString()
+        $ps.AddScript("function Invoke-ScriptFileWithRetry {`n$retrySrc`n}") | Out-Null
+    } catch {}
     $ps.AddScript($ScriptBlock) | Out-Null
     $iar = $ps.BeginInvoke()
     $callerRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
