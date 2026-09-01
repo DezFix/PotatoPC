@@ -36,6 +36,10 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
     $zipPath = Join-Path $env:TEMP "PotatoPC\repo.zip"
     New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) -Force | Out-Null
     Write-Host "Downloading PotatoPC Optimizer..." -ForegroundColor Cyan
+    # чистим старые распаковки чтобы не подхватить кэш с багами
+    Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        try { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+    }
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
     Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
