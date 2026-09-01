@@ -403,7 +403,8 @@ function Set-LogExpanded {
                 if ($h -gt 0) { $hdrNeed = [Math]::Ceiling($h) }
             } catch {}
             try { $hdrNeed += $LogOuterBorder.BorderThickness.Top } catch {}
-            $target = $hdrNeed + 4
+            $target = $hdrNeed + 10
+            if ($target -lt 38) { $target = 38 }
         }
         $logSplitter.Visibility = if ($Expand) { "Visible" } else { "Collapsed" }
         $toggleLogBtn.Content   = if ($Expand) { "▾ Свернуть" } else { "▴ Развернуть" }
