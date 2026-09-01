@@ -119,7 +119,11 @@ function Build-UpdatesPanel {
     $updateStatusText.Text = "Идёт проверка обновлений..."; $updateCountText.Text = ""
     Start-Background {
         try {
-            $raw = winget upgrade --accept-source-agreements 2>&1 | Out-String
+            $wg = Get-WingetPath
+            if ($wg -eq "winget" -and -not (Get-Command winget -ErrorAction SilentlyContinue)) {
+                throw "winget не найден. Установи App Installer из Microsoft Store."
+            }
+            $raw = & $wg upgrade --accept-source-agreements 2>&1 | Out-String
             $packages = ConvertFrom-WingetUpgradeOutput -RawOutput $raw
         } catch {
             $packages = @()
@@ -137,10 +141,11 @@ function Install-SelectedUpdates {
     $idList = @($sel | ForEach-Object { $_.Key })
     Write-Log "══ Обновление $($idList.Count) пакетов ══"
     Invoke-Async -ScriptBlock {
+        $wg = Get-WingetPath
         $ok = 0; $fail = 0
         foreach ($id in $idList) {
             Write-Log "⬆ $id..."
-            winget upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
+            & $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
                 ForEach-Object { Write-Log "   $_" }
             if ($LASTEXITCODE -eq 0) { Write-Log "   ✓ Готово" -Color "Green"; $ok++ }
             else { Write-Log "   ✗ Ошибка (код $LASTEXITCODE)" -Color "Red"; $fail++ }

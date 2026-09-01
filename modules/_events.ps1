@@ -139,10 +139,11 @@ $installAppsBtn.Add_Click({
     $idList = @($sel | ForEach-Object { $_.Key })
     Write-Log "══ Установка $($idList.Count) приложений ══"
     Invoke-Async -ScriptBlock {
+        $wg = Get-WingetPath
         $ok = 0; $fail = 0
         foreach ($id in $idList) {
             Write-Log "⏳ Установка: $id..."
-            winget install --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
+            & $wg install --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
                 ForEach-Object { Write-Log "   $_" }
             if ($LASTEXITCODE -eq 0) { Write-Log "✓ $id установлена" -Color "Green"; $ok++ }
             else { Write-Log "✗ ${id}: ошибка (код $LASTEXITCODE)" -Color "Red"; $fail++ }

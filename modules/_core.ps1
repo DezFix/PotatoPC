@@ -132,6 +132,31 @@ function Initialize-PotatoPC {
     }
 }
 
+function Get-WingetPath {
+    try {
+        $cmd = Get-Command winget -ErrorAction SilentlyContinue
+        if ($cmd -and $cmd.Source -and (Test-Path $cmd.Source)) { return $cmd.Source }
+    } catch {}
+    $candidates = @(
+        "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe",
+        "$env:USERPROFILE\AppData\Local\Microsoft\WindowsApps\winget.exe",
+        "$env:ProgramFiles\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
+    )
+    foreach ($p in $candidates) {
+        if ($p -like "*`*") {
+            try {
+                $found = Get-ChildItem -Path $p -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($found -and (Test-Path $found.FullName)) { return $found.FullName }
+            } catch {}
+        } elseif (Test-Path $p) { return $p }
+    }
+    try {
+        $where = (where.exe winget 2>$null | Select-Object -First 1)
+        if ($where) { $where = $where.Trim(); if (Test-Path $where) { return $where } }
+    } catch {}
+    return "winget"
+}
+
 function Get-SystemInfo {
     try {
         $os    = Get-CimInstance Win32_OperatingSystem
