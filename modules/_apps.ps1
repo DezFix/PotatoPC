@@ -62,9 +62,16 @@ function Build-AppsPanel {
 function Select-Preset {
     param($presetName)
     $appsData = Load-Apps
-    if (-not $appsData.Presets.$presetName) { Write-Log "Пресет '$presetName' не найден" -Color "Yellow"; return }
+    $presetList = $null
+    if ($appsData.Presets -is [hashtable]) {
+        if ($appsData.Presets.ContainsKey($presetName)) { $presetList = $appsData.Presets[$presetName] }
+    } else {
+        $prop = $appsData.Presets.PSObject.Properties[$presetName]
+        if ($prop) { $presetList = $prop.Value }
+    }
+    if ($null -eq $presetList) { Write-Log "Пресет '$presetName' не найден" -Color "Yellow"; return }
     foreach ($cb in $script:AppCheckboxes.Values) { $cb.IsChecked = $false }
-    foreach ($entry in $appsData.Presets.$presetName) {
+    foreach ($entry in $presetList) {
         $matched = $null
         if ($script:AppCheckboxes.ContainsKey($entry)) {
             $matched = $script:AppCheckboxes[$entry]

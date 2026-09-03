@@ -1,18 +1,18 @@
 ﻿function Get-UserRoleLabel {
     param($LocalUser)
     try {
-        $isAdmin = $false
-        $adminGroup = Get-LocalGroupMember -Group "Администраторы" -ErrorAction SilentlyContinue
-        if (-not $adminGroup) { $adminGroup = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue }
-        if ($adminGroup) {
-            $isAdmin = @($adminGroup | Where-Object { $_.SID -eq $LocalUser.SID }).Count -gt 0
+        if ($null -eq $script:AdminGroupMembers) {
+            $g = Get-LocalGroupMember -Group "Администраторы" -ErrorAction SilentlyContinue
+            if (-not $g) { $g = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue }
+            $script:AdminGroupMembers = @($g)
         }
-        return $isAdmin
+        return (@($script:AdminGroupMembers | Where-Object { $_.SID -eq $LocalUser.SID }).Count -gt 0)
     } catch { return $false }
 }
 
 function Build-UsersPanel {
     $usersPanel.Children.Clear()
+    $script:AdminGroupMembers = $null
     $users = @()
     try {
         $users = @(Get-LocalUser -ErrorAction Stop | Sort-Object { -([int]$_.Enabled) }, Name)

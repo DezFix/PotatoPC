@@ -25,10 +25,22 @@ $selectRecommendedBtn.Add_Click({
 })
 
 $refreshBtn.Add_Click({
-    Download-Repo -Force
-    $scriptsFolderText.Text = $script:ScriptsFolder
-    Build-ScriptsPanel
-    Write-Log "✓ Список скриптов обновлён"
+    $refreshBtn.IsEnabled = $false
+    Write-Log "Обновление списка скриптов..."
+    Start-Background {
+        try {
+            Download-Repo -Force
+            $window.Dispatcher.Invoke([action]{
+                $scriptsFolderText.Text = $script:ScriptsFolder
+                Build-ScriptsPanel
+                Write-Log "✓ Список скриптов обновлён"
+            })
+        } catch {
+            Write-Log "Ошибка обновления: $_" -Color "Red"
+        } finally {
+            try { $window.Dispatcher.Invoke([action]{ $refreshBtn.IsEnabled = $true }) } catch {}
+        }
+    }
 })
 $openFolderBtn.Add_Click({
     if (-not (Test-Path $script:ScriptsFolder)) { New-Item -ItemType Directory -Path $script:ScriptsFolder -Force | Out-Null }

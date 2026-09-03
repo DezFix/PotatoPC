@@ -15,10 +15,13 @@ function ConvertFrom-WingetUpgradeOutput {
         $id         = $parts[1].Trim()
         $version    = $parts[2].Trim()
         $newVersion = $parts[3].Trim()
-        if ($version -match '^(winget|msstore|Unknown|Name)$') { continue }
+        if ($line -match '(доступн|available|upgrade available|обновлен)') { continue }
+        if ($version -match '^(winget|msstore|Unknown|Name|Имя|Версия)$') { continue }
         if ($newVersion -match '^(winget|msstore|Unknown)$') { continue }
         if ($version -notmatch '\d' -or $newVersion -notmatch '\d') { continue }
+        if ($version -eq $newVersion) { continue }
         if ($id -match '^\d+[\.\d]+$') { continue }
+        if ($id -notmatch '\.') { continue }
         $packages += @{
             Name       = $name
             Id         = $id
