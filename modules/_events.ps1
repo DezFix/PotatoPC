@@ -35,10 +35,10 @@ $openFolderBtn.Add_Click({
     Start-Process explorer.exe $script:ScriptsFolder
 })
 
-$clearLogBtn.Add_Click({ $script:LogBox.Clear() })
+$clearLogBtn.Add_Click({ $LogBox.Clear() })
 $copyLogBtn.Add_Click({
     try {
-        [System.Windows.Clipboard]::SetText($script:LogBox.Text)
+        [System.Windows.Clipboard]::SetText($LogBox.Text)
         Write-Log "✓ Лог скопирован" -Color "Green"
     } catch {
         Write-Log "Не удалось скопировать лог: $_" -Color "Yellow"

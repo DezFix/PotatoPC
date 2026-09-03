@@ -26,7 +26,7 @@ function Load-Apps {
 function Update-AppsCount {
     $sel   = @($script:AppCheckboxes.Values | Where-Object { $_.IsChecked }).Count
     $total = $script:AppCheckboxes.Count
-    if ($script:AppCountText) { $script:AppCountText.Text = "Выбрано: $sel из $total" }
+    if ($AppCountText) { $AppCountText.Text = "Выбрано: $sel из $total" }
 }
 
 function Build-AppsPanel {

@@ -3,8 +3,8 @@
     $time = (Get-Date).ToString("HH:mm:ss")
     $line = "[$time] $msg"
     try {
-        if ($script:LogBox -and $script:LogBox.Dispatcher) {
-            $script:LogBox.Dispatcher.Invoke([action]{ $script:LogBox.AppendText("$line`n"); $script:LogBox.ScrollToEnd() })
+        if ($LogBox -and $LogBox.Dispatcher) {
+            $LogBox.Dispatcher.Invoke([action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() })
         }
     } catch {}
     if ($script:LogPath) {
@@ -284,7 +284,7 @@ function Invoke-Async {
     $rs.ApartmentState = "STA"
     $rs.ThreadOptions  = "ReuseThread"
     $rs.Open()
-    if ($script:LogBox) { $rs.SessionStateProxy.SetVariable("LogBox", $script:LogBox) }
+    if ($LogBox) { $rs.SessionStateProxy.SetVariable("LogBox", $LogBox) }
     foreach ($kv in $Variables.GetEnumerator()) {
         $rs.SessionStateProxy.SetVariable($kv.Key, $kv.Value)
     }
@@ -297,6 +297,8 @@ function Invoke-Async {
         $ps.AddScript("function Invoke-ScriptFileWithRetry {`n$retrySrc`n}") | Out-Null
         $timeoutSrc = ${function:Get-ScriptTimeout}.ToString()
         $ps.AddScript("function Get-ScriptTimeout {`n$timeoutSrc`n}") | Out-Null
+        $wingetSrc = ${function:Get-WingetPath}.ToString()
+        $ps.AddScript("function Get-WingetPath {`n$wingetSrc`n}") | Out-Null
     } catch {}
     $ps.AddScript($ScriptBlock) | Out-Null
     $iar = $ps.BeginInvoke()
