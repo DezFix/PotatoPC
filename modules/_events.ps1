@@ -4,13 +4,25 @@ $toggleLogBtn.Add_Click({ Set-LogExpanded -Expand (-not $script:LogState) })
 # поиск вынесен в _search.ps1
 
 # ═══ Кнопки вкладок ═══
-$runScriptsBtn.Add_Click({ Run-SelectedScripts })
+$runScriptsBtn.Add_Click({
+    if (-not (Get-Command Run-SelectedScripts -ErrorAction SilentlyContinue)) {
+        Write-Log "ОШИБКА: модуль _scripts.ps1 не загружен. Удали $env:TEMP\PotatoPC и перезапусти." -Color Red
+        return
+    }
+    Run-SelectedScripts
+})
 $selectAllBtn.Add_Click({
     foreach ($cb in $script:ScriptCheckboxes.Values) { if ($cb.IsEnabled) { $cb.IsChecked=$true } }
     Update-SelectedCount
 })
 $deselectAllBtn.Add_Click({ foreach($cb in $script:ScriptCheckboxes.Values){$cb.IsChecked=$false}; Update-SelectedCount })
-$selectRecommendedBtn.Add_Click({ Select-RecommendedScripts })
+$selectRecommendedBtn.Add_Click({
+    if (-not (Get-Command Select-RecommendedScripts -ErrorAction SilentlyContinue)) {
+        Write-Log "ОШИБКА: модуль _scripts.ps1 не загружен. Удали $env:TEMP\PotatoPC и перезапусти." -Color Red
+        return
+    }
+    Select-RecommendedScripts
+})
 
 $refreshBtn.Add_Click({
     Download-Repo -Force

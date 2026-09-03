@@ -30,6 +30,17 @@ $script:AsyncLogWriter = {
     }
 }
 
+function Get-ScriptTimeout {
+    param([string]$FilePath)
+    if ($FilePath -like '*Winget-install*') { return 600 }
+    return 120
+}
+
+function Test-RequiredCommands {
+    param([string[]]$Names)
+    return @($Names | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
+}
+
 function Invoke-ScriptFileWithRetry {
     param([string]$FilePath, [int]$MaxAttempts = 3, [int]$TimeoutSec = 120)
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
@@ -280,10 +291,12 @@ function Invoke-Async {
     $ps = [System.Management.Automation.PowerShell]::Create()
     $ps.Runspace = $rs
     $ps.AddScript($script:AsyncLogWriter) | Out-Null
-    # инжект хелпера ретраев чтобы был доступен внутри Invoke-Async
+    # инжект хелперов чтобы были доступны внутри Invoke-Async
     try {
         $retrySrc = ${function:Invoke-ScriptFileWithRetry}.ToString()
         $ps.AddScript("function Invoke-ScriptFileWithRetry {`n$retrySrc`n}") | Out-Null
+        $timeoutSrc = ${function:Get-ScriptTimeout}.ToString()
+        $ps.AddScript("function Get-ScriptTimeout {`n$timeoutSrc`n}") | Out-Null
     } catch {}
     $ps.AddScript($ScriptBlock) | Out-Null
     $iar = $ps.BeginInvoke()

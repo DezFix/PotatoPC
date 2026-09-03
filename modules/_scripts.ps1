@@ -160,7 +160,7 @@ function Build-ScriptsPanel {
                     Write-Log "══ Запуск: $(Split-Path $scriptPath -Leaf) ══"
                     Start-Background {
                         try {
-                            $ok = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 3 -TimeoutSec 120
+                            $ok = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 3 -TimeoutSec (Get-ScriptTimeout $scriptPath)
                             if ($ok) { Write-Log "✓ Выполнено успешно" -Color "Green" }
                             else { Write-Log "✗ Завершился с ошибкой (см. лог)" -Color Yellow }
                         } catch {
@@ -202,7 +202,7 @@ function Run-SelectedScripts {
         foreach ($scriptPath in $pathsList) {
             Write-Log "── $(Split-Path $scriptPath -Leaf)"
             try {
-                $res = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 3 -TimeoutSec 120
+                $res = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 3 -TimeoutSec (Get-ScriptTimeout $scriptPath)
                 if ($res) { Write-Log "   ✓ Готово" -Color "Green"; $ok++ }
                 else { Write-Log "   ✗ Ошибка (код выхода)" -Color Yellow; $fail++ }
             } catch {

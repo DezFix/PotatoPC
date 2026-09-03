@@ -31,12 +31,12 @@ Add-Type -AssemblyName System.Windows.Forms
 if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
     $script:ModuleDir = Join-Path (Split-Path $PSCommandPath -Parent) "modules"
 } else {
-    # fallback-константы до загрузки _config.ps1 (irm|iex без локального файла)
+    # fallback constants until _config.ps1 loads (irm|iex without local file)
     $zipUrl  = "https://github.com/DezFix/PotatoPC/archive/refs/heads/main.zip"
     $zipPath = Join-Path $env:TEMP "PotatoPC\repo.zip"
     New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) -Force | Out-Null
     Write-Host "Downloading PotatoPC Optimizer..." -ForegroundColor Cyan
-    # чистим старые распаковки чтобы не подхватить кэш с багами
+    # remove stale extracted repos so we never load cached buggy modules
     Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
         try { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
     }
@@ -116,4 +116,16 @@ foreach ($module in $uiModules) {
     $modulePath = Join-Path $script:ModuleDir $module
     if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
     . $modulePath
+}
+
+$requiredCommands = @(
+    "Run-SelectedScripts", "Select-RecommendedScripts",
+    "Build-ScriptsPanel", "Build-AppsPanel", "Build-SysPanel", "Build-DiagPanel",
+    "Build-UpdatesPanel", "Build-StartupPanel", "Build-UsersPanel",
+    "New-Card", "New-CategoryHeader", "Set-LogExpanded",
+    "Invoke-Async", "Start-Background", "Invoke-ScriptFileWithRetry", "Get-ScriptTimeout", "Get-WingetPath"
+)
+$missingCommands = @(Test-RequiredCommands -Names $requiredCommands)
+if ($missingCommands.Count -gt 0) {
+    throw "Modules incomplete, missing functions: $($missingCommands -join ', '). Delete $env:TEMP\PotatoPC and relaunch."
 }
