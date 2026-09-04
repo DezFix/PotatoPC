@@ -30,15 +30,11 @@ $refreshBtn.Add_Click({
     Start-Background {
         try {
             Download-Repo -Force
-            $window.Dispatcher.Invoke([action]{
-                $scriptsFolderText.Text = $script:ScriptsFolder
-                Build-ScriptsPanel
-                Write-Log "✓ Список скриптов обновлён"
-            })
+            Set-BgResult -Key 'paths' -Value @{ ScriptsFolder = $script:ScriptsFolder; AppsJsonPath = $script:AppsJsonPath }
         } catch {
             Write-Log "Ошибка обновления: $_" -Color "Red"
         } finally {
-            try { $window.Dispatcher.Invoke([action]{ $refreshBtn.IsEnabled = $true }) } catch {}
+            Set-BgResult -Key 'rebuildScripts' -Value $true
         }
     }
 })
@@ -178,11 +174,113 @@ $installAppsBtn.Add_Click({
 $selectAllAppsBtn.Add_Click({ foreach($cb in $script:AppCheckboxes.Values){$cb.IsChecked=$true}; Update-AppsCount })
 $deselectAllAppsBtn.Add_Click({ foreach($cb in $script:AppCheckboxes.Values){$cb.IsChecked=$false}; Update-AppsCount })
 
+# ═══ Кнопки удаления ═══
+$refreshUninstallBtn.Add_Click({ Build-UninstallPanel })
+$uninstallSelectedBtn.Add_Click({ Uninstall-SelectedNative })
+$bcuUninstallBtn.Add_Click({ Uninstall-SelectedViaBcu })
+$selectAllUninstallBtn.Add_Click({
+    foreach ($cb in $script:UninstallCheckboxes.Values) { $cb.IsChecked = $true }
+    Update-UninstallCounts
+})
+$deselectAllUninstallBtn.Add_Click({
+    foreach ($cb in $script:UninstallCheckboxes.Values) { $cb.IsChecked = $false }
+    Update-UninstallCounts
+})
+$uninstallFilterAllBtn.Add_Click({
+    $script:UninstallFilter = "All"
+    $uninstallFilterAllBtn.Style   = $window.FindResource("BtnPrimary")
+    $uninstallFilterWin32Btn.Style = $window.FindResource("BtnSecondary")
+    $uninstallFilterStoreBtn.Style = $window.FindResource("BtnSecondary")
+    Apply-UninstallFilter
+})
+$uninstallFilterWin32Btn.Add_Click({
+    $script:UninstallFilter = "Win32"
+    $uninstallFilterAllBtn.Style   = $window.FindResource("BtnSecondary")
+    $uninstallFilterWin32Btn.Style = $window.FindResource("BtnPrimary")
+    $uninstallFilterStoreBtn.Style = $window.FindResource("BtnSecondary")
+    Apply-UninstallFilter
+})
+$uninstallFilterStoreBtn.Add_Click({
+    $script:UninstallFilter = "Store"
+    $uninstallFilterAllBtn.Style   = $window.FindResource("BtnSecondary")
+    $uninstallFilterWin32Btn.Style = $window.FindResource("BtnSecondary")
+    $uninstallFilterStoreBtn.Style = $window.FindResource("BtnPrimary")
+    Apply-UninstallFilter
+})
+
 # ═══ Кнопки обновлений ═══
 $checkUpdatesBtn.Add_Click({ $updatesPanel.Children.Clear(); $script:UpdateCheckboxes.Clear(); Build-UpdatesPanel })
 $selectAllUpdatesBtn.Add_Click({ foreach($cb in $script:UpdateCheckboxes.Values){$cb.IsChecked=$true}; Update-UpdateCount })
 $deselectAllUpdatesBtn.Add_Click({ foreach($cb in $script:UpdateCheckboxes.Values){$cb.IsChecked=$false}; Update-UpdateCount })
 $installUpdatesBtn.Add_Click({ Install-SelectedUpdates })
+
+# ═══ Очередь фон->UI: таймер забирает готовые результаты из шины ═══
+function Test-BgQueue {
+    if (-not $script:PanelsBuilt) {
+        if (Get-BgResult -Key 'init') {
+            $script:PanelsBuilt = $true
+            $p = Get-BgResult -Key 'paths'
+            if ($p) {
+                if ($p.ScriptsFolder) { $script:ScriptsFolder = $p.ScriptsFolder }
+                if ($p.AppsJsonPath)  { $script:AppsJsonPath = $p.AppsJsonPath }
+            }
+            $scriptsFolderText.Text = $script:ScriptsFolder
+            Build-ScriptsPanel
+            Build-AppsPanel
+            Build-SysPanel
+            Build-DiagPanel
+            Build-StartupPanel
+            Build-UsersPanel
+            Build-UninstallPanel
+            Write-Log "✓ Готов к работе." -Color "Green"
+            $restoreResult=[System.Windows.MessageBox]::Show(
+                "Рекомендуется создать точку восстановления системы перед внесением изменений.`n`nСоздать точку восстановления сейчас?",
+                "PotatoPC Optimizer",
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Question)
+            if ($restoreResult -eq "Yes") { Start-Background { Create-RestorePoint } }
+        }
+        return
+    }
+    $u = Get-BgResult -Key 'uninstall'
+    if ($u -and -not $u.Consumed) {
+        $u.Consumed = $true
+        if ($u.Gen -eq $script:UninstallPanelGen) {
+            $script:UninstallApps = @($u.Data)
+            Render-UninstallPanel -Apps $script:UninstallApps
+        }
+    }
+    $s = Get-BgResult -Key 'startup'
+    if ($s -and -not $s.Consumed) {
+        $s.Consumed = $true
+        if ($s.Gen -eq $script:StartupPanelGen) {
+            Render-StartupPanel -Data $s.Data
+        }
+    }
+    $up = Get-BgResult -Key 'updates'
+    if ($up -and -not $up.Consumed) {
+        $up.Consumed = $true
+        if ($up.Error) { Write-Log "Ошибка проверки обновлений: $($up.Error)" -Color "Red" }
+        Render-UpdatesPanel -Packages @($up.Data)
+    }
+    if (Get-BgResult -Key 'rebuildScripts') {
+        Set-BgResult -Key 'rebuildScripts' -Value $null
+        $p = Get-BgResult -Key 'paths'
+        if ($p) {
+            if ($p.ScriptsFolder) { $script:ScriptsFolder = $p.ScriptsFolder }
+            if ($p.AppsJsonPath)  { $script:AppsJsonPath = $p.AppsJsonPath }
+        }
+        $scriptsFolderText.Text = $script:ScriptsFolder
+        Build-ScriptsPanel
+        Build-AppsPanel
+        $refreshBtn.IsEnabled = $true
+        Write-Log "✓ Список скриптов обновлён"
+    }
+    if (Get-BgResult -Key 'rebuildUninstall') {
+        Set-BgResult -Key 'rebuildUninstall' -Value $null
+        Build-UninstallPanel
+    }
+}
 
 # ═══ Окно загружено — финальная инициализация ═══
 $window.Add_Loaded({
@@ -191,29 +289,14 @@ $window.Add_Loaded({
     Write-Log "Система: $((Get-SystemInfo).OS)"
     Write-Log "Windows $($script:WindowsMajorVersion) обнаружена"
     Write-Log "Рабочая папка: $($script:WorkFolder)"
+    Start-BgPoller
     Start-Background {
         try { Initialize-PotatoPC }
         catch { Write-Log "Ошибка инициализации: $_" -Color "Red" }
-        try {
-            $window.Dispatcher.Invoke([action]{
-                Build-ScriptsPanel
-                Build-AppsPanel
-                Build-SysPanel
-                Build-DiagPanel
-                Build-StartupPanel
-                Build-UsersPanel
-                Write-Log "✓ Готов к работе." -Color "Green"
-                $restoreResult=[System.Windows.MessageBox]::Show(
-                    "Рекомендуется создать точку восстановления системы перед внесением изменений.`n`nСоздать точку восстановления сейчас?",
-                    "PotatoPC Optimizer",
-                    [System.Windows.MessageBoxButton]::YesNo,
-                    [System.Windows.MessageBoxImage]::Question)
-                if ($restoreResult -eq "Yes") { Create-RestorePoint }
-            })
-        } catch {
-            Write-Log "Ошибка инициализации панелей: $_" -Color "Red"
-        }
+        Set-BgResult -Key 'init' -Value $true
     }
 })
+
+$window.Add_Closing({ Save-UIState; Stop-BgPoller })
 
 $window.ShowDialog() | Out-Null

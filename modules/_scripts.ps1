@@ -167,7 +167,7 @@ function Build-ScriptsPanel {
                             Write-Log "✗ КРИТИЧНО: $_" -Color Red
                             Write-Log "Останавливаю. Проблемный скрипт: $scriptPath" -Color Red
                         }
-                    }
+                    } -Variables @{ scriptPath = $scriptPath }
                 })
             }
             [System.Windows.Controls.Grid]::SetColumn($runOneBtn, 3)

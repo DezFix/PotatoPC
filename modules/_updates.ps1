@@ -127,14 +127,11 @@ function Build-UpdatesPanel {
                 throw "winget не найден. Установи App Installer из Microsoft Store."
             }
             $raw = & $wg upgrade --accept-source-agreements 2>&1 | Out-String
-            $packages = ConvertFrom-WingetUpgradeOutput -RawOutput $raw
+            $packages = @(ConvertFrom-WingetUpgradeOutput -RawOutput $raw)
+            Set-BgResult -Key 'updates' -Value @{ Data = $packages }
         } catch {
-            $packages = @()
-            Write-Log "Ошибка проверки обновлений: $_" -Color "Red"
+            Set-BgResult -Key 'updates' -Value @{ Data = @(); Error = [string]$_ }
         }
-        try {
-            $window.Dispatcher.Invoke([action]{ Render-UpdatesPanel -Packages $packages })
-        } catch {}
     }
 }
 

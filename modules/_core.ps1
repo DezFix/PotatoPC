@@ -2,14 +2,16 @@
     param([string]$msg, [string]$color = "Default")
     $time = (Get-Date).ToString("HH:mm:ss")
     $line = "[$time] $msg"
-    try {
-        if ($LogBox -and $LogBox.Dispatcher) {
-            $LogBox.Dispatcher.Invoke([action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() })
-        }
-    } catch {}
+    # файл первым: фоновая диагностика сохраняется, даже если UI-поток занят
     if ($script:LogPath) {
         try { "$line`n" | Out-File -FilePath $script:LogPath -Append -Encoding UTF8 -ErrorAction SilentlyContinue } catch {}
     }
+    try {
+        if ($LogBox -and $LogBox.Dispatcher) {
+            # неблокирующе: текстбокс догонит, когда UI свободен; фоновый поток не виснет
+            $LogBox.Dispatcher.InvokeAsync([System.Action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() }) | Out-Null
+        }
+    } catch {}
     $consoleColor = switch ($color) { "Green" {"Green"} "Red" {"Red"} "Yellow" {"Yellow"} default {"White"} }
     Write-Host $line -ForegroundColor $consoleColor
 }
@@ -22,7 +24,7 @@ $script:AsyncLogWriter = {
         $line = "[$time] $msg"
         try {
             if ($LogBox -and $LogBox.Dispatcher) {
-                $LogBox.Dispatcher.Invoke([action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() })
+                $LogBox.Dispatcher.InvokeAsync([System.Action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() }) | Out-Null
             }
         } catch {}
         $consoleColor = switch ($color) { "Green" {"Green"} "Red" {"Red"} "Yellow" {"Yellow"} default {"White"} }
@@ -34,6 +36,72 @@ function Get-ScriptTimeout {
     param([string]$FilePath)
     if ($FilePath -like '*Winget-install*') { return 600 }
     return 120
+}
+
+$global:BgResults = [hashtable]::Synchronized(@{})
+
+function Set-BgResult {
+    # Общая шина фон->UI. Работает из любой сессии: в фоне видит живую ссылку
+    # $bgResults, в UI — $global:BgResults (один и тот же объект).
+    param($Key, $Value)
+    try {
+        $t = $null
+        try { $t = $bgResults } catch {}
+        if (-not $t) { try { $t = $global:BgResults } catch {} }
+        if ($t) { $t[$Key] = $Value }
+    } catch {}
+}
+
+function Get-BgResult {
+    param($Key)
+    try {
+        $t = $null
+        try { $t = $global:BgResults } catch {}
+        if (-not $t) { try { $t = $bgResults } catch {} }
+        if ($t -and $t.ContainsKey($Key)) { return $t[$Key] }
+    } catch {}
+    return $null
+}
+
+function Start-BgPoller {
+    # Таймер UI-потока: забирает готовые результаты из шины и рисует.
+    # Создаётся в UI-сессии — все функции и контролы резолвятся всегда.
+    if ($script:BgTimer) { try { $script:BgTimer.Start() } catch {}; return }
+    $script:BgTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $script:BgTimer.Interval = [TimeSpan]::FromMilliseconds(400)
+    $script:BgTimer.Add_Tick({
+        if ($script:BgTickBusy) { return }
+        $script:BgTickBusy = $true
+        try { Test-BgQueue } catch { Write-Log "Ошибка очереди фона: $_" -Color "Red" }
+        $script:BgTickBusy = $false
+    })
+    $script:BgTimer.Start()
+}
+
+function Stop-BgPoller {
+    try { if ($script:BgTimer) { $script:BgTimer.Stop() } } catch {}
+}
+
+function Invoke-OnUI {
+    # Неблокирующая доставка работы в UI-поток. Никогда не вешает фоновый поток:
+    # Dispatcher.InvokeAsync ставит действие в очередь и сразу возвращается.
+    # Работает и из основного ранспейса, и из фоновых (туда Invoke-Async
+    # вшивает эту функцию и кладёт диспетчер в $bpDispatcher).
+    param([scriptblock]$ScriptBlock)
+    try {
+        $d = $null
+        try { if ($window -and $window.Dispatcher) { $d = $window.Dispatcher } } catch {}
+        if (-not $d) { try { if ($bpDispatcher) { $d = $bpDispatcher } } catch {} }
+        if ($d -and (-not $d.HasShutdownStarted) -and (-not $d.HasShutdownFinished)) {
+            $d.InvokeAsync([System.Action]$ScriptBlock) | Out-Null
+            return $true
+        }
+    } catch {}
+    try {
+        $t = (Get-Date).ToString("HH:mm:ss") + " [Invoke-OnUI] no dispatcher`r`n"
+        [System.IO.File]::AppendAllText($script:LogPath, $t)
+    } catch {}
+    return $false
 }
 
 function Test-RequiredCommands {
@@ -89,6 +157,18 @@ function Invoke-ScriptFileWithRetry {
     return $false
 }
 
+function Expand-RepoArchive {
+    param([string]$ZipPath, [string]$Destination)
+    try {
+        Expand-Archive -Path $ZipPath -DestinationPath $Destination -Force -ErrorAction Stop
+        return
+    } catch {
+        Write-Log "Expand-Archive недоступен ($($_.Exception.Message)), распаковка через .NET..." -Color "Yellow"
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $Destination)
+}
+
 function Download-Repo {
     param([switch]$Force)
     $zipPath = Join-Path $script:WorkFolder "repo.zip"
@@ -106,7 +186,7 @@ function Download-Repo {
         }
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $script:RepoZipUrl -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
-        Expand-Archive -Path $zipPath -DestinationPath $script:WorkFolder -Force
+        Expand-RepoArchive -ZipPath $zipPath -Destination $script:WorkFolder
         Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
         $repoFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory |
                       Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -141,6 +221,8 @@ function Initialize-PotatoPC {
     } else {
         Download-Repo
     }
+    # Пути живут и в UI-сессии: кладём в шину, Test-BgQueue применит до построения панелей
+    Set-BgResult -Key 'paths' -Value @{ ScriptsFolder = $script:ScriptsFolder; AppsJsonPath = $script:AppsJsonPath }
 }
 
 function Get-WingetPath {
@@ -265,11 +347,82 @@ public static class PSAsyncHelper {
 "@
 }
 
+$script:BgISS = $null
+$script:BgConfigNames = @('WorkFolder','ScriptsFolder','AppsJsonPath','AppsJsonUrl','RepoZipUrl','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion','BcuVersion','BcuNetAsset','BcuPortableAsset')
+
+function Get-BgSessionState {
+    # Снимок всех пользовательских функций один раз (после загрузки модулей).
+    # Каждый фоновый ранспейс стартует с ним: общий ранспейс UI ни с кем не делится,
+    # гонок подгрузки модулей между потоками больше нет.
+    if ($script:BgISS) { return $script:BgISS }
+    $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    foreach ($fn in (Get-Command -CommandType Function)) {
+        if ($fn.Source -ne '') { continue }
+        if ([string]::IsNullOrWhiteSpace($fn.Name)) { continue }
+        try {
+            $entry = New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($fn.Name, $fn.ScriptBlock)
+            $iss.Commands.Add($entry)
+        } catch {}
+    }
+    $script:BgISS = $iss
+    return $iss
+}
+
 function Start-Background {
-    param([scriptblock]$ScriptBlock)
+    param([scriptblock]$ScriptBlock, [hashtable]$Variables = @{})
+    # Всё тяжёлое предвычисляем здесь, в UI-потоке: объект ISS, init-скрипт,
+    # исходник тела, живые ссылки. Пул-поток делает только .NET-обвязку
+    # ранспейса (без единого cmdlet) и выполняет тело в полной изоляции.
+    $iss = Get-BgSessionState
+    $bodySrc = $ScriptBlock.ToString()
+    $initLines = @()
+    foreach ($n in $script:BgConfigNames) {
+        try {
+            $v = (Get-Variable -Name $n -Scope Script -ErrorAction Stop).Value
+            if ($v -is [string]) { $initLines += ('$script:{0} = ''{1}''' -f $n, ($v -replace "'", "''")) }
+            elseif ($v -is [int] -or $v -is [bool]) { $initLines += ('$script:{0} = {1}' -f $n, $v) }
+        } catch {}
+    }
+    $initScript = ($initLines -join "`n")
+    $liveVars = @{}
+    try { if ($LogBox) { $liveVars['LogBox'] = $LogBox } } catch {}
+    try { if ($LogBox -and $LogBox.Dispatcher) { $liveVars['bpDispatcher'] = $LogBox.Dispatcher } } catch {}
+    try { if ($global:BgResults) { $liveVars['bgResults'] = $global:BgResults } } catch {}
+    foreach ($kv in $Variables.GetEnumerator()) { $liveVars[$kv.Key] = $kv.Value }
+    $logPathStr = [string]$script:LogPath
+    $runner = {
+        try {
+            $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss)
+            $rs.ApartmentState = "STA"
+            $rs.ThreadOptions = "ReuseThread"
+            $rs.Open()
+            try {
+                foreach ($kv in $liveVars.GetEnumerator()) {
+                    try { $rs.SessionStateProxy.SetVariable($kv.Key, $kv.Value) } catch {}
+                }
+                $ps = [System.Management.Automation.PowerShell]::Create()
+                $ps.Runspace = $rs
+                try {
+                    if (-not [string]::IsNullOrWhiteSpace($initScript)) { [void]$ps.AddScript($initScript) }
+                    [void]$ps.AddScript($bodySrc)
+                    [void]$ps.Invoke()
+                    foreach ($e in @($ps.Streams.Error)) {
+                        try {
+                            $t = [DateTime]::Now.ToString("HH:mm:ss") + " [BG] " + $e.ToString() + "`r`n"
+                            [System.IO.File]::AppendAllText($logPathStr, $t)
+                        } catch {}
+                    }
+                } finally { try { $ps.Dispose() } catch {} }
+            } finally { try { $rs.Dispose() } catch {} }
+        } catch {
+            try {
+                $t = [DateTime]::Now.ToString("HH:mm:ss") + " [BG bootstrap] " + $_.Exception.Message + "`r`n"
+                [System.IO.File]::AppendAllText($logPathStr, $t)
+            } catch {}
+        }
+    }.GetNewClosure()
     $callerRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
-    $body = [Action]$ScriptBlock
-    $action = [PSAsyncHelper]::MakeRunAction($body, $callerRunspace)
+    $action = [PSAsyncHelper]::MakeRunAction([Action]$runner, $callerRunspace)
     [System.Threading.Tasks.Task]::Run($action) | Out-Null
 }
 
@@ -299,7 +452,10 @@ function Invoke-Async {
         $ps.AddScript("function Get-ScriptTimeout {`n$timeoutSrc`n}") | Out-Null
         $wingetSrc = ${function:Get-WingetPath}.ToString()
         $ps.AddScript("function Get-WingetPath {`n$wingetSrc`n}") | Out-Null
+        $onUISrc = ${function:Invoke-OnUI}.ToString()
+        $ps.AddScript("function Invoke-OnUI {`n$onUISrc`n}") | Out-Null
     } catch {}
+    if ($LogBox) { try { $rs.SessionStateProxy.SetVariable("bpDispatcher", $LogBox.Dispatcher) } catch {} }
     $ps.AddScript($ScriptBlock) | Out-Null
     $iar = $ps.BeginInvoke()
     $callerRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace

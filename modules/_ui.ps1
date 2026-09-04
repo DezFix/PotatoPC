@@ -64,6 +64,22 @@ function Initialize-Controls {
         AppSearchClear      = "AppSearchClear"
         ToolsBtn            = "ToolsBtn"
         AdminBtn            = "AdminBtn"
+        UninstallAppsPanel  = "UninstallAppsPanel"
+        RefreshUninstallBtn = "RefreshUninstallBtn"
+        UninstallSelectedBtn= "UninstallSelectedBtn"
+        BcuUninstallBtn     = "BcuUninstallBtn"
+        SelectAllUninstallBtn  = "SelectAllUninstallBtn"
+        DeselectAllUninstallBtn="DeselectAllUninstallBtn"
+        UninstallFilterAllBtn  = "UninstallFilterAllBtn"
+        UninstallFilterWin32Btn= "UninstallFilterWin32Btn"
+        UninstallFilterStoreBtn= "UninstallFilterStoreBtn"
+        UninstallCountText  = "UninstallCountText"
+        UninstallSelectedText="UninstallSelectedText"
+        UninstallSearchBox  = "UninstallSearchBox"
+        UninstallSearchHint = "UninstallSearchHint"
+        UninstallSearchClear= "UninstallSearchClear"
+        QuietUninstallChk   = "QuietUninstallChk"
+        CleanLeftoversChk   = "CleanLeftoversChk"
     }
     foreach ($kv in $map.GetEnumerator()) {
         Set-Variable -Name $kv.Key -Value $Window.FindName($kv.Value) -Scope Global

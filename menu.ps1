@@ -23,6 +23,12 @@ if (-not $isAdmin) {
 
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue
 
+# Предзагрузка системных модулей в основном потоке: фоновые ранспейсы больше
+# не дерутся за автозагрузку ("module could not be loaded" на Join-Path и т.п.)
+foreach ($m in @('Microsoft.PowerShell.Management','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Archive','CimCmdlets','ScheduledTasks','Microsoft.PowerShell.LocalAccounts','PrintManagement')) {
+    try { Import-Module $m -ErrorAction SilentlyContinue } catch {}
+}
+
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
@@ -41,7 +47,12 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
         try { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
     }
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
-    Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force
+    try {
+        Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force -ErrorAction Stop
+    } catch {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, (Split-Path $zipPath -Parent))
+    }
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     $repoFolder = Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory |
                   Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -110,7 +121,7 @@ $window.Add_Closing({ Save-UIState })
 
 $uiModules = @(
     "_scripts.ps1", "_apps.ps1", "_sysdiag.ps1", "_updates.ps1",
-    "_startup.ps1", "_users.ps1", "_search.ps1", "_events.ps1"
+    "_startup.ps1", "_users.ps1", "_uninstall.ps1", "_search.ps1", "_events.ps1"
 )
 foreach ($module in $uiModules) {
     $modulePath = Join-Path $script:ModuleDir $module
@@ -122,8 +133,11 @@ $requiredCommands = @(
     "Run-SelectedScripts", "Select-RecommendedScripts",
     "Build-ScriptsPanel", "Build-AppsPanel", "Build-SysPanel", "Build-DiagPanel",
     "Build-UpdatesPanel", "Build-StartupPanel", "Build-UsersPanel",
+    "Build-UninstallPanel", "Uninstall-SelectedNative", "Uninstall-SelectedViaBcu",
     "New-Card", "New-CategoryHeader", "Set-LogExpanded",
-    "Invoke-Async", "Start-Background", "Invoke-ScriptFileWithRetry", "Get-ScriptTimeout", "Get-WingetPath"
+    "Invoke-Async", "Invoke-OnUI", "Set-BgResult", "Get-BgResult",
+    "Start-BgPoller", "Stop-BgPoller", "Test-BgQueue",
+    "Start-Background", "Invoke-ScriptFileWithRetry", "Get-ScriptTimeout", "Get-WingetPath"
 )
 $missingCommands = @(Test-RequiredCommands -Names $requiredCommands)
 if ($missingCommands.Count -gt 0) {

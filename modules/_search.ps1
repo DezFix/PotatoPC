@@ -56,3 +56,11 @@ $startupSearchBox.Add_TextChanged({
     Apply-StartupFilter
 })
 $startupSearchClear.Add_Click({ $startupSearchBox.Text = "" })
+
+$uninstallSearchBox.Add_TextChanged({
+    $q = $uninstallSearchBox.Text.Trim()
+    $uninstallSearchHint.Visibility  = if ($q -eq "") { "Visible" } else { "Collapsed" }
+    $uninstallSearchClear.Visibility = if ($q -eq "") { "Collapsed" } else { "Visible" }
+    Apply-UninstallFilter
+})
+$uninstallSearchClear.Add_Click({ $uninstallSearchBox.Text = "" })

@@ -3,6 +3,14 @@ $script:TaskCheckboxes    = @{}
 $script:StartupFilter     = "All"
 $script:StartupPanelGen   = 0
 
+function Trace-S {
+    param([string]$m)
+    try {
+        $t = (Get-Date).ToString('HH:mm:ss') + ' S ' + $m + "`r`n"
+        [System.IO.File]::AppendAllText((Join-Path $env:TEMP 'PotatoPC\trace.txt'), $t)
+    } catch {}
+}
+
 function Resolve-CommandPath {
     param([string]$Command)
     if ([string]::IsNullOrWhiteSpace($Command)) { return $null }
@@ -453,6 +461,7 @@ function Render-StartupPanel {
 }
 
 function Build-StartupPanel {
+    Trace-S 'sync start'
     $startupAppsPanel.Children.Clear()
     $script:StartupCheckboxes.Clear()
     $script:TaskCheckboxes.Clear()
@@ -460,14 +469,15 @@ function Build-StartupPanel {
     $script:StartupPanelGen++
     $gen = $script:StartupPanelGen
     Start-Background {
+        Trace-S 'task start'
         try {
             $data = Get-StartupData
-            $window.Dispatcher.Invoke([action]{
-                if ($gen -ne $script:StartupPanelGen) { return }
-                Render-StartupPanel -Data $data
-            })
+            Trace-S ('scanned items=' + @($data.Items).Count + ' tasks=' + @($data.Tasks).Count)
+            Set-BgResult -Key 'startup' -Value @{ Gen = $gen; Data = $data }
+            Trace-S 'stashed'
         } catch {
+            Trace-S ('CATCH ' + $_.Exception.Message)
             Write-Log "Ошибка сканирования автозагрузки: $_" -Color "Red"
         }
-    }
+    } -Variables @{ gen = $gen }
 }

@@ -187,15 +187,18 @@ function Build-DiagPanel {
 
             try { & $localAction } catch { Write-Log "X $_" -Color "Red" }
 
-            Start-Background {
-                Start-Sleep -Milliseconds 500
-                $localBtn.Dispatcher.Invoke([action]{
+            $reenable = New-Object System.Windows.Threading.DispatcherTimer
+            $reenable.Interval = [TimeSpan]::FromMilliseconds(500)
+            $reenable.Add_Tick({
+                $reenable.Stop()
+                try {
                     $localBtn.IsEnabled = $true
                     $localBtn.Content = "Запустить"
                     $localLbl.Text = "запущено в фоне"
                     $localLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
-                })
-            }
+                } catch {}
+            }.GetNewClosure())
+            $reenable.Start()
         }.GetNewClosure())
 
         [System.Windows.Controls.Grid]::SetColumn($btn,2)
