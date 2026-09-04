@@ -174,40 +174,6 @@ $installAppsBtn.Add_Click({
 $selectAllAppsBtn.Add_Click({ foreach($cb in $script:AppCheckboxes.Values){$cb.IsChecked=$true}; Update-AppsCount })
 $deselectAllAppsBtn.Add_Click({ foreach($cb in $script:AppCheckboxes.Values){$cb.IsChecked=$false}; Update-AppsCount })
 
-# ═══ Кнопки удаления ═══
-$refreshUninstallBtn.Add_Click({ Build-UninstallPanel })
-$uninstallSelectedBtn.Add_Click({ Uninstall-SelectedNative })
-$bcuUninstallBtn.Add_Click({ Uninstall-SelectedViaBcu })
-$selectAllUninstallBtn.Add_Click({
-    foreach ($cb in $script:UninstallCheckboxes.Values) { $cb.IsChecked = $true }
-    Update-UninstallCounts
-})
-$deselectAllUninstallBtn.Add_Click({
-    foreach ($cb in $script:UninstallCheckboxes.Values) { $cb.IsChecked = $false }
-    Update-UninstallCounts
-})
-$uninstallFilterAllBtn.Add_Click({
-    $script:UninstallFilter = "All"
-    $uninstallFilterAllBtn.Style   = $window.FindResource("BtnPrimary")
-    $uninstallFilterWin32Btn.Style = $window.FindResource("BtnSecondary")
-    $uninstallFilterStoreBtn.Style = $window.FindResource("BtnSecondary")
-    Apply-UninstallFilter
-})
-$uninstallFilterWin32Btn.Add_Click({
-    $script:UninstallFilter = "Win32"
-    $uninstallFilterAllBtn.Style   = $window.FindResource("BtnSecondary")
-    $uninstallFilterWin32Btn.Style = $window.FindResource("BtnPrimary")
-    $uninstallFilterStoreBtn.Style = $window.FindResource("BtnSecondary")
-    Apply-UninstallFilter
-})
-$uninstallFilterStoreBtn.Add_Click({
-    $script:UninstallFilter = "Store"
-    $uninstallFilterAllBtn.Style   = $window.FindResource("BtnSecondary")
-    $uninstallFilterWin32Btn.Style = $window.FindResource("BtnSecondary")
-    $uninstallFilterStoreBtn.Style = $window.FindResource("BtnPrimary")
-    Apply-UninstallFilter
-})
-
 # ═══ Кнопки обновлений ═══
 $checkUpdatesBtn.Add_Click({ $updatesPanel.Children.Clear(); $script:UpdateCheckboxes.Clear(); Build-UpdatesPanel })
 $selectAllUpdatesBtn.Add_Click({ foreach($cb in $script:UpdateCheckboxes.Values){$cb.IsChecked=$true}; Update-UpdateCount })
@@ -231,7 +197,6 @@ function Test-BgQueue {
             Build-DiagPanel
             Build-StartupPanel
             Build-UsersPanel
-            Build-UninstallPanel
             Write-Log "✓ Готов к работе." -Color "Green"
             $restoreResult=[System.Windows.MessageBox]::Show(
                 "Рекомендуется создать точку восстановления системы перед внесением изменений.`n`nСоздать точку восстановления сейчас?",
@@ -241,14 +206,6 @@ function Test-BgQueue {
             if ($restoreResult -eq "Yes") { Start-Background { Create-RestorePoint } }
         }
         return
-    }
-    $u = Get-BgResult -Key 'uninstall'
-    if ($u -and -not $u.Consumed) {
-        $u.Consumed = $true
-        if ($u.Gen -eq $script:UninstallPanelGen) {
-            $script:UninstallApps = @($u.Data)
-            Render-UninstallPanel -Apps $script:UninstallApps
-        }
     }
     $s = Get-BgResult -Key 'startup'
     if ($s -and -not $s.Consumed) {
@@ -275,10 +232,6 @@ function Test-BgQueue {
         Build-AppsPanel
         $refreshBtn.IsEnabled = $true
         Write-Log "✓ Список скриптов обновлён"
-    }
-    if (Get-BgResult -Key 'rebuildUninstall') {
-        Set-BgResult -Key 'rebuildUninstall' -Value $null
-        Build-UninstallPanel
     }
 }
 

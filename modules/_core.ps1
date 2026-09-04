@@ -348,7 +348,7 @@ public static class PSAsyncHelper {
 }
 
 $script:BgISS = $null
-$script:BgConfigNames = @('WorkFolder','ScriptsFolder','AppsJsonPath','AppsJsonUrl','RepoZipUrl','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion','BcuVersion','BcuNetAsset','BcuPortableAsset')
+$script:BgConfigNames = @('WorkFolder','ScriptsFolder','AppsJsonPath','AppsJsonUrl','RepoZipUrl','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion')
 
 function Get-BgSessionState {
     # Снимок всех пользовательских функций один раз (после загрузки модулей).
