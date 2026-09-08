@@ -46,7 +46,7 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
     Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
         try { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
     }
-    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
+    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60
     try {
         Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force -ErrorAction Stop
     } catch {

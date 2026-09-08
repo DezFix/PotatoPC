@@ -59,7 +59,8 @@ function Render-UpdatesPanel {
     $hw1 = [System.Windows.Controls.ColumnDefinition]::new(); $hw1.Width = [System.Windows.GridLength]::new(28)
     $hw2 = [System.Windows.Controls.ColumnDefinition]::new(); $hw2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
     $hw3 = [System.Windows.Controls.ColumnDefinition]::new(); $hw3.Width = [System.Windows.GridLength]::Auto
-    $hg.ColumnDefinitions.Add($hw1); $hg.ColumnDefinitions.Add($hw2); $hg.ColumnDefinitions.Add($hw3)
+    $hw4 = [System.Windows.Controls.ColumnDefinition]::new(); $hw4.Width = [System.Windows.GridLength]::Auto
+    $hg.ColumnDefinitions.Add($hw1); $hg.ColumnDefinitions.Add($hw2); $hg.ColumnDefinitions.Add($hw3); $hg.ColumnDefinitions.Add($hw4)
     $hn = [System.Windows.Controls.TextBlock]::new()
     $hn.Text = "ПРИЛОЖЕНИЕ"; $hn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#5050a0")
     $hn.FontSize = 10; $hn.FontWeight = "SemiBold"; $hn.VerticalAlignment = "Center"
@@ -78,7 +79,8 @@ function Render-UpdatesPanel {
         $c1 = [System.Windows.Controls.ColumnDefinition]::new(); $c1.Width = [System.Windows.GridLength]::new(28)
         $c2 = [System.Windows.Controls.ColumnDefinition]::new(); $c2.Width = [System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
         $c3 = [System.Windows.Controls.ColumnDefinition]::new(); $c3.Width = [System.Windows.GridLength]::Auto
-        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
+        $c4 = [System.Windows.Controls.ColumnDefinition]::new(); $c4.Width = [System.Windows.GridLength]::Auto
+        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3); $g.ColumnDefinitions.Add($c4)
         $cb = [System.Windows.Controls.CheckBox]::new(); $cb.VerticalAlignment = "Center"; $cb.Tag = $pkg.Id
         $cb.Add_Checked({   Update-UpdateCount })
         $cb.Add_Unchecked({ Update-UpdateCount })
@@ -109,6 +111,29 @@ function Render-UpdatesPanel {
         $verStack.Children.Add($vNew) | Out-Null
         [System.Windows.Controls.Grid]::SetColumn($verStack, 2)
         $g.Children.Add($cb) | Out-Null; $g.Children.Add($info) | Out-Null; $g.Children.Add($verStack) | Out-Null
+        $oneBtn=[System.Windows.Controls.Button]::new()
+        $oneBtn.Content=(New-IconButtonContent -Text 'Обновить' -Icon 'actions/go_up' -Size 11)
+        $oneBtn.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#2d2d35")
+        $oneBtn.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#d4d4e0")
+        $oneBtn.BorderThickness=[System.Windows.Thickness]::new(0); $oneBtn.Cursor=[System.Windows.Input.Cursors]::Hand
+        $oneBtn.FontSize=11; $oneBtn.Padding=[System.Windows.Thickness]::new(10,5,10,5); $oneBtn.VerticalAlignment="Center"
+        $oneBtn.Margin=[System.Windows.Thickness]::new(10,0,0,0); $oneBtn.Tag=$pkg.Id
+        $oneBtn.ToolTip="Обновить только этот пакет"
+        $oneBtn.Add_Click({
+            $singleId=$this.Tag; $singleBtn=$this
+            $singleBtn.IsEnabled=$false
+            Write-Log ("Обновление: " + $singleId)
+            Invoke-Async -ScriptBlock {
+                $wg=Get-WingetPath
+                & $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
+                    ForEach-Object { Write-Log ("   " + $_) }
+                if ($LASTEXITCODE -eq 0) { Write-Log ("Готово: " + $id) -Color "Green" }
+                else { Write-Log ("Ошибка $id (код $LASTEXITCODE)") -Color "Red" }
+                Set-BgResult -Key 'updatesRefresh' -Value $true
+            } -Variables @{ id=$singleId }
+        })
+        [System.Windows.Controls.Grid]::SetColumn($oneBtn,3)
+        $g.Children.Add($oneBtn) | Out-Null
         $card.Child = $g
         Add-CardFx -Card $card
         $card.Add_MouseEnter({ $this.Background = $script:Theme.CardBgHover })

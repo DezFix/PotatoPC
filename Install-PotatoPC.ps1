@@ -58,7 +58,7 @@ $zipPath = Join-Path $Dest 'potatopc-dl.zip'
 if (Test-Path $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
 
 Write-Host ("[*] Скачиваю: " + $ZipUrl)
-Invoke-WebRequest -Uri $ZipUrl -OutFile $zipPath -UseBasicParsing
+Invoke-WebRequest -Uri $ZipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 120
 $actualHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
 Write-Host ('[*] SHA256 архива: ' + $actualHash)
 

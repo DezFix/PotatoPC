@@ -245,7 +245,7 @@ function Download-Repo {
             New-Item -ItemType Directory -Path $script:WorkFolder -Force | Out-Null
         }
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $script:RepoZipUrl -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+        Invoke-WebRequest -Uri $script:RepoZipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
         Expand-RepoArchive -ZipPath $zipPath -Destination $script:WorkFolder
         Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
         $repoFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory |
@@ -273,7 +273,17 @@ function Initialize-PotatoPC {
     }
     $repoFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory |
                   Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if ($repoFolder -and (Test-Path (Join-Path $repoFolder.FullName "scripts"))) {
+    $cachedOk = $false
+    if ($repoFolder) {
+        $cachedScripts = Join-Path $repoFolder.FullName "scripts"
+        $cachedN = @(Get-ChildItem -Path $cachedScripts -Recurse -Filter "*.ps1" -ErrorAction SilentlyContinue).Count
+        $cachedOk = ((Test-Path $cachedScripts) -and ($cachedN -gt 0) -and (Test-Path (Join-Path $repoFolder.FullName "apps.json")))
+        if (-not $cachedOk) {
+            Write-Log "Локальный кэш повреждён (скриптов: $cachedN), качаю заново..." -Color "Yellow"
+            try { Remove-Item -LiteralPath $repoFolder.FullName -Recurse -Force -ErrorAction Stop } catch {}
+        }
+    }
+    if ($cachedOk) {
         $script:ScriptsFolder = Join-Path $repoFolder.FullName "scripts"
         $script:AppsJsonPath  = Join-Path $repoFolder.FullName "apps.json"
         $n = @(Get-ChildItem -Path $script:ScriptsFolder -Recurse -Filter "*.ps1" -ErrorAction SilentlyContinue).Count
@@ -696,4 +706,46 @@ function Load-Settings {
         try { return (Get-Content $script:SettingsPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop) } catch {}
     }
     return $null
+}
+
+# Человеческое относительное время: "5 мин. назад", "вчера", "12.03.2024"
+function Get-RelativeTime {
+    param($Dt)
+    try {
+        if ($null -eq $Dt) { return "никогда" }
+        $d = [DateTime]$Dt
+        $span = (Get-Date) - $d
+        if ($span.TotalMinutes -lt 1)  { return "только что" }
+        if ($span.TotalMinutes -lt 60) { return ("{0} мин. назад" -f [int]$span.TotalMinutes) }
+        if ($span.TotalHours -lt 24)   { return ("{0} ч. назад" -f [int]$span.TotalHours) }
+        if ($span.TotalDays -lt 2)     { return "вчера" }
+        if ($span.TotalDays -lt 30)    { return ("{0} дн. назад" -f [int]$span.TotalDays) }
+        if ($span.TotalDays -lt 365)   { return ("{0} мес. назад" -f [int]($span.TotalDays / 30)) }
+        return $d.ToString("dd.MM.yyyy")
+    } catch { return "неизвестно" }
+}
+
+# Тёмный системный титлбар (Win10 20H1+). На старых сборках молча ничего не делает.
+if (-not ('PotatoPC.Dwm' -as [type])) {
+    try {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class PotatoPC_Dwm {
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+}
+'@
+    } catch {}
+}
+
+function Enable-DarkTitleBar {
+    param($Window)
+    try {
+        $helper = [System.Windows.Interop.WindowInteropHelper]::new($Window)
+        $hwnd = $helper.Handle
+        if ($hwnd -eq [IntPtr]::Zero) { $hwnd = $helper.EnsureHandle() }
+        $use = 1
+        [PotatoPC_Dwm]::DwmSetWindowAttribute($hwnd, 20, [ref]$use, 4) | Out-Null
+    } catch {}
 }

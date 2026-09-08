@@ -29,17 +29,25 @@ function Update-AppsCount {
     if ($AppCountText) { $AppCountText.Text = "Выбрано: $sel из $total" }
 }
 
+function Get-AppCategoryIcon {
+    param([string]$Name)
+    $n = [string]$Name
+    if ($n -match 'Игр')                            { return 'apps/games' }
+    if ($n -match 'Офис|Документ')                  { return 'apps/office' }
+    if ($n -match 'Браузер|Интернет')               { return 'apps/cat_internet' }
+    if ($n -match 'Медиа|Видео|Аудио|Музык|Плеер')  { return 'apps/cat_multimedia' }
+    if ($n -match 'Разработ|Код|Программ')          { return 'apps/cat_dev' }
+    if ($n -match 'Систем|Утилит|Архив|Файл')       { return 'apps/cat_utils' }
+    if ($n -match 'Связь|Сеть|Мессендж')            { return 'devices/network' }
+    return 'mimetypes/nav_apps'
+}
+
 function Build-AppsPanel {
     $appsPanel.Children.Clear()
     $script:AppCheckboxes = @{}
     $appsData = Load-Apps
     foreach ($category in $appsData.ManualCategories.PSObject.Properties) {
-        $h = [System.Windows.Controls.Border]::new()
-        $h.Margin=[System.Windows.Thickness]::new(0,16,0,6); $h.Padding=[System.Windows.Thickness]::new(0,0,0,6)
-        $h.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38"); $h.BorderThickness=[System.Windows.Thickness]::new(0,0,0,1)
-        $t=[System.Windows.Controls.TextBlock]::new(); $t.Text=$category.Name.ToUpper()
-        $t.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff"); $t.FontSize=11; $t.FontWeight="SemiBold"
-        $h.Child=$t; $appsPanel.Children.Add($h) | Out-Null
+        $appsPanel.Children.Add((New-SectionHeader -Title ("{0} ({1})" -f $category.Name, @($category.Value).Count) -Icon (Get-AppCategoryIcon -Name $category.Name))) | Out-Null
         foreach ($app in $category.Value) {
             if (-not $app -or [string]::IsNullOrWhiteSpace([string]$app.Id)) { continue }
             $card=New-Card
@@ -50,7 +58,9 @@ function Build-AppsPanel {
             $script:AppCheckboxes[$app.Id]=$cb
             $desc=[System.Windows.Controls.TextBlock]::new(); $desc.Text=[string]$app.Description
             $desc.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee"); $desc.FontSize=11; $desc.Margin=[System.Windows.Thickness]::new(28,2,0,0); $desc.TextWrapping="Wrap"
-            $stk.Children.Add($cb) | Out-Null; $stk.Children.Add($desc) | Out-Null
+            $wid=[System.Windows.Controls.TextBlock]::new(); $wid.Text=[string]$app.Id
+            $wid.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#6a6a85"); $wid.FontSize=10; $wid.Margin=[System.Windows.Thickness]::new(28,1,0,0); $wid.TextTrimming="CharacterEllipsis"
+            $stk.Children.Add($cb) | Out-Null; $stk.Children.Add($desc) | Out-Null; $stk.Children.Add($wid) | Out-Null
             $card.Child=$stk
             Add-CardFx -Card $card
             $appsPanel.Children.Add($card) | Out-Null

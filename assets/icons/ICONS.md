@@ -23,6 +23,9 @@ apps/logo <- Twemoji potato (1f954), CC-BY 4.0 (c) Twitter, https://github.com/t
 apps/nav_diag <- applications-science | apps/nav_updates <- system-software-update
 apps/nav_users <- system-users | apps/office <- applications-office
 apps/games <- preferences-desktop-gaming | apps/monitor <- utilities-system-monitor
+apps/cat_multimedia <- applications-multimedia | apps/cat_internet <- internet-web-browser
+apps/cat_utils <- applications-utilities | apps/cat_dev <- applications-development
+devices/hw_cpu <- cpu | devices/hw_memory <- gnome-dev-memory
 apps/terminal <- utilities-terminal | apps/tools <- applications-engineering
 devices/computer <- computer | devices/display <- computer
 devices/drive <- drive-harddisk | devices/mic <- audio-input-microphone

@@ -234,6 +234,10 @@ function Test-BgQueue {
         if ($up.Error) { Write-Log "Ошибка проверки обновлений: $($up.Error)" -Color "Red" }
         Render-UpdatesPanel -Packages @($up.Data)
     }
+    if (Get-BgResult -Key 'updatesRefresh') {
+        Set-BgResult -Key 'updatesRefresh' -Value $null
+        try { $updatesPanel.Children.Clear(); $script:UpdateCheckboxes.Clear(); Build-UpdatesPanel } catch {}
+    }
     $ar = Get-BgResult -Key 'auditReport'
     if ($ar -and -not $ar.Consumed) {
         $ar.Consumed = $true
@@ -267,6 +271,7 @@ function Test-BgQueue {
 
 # ═══ Окно загружено — финальная инициализация ═══
 $window.Add_Loaded({
+    try { Enable-DarkTitleBar -Window $window } catch {}
     $scriptsFolderText.Text = $script:ScriptsFolder
     Write-Log "PotatoPC Optimizer v5.0 (Sidebar 2026, локально, без пуша) запущен"
     Write-Log "Система: $((Get-SystemInfo).OS)"

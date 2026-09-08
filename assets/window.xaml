@@ -176,15 +176,12 @@
                     <Button x:Name="RestorePointBtn" Style="{StaticResource BtnSecondary}" Height="28" FontSize="11" Margin="0,0,0,6" ToolTip="Создать точку восстановления системы">
                         <StackPanel Orientation="Horizontal"><Border Background="#454554" CornerRadius="4" Padding="2" Margin="0,0,6,0" VerticalAlignment="Center"><Image x:Name="RestorePointIcon" Width="13" Height="13"/></Border><TextBlock Text="Точка восстановления" VerticalAlignment="Center"/></StackPanel>
                     </Button>
-                    <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Button x:Name="ToolsBtn" Style="{StaticResource BtnSecondary}" Height="26" Margin="0,0,3,0" Padding="0" ToolTip="Панель управления Windows">
-                            <Border Background="#454554" CornerRadius="4" Padding="3"><Image x:Name="ToolsIcon" Width="14" Height="14"/></Border>
-                        </Button>
-                        <Button x:Name="AdminBtn" Grid.Column="1" Style="{StaticResource BtnSecondary}" Height="26" Margin="3,0,0,0" Padding="0" ToolTip="Управление компьютером">
-                            <Border Background="#454554" CornerRadius="4" Padding="3"><Image x:Name="AdminIcon" Width="14" Height="14"/></Border>
-                        </Button>
-                    </Grid>
+                    <Button x:Name="ToolsBtn" Style="{StaticResource BtnSecondary}" Height="30" FontSize="11" Margin="0,0,0,6" Padding="0" ToolTip="Панель управления Windows">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Border Background="#454554" CornerRadius="4" Padding="3" Margin="0,0,7,0" VerticalAlignment="Center"><Image x:Name="ToolsIcon" Width="13" Height="13"/></Border><TextBlock Text="Панель управления" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button x:Name="AdminBtn" Style="{StaticResource BtnSecondary}" Height="30" FontSize="11" Padding="0" ToolTip="Управление компьютером (compmgmt.msc)">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Border Background="#454554" CornerRadius="4" Padding="3" Margin="0,0,7,0" VerticalAlignment="Center"><Image x:Name="AdminIcon" Width="13" Height="13"/></Border><TextBlock Text="Управление ПК" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>

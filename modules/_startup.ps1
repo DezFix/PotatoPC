@@ -232,6 +232,37 @@ function Get-StartupData {
     return @{ Items=$startupItems; Tasks=$scheduledTasks }
 }
 
+function Toggle-StartupItemEntry {
+    param($Tag, [string]$Kind)
+    try {
+        if ($Kind -eq 'Task') {
+            $t = Get-ScheduledTask -TaskName $Tag.Name -TaskPath $Tag.Path -ErrorAction Stop
+            if ($t.State -eq 'Disabled') {
+                Enable-ScheduledTask -TaskName $Tag.Name -TaskPath $Tag.Path -ErrorAction Stop | Out-Null
+                Write-Log ("Включена задача: " + $Tag.Name) -Color "Green"
+            } else {
+                Disable-ScheduledTask -TaskName $Tag.Name -TaskPath $Tag.Path -ErrorAction Stop | Out-Null
+                Write-Log ("Отключена задача: " + $Tag.Name) -Color "Yellow"
+            }
+        } elseif ($Tag.Location -like 'Папка*') {
+            $src = [string]$Tag.Command
+            if ($src -like '*.disabled') {
+                $dst = $src -replace '\.disabled$', ''
+                Rename-Item -LiteralPath $src -NewName ([System.IO.Path]::GetFileName($dst)) -Force -ErrorAction Stop
+                Write-Log ("Включено (папка): " + $Tag.Name) -Color "Green"
+            } else {
+                Rename-Item -LiteralPath $src -NewName ([System.IO.Path]::GetFileName($src + '.disabled')) -Force -ErrorAction Stop
+                Write-Log ("Отключено (папка): " + $Tag.Name) -Color "Yellow"
+            }
+        } else {
+            $enable = -not [bool]$Tag.IsEnabled
+            $ok = Set-StartupApprovedState -RegKey $Tag.RegKey -ValueName $Tag.Name -Enable $enable
+            if ($ok) { Write-Log ($(if ($enable) { "Включено: " } else { "Отключено: " }) + $Tag.Name) -Color "Green" }
+        }
+        Build-StartupPanel
+    } catch { Write-Log ("Не удалось переключить: " + $_) -Color "Red" }
+}
+
 function Render-StartupPanel {
     param($Data)
     $startupItems     = $Data.Items
@@ -335,6 +366,10 @@ function Render-StartupPanel {
             $stT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
         }
         $stB.Child = $stT
+        $stB.Tag = $cb.Tag
+        $stB.Cursor = [System.Windows.Input.Cursors]::Hand
+        $stB.ToolTip = "Вкл/выкл по клику"
+        $stB.Add_MouseLeftButtonUp({ Toggle-StartupItemEntry -Tag $this.Tag -Kind 'App' })
         [System.Windows.Controls.Grid]::SetColumn($stB, 4)
         $g.Children.Add($cb) | Out-Null; $g.Children.Add($ico) | Out-Null
         $g.Children.Add($nameStack) | Out-Null
@@ -429,6 +464,10 @@ function Render-StartupPanel {
             $tStT.Text = "● выкл"; $tStT.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
         }
         $tStB.Child = $tStT
+        $tStB.Tag = $cb.Tag
+        $tStB.Cursor = [System.Windows.Input.Cursors]::Hand
+        $tStB.ToolTip = "Вкл/выкл по клику"
+        $tStB.Add_MouseLeftButtonUp({ Toggle-StartupItemEntry -Tag $this.Tag -Kind 'Task' })
         [System.Windows.Controls.Grid]::SetColumn($tStB, 3)
         $g.Children.Add($cb) | Out-Null; $g.Children.Add($stk) | Out-Null
         $g.Children.Add($trigB) | Out-Null; $g.Children.Add($tStB) | Out-Null

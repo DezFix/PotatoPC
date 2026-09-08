@@ -18,25 +18,60 @@ function Build-SysPanel {
     } catch {}
 
     $sysPanel.Children.Clear()
+
+    # Панель инструментов сводки
+    $sysTools = [System.Windows.Controls.Border]::new()
+    $sysTools.Margin = [System.Windows.Thickness]::new(0,0,0,4)
+    $sysTools.Padding = [System.Windows.Thickness]::new(0,0,0,6)
+    $sysTools.BorderBrush = $script:Theme.CardBorder
+    $sysTools.BorderThickness = $script:Theme.BorderBottom
+    $sysToolsGrid = [System.Windows.Controls.Grid]::new()
+    $stc1=[System.Windows.Controls.ColumnDefinition]::new(); $stc1.Width=[System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+    $stc2=[System.Windows.Controls.ColumnDefinition]::new(); $stc2.Width=[System.Windows.GridLength]::Auto
+    $sysToolsGrid.ColumnDefinitions.Add($stc1); $sysToolsGrid.ColumnDefinitions.Add($stc2)
+    $sysToolsTitle = [System.Windows.Controls.TextBlock]::new()
+    $sysToolsTitle.Text = "СВОДКА СИСТЕМЫ"; $sysToolsTitle.Foreground = $script:Theme.Accent
+    $sysToolsTitle.FontSize = 11; $sysToolsTitle.FontWeight = "SemiBold"; $sysToolsTitle.VerticalAlignment = "Center"
+    $sysCopyBtn = [System.Windows.Controls.Button]::new()
+    $sysCopyBtn.Content = (New-IconButtonContent -Text 'Копировать сводку' -Icon 'actions/copy' -Size 11)
+    $sysCopyBtn.Background = $script:Theme.CardBgHover; $sysCopyBtn.Foreground = $script:Theme.TextSecondary
+    $sysCopyBtn.BorderThickness = $script:Theme.BorderThin; $sysCopyBtn.BorderBrush = $script:Theme.CardBorder
+    $sysCopyBtn.Cursor = [System.Windows.Input.Cursors]::Hand; $sysCopyBtn.FontSize = 11
+    $sysCopyBtn.Padding = [System.Windows.Thickness]::new(10,5,10,5); $sysCopyBtn.ToolTip = "Скопировать сводку в буфер обмена"
+    $sysCopyBtn.Add_Click({
+        try {
+            [System.Windows.Clipboard]::SetText([string]$script:SysSummaryText)
+            Write-Log "Сводка системы скопирована" -Color "Green"
+        } catch { Write-Log ("Не удалось скопировать: " + $_) -Color "Yellow" }
+    })
+    [System.Windows.Controls.Grid]::SetColumn($sysCopyBtn,1)
+    $sysToolsGrid.Children.Add($sysToolsTitle) | Out-Null; $sysToolsGrid.Children.Add($sysCopyBtn) | Out-Null
+    $sysTools.Child = $sysToolsGrid
+    $sysPanel.Children.Add($sysTools) | Out-Null
+
     foreach ($item in @(
-        @{ L="ОС"; V=$sysInfo.OS; Btn=$null }
-        @{ L="Процессор"; V=$sysInfo.CPU; Btn=$null }
-        @{ L="RAM"; V=$sysInfo.RAM; Btn=$null }
-        @{ L="Windows"; V="Windows $($script:WindowsMajorVersion)"; Btn=$null }
-        @{ L="Время работы"; V=$sysInfo.Uptime; Btn=$null }
-        @{ L="Рабочая папка"; V=$script:WorkFolder; Btn="Открыть" }
+        @{ L="ОС"; V=$sysInfo.OS; Icon="devices/computer"; Btn=$null }
+        @{ L="Процессор"; V=$sysInfo.CPU; Icon="devices/hw_cpu"; Btn=$null }
+        @{ L="RAM"; V=$sysInfo.RAM; Icon="devices/hw_memory"; Btn=$null }
+        @{ L="Windows"; V="Windows $($script:WindowsMajorVersion)"; Icon="status/info"; Btn=$null }
+        @{ L="Время работы"; V=$sysInfo.Uptime; Icon="actions/power"; Btn=$null }
+        @{ L="Рабочая папка"; V=$script:WorkFolder; Icon="places/folder_open"; Btn="Открыть" }
     )) {
         $row=[System.Windows.Controls.Border]::new()
         $row.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#26262e"); $row.CornerRadius=[System.Windows.CornerRadius]::new(8)
         $row.Margin=[System.Windows.Thickness]::new(0,4,0,4); $row.Padding=[System.Windows.Thickness]::new(16,12,16,12)
         $g=[System.Windows.Controls.Grid]::new()
-        $c1=[System.Windows.Controls.ColumnDefinition]::new(); $c1.Width="210"
-        $c2=[System.Windows.Controls.ColumnDefinition]::new(); $c2.Width="*"
-        $c3=[System.Windows.Controls.ColumnDefinition]::new(); $c3.Width="Auto"
-        $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
-        $lbl=[System.Windows.Controls.TextBlock]::new(); $lbl.Text=$item.L; $lbl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#9898b0"); $lbl.FontSize=13; $lbl.VerticalAlignment="Center"
+        $c0=[System.Windows.Controls.ColumnDefinition]::new(); $c0.Width=[System.Windows.GridLength]::new(30)
+        $c1=[System.Windows.Controls.ColumnDefinition]::new(); $c1.Width=[System.Windows.GridLength]::new(150)
+        $c2=[System.Windows.Controls.ColumnDefinition]::new(); $c2.Width=[System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+        $c3=[System.Windows.Controls.ColumnDefinition]::new(); $c3.Width=[System.Windows.GridLength]::Auto
+        $g.ColumnDefinitions.Add($c0); $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
+        $rowIcon = Get-IconImage -Name $item.Icon -Size 16
+        if ($rowIcon) { [System.Windows.Controls.Grid]::SetColumn($rowIcon,0); $g.Children.Add($rowIcon) | Out-Null }
+        $lbl=[System.Windows.Controls.TextBlock]::new(); $lbl.Text=$item.L; $lbl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#8a8aa5"); $lbl.FontSize=13; $lbl.VerticalAlignment="Center"
+        [System.Windows.Controls.Grid]::SetColumn($lbl,1)
         $val=[System.Windows.Controls.TextBlock]::new(); $val.Text=$item.V; $val.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#d0d0f0"); $val.FontSize=13; $val.FontWeight="SemiBold"; $val.TextWrapping="Wrap"; $val.VerticalAlignment="Center"
-        [System.Windows.Controls.Grid]::SetColumn($val,1)
+        [System.Windows.Controls.Grid]::SetColumn($val,2)
         $g.Children.Add($lbl) | Out-Null; $g.Children.Add($val) | Out-Null
         if ($item.Btn -eq "Открыть") {
             $fp=$item.V
@@ -44,7 +79,7 @@ function Build-SysPanel {
             $ob.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#d4d4e0"); $ob.BorderThickness=[System.Windows.Thickness]::new(0); $ob.Cursor=[System.Windows.Input.Cursors]::Hand
             $ob.FontSize=11; $ob.Padding=[System.Windows.Thickness]::new(10,5,10,5); $ob.VerticalAlignment="Center"; $ob.Margin=[System.Windows.Thickness]::new(8,0,0,0); $ob.Tag=$fp
             $ob.Add_Click({ $p=$this.Tag; if (-not (Test-Path $p)){New-Item -ItemType Directory -Path $p -Force|Out-Null}; Start-Process explorer.exe $p })
-            [System.Windows.Controls.Grid]::SetColumn($ob,2); $g.Children.Add($ob) | Out-Null
+            [System.Windows.Controls.Grid]::SetColumn($ob,3); $g.Children.Add($ob) | Out-Null
         }
         $row.Child=$g; $sysPanel.Children.Add($row) | Out-Null
     }
@@ -63,7 +98,21 @@ function Build-SysPanel {
             $di=[System.Windows.Controls.StackPanel]::new(); $di.VerticalAlignment="Center"
             $dm=[System.Windows.Controls.TextBlock]::new(); $dm.Text=$disk.Model; $dm.FontSize=12; $dm.FontWeight="Medium"; $dm.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#d0d0f0"); $dm.TextTrimming="CharacterEllipsis"
             $ds=[System.Windows.Controls.TextBlock]::new(); $ds.Text="$($disk.FreeGB) ГБ своб. из $($disk.TotalGB) ГБ"; $ds.FontSize=10; $ds.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee")
-            $di.Children.Add($dm)|Out-Null; $di.Children.Add($ds)|Out-Null; [System.Windows.Controls.Grid]::SetColumn($di,1)
+            $di.Children.Add($dm)|Out-Null; $di.Children.Add($ds)|Out-Null
+            $usedPct = if ($disk.TotalGB -gt 0) { 100 - (100*$disk.FreeGB/$disk.TotalGB) } else { 0 }
+            $barColor = if ($usedPct -ge 90) { "#e74c3c" } elseif ($usedPct -ge 75) { "#f0c040" } else { "#2ecc71" }
+            $track=[System.Windows.Controls.Border]::new()
+            $track.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a20")
+            $track.CornerRadius=[System.Windows.CornerRadius]::new(2); $track.Height=4
+            $track.Margin=[System.Windows.Thickness]::new(0,5,0,0); $track.ClipToBounds=$true
+            $barGrid=[System.Windows.Controls.Grid]::new()
+            $bcu=[System.Windows.Controls.ColumnDefinition]::new(); $bcu.Width=[System.Windows.GridLength]::new($usedPct,[System.Windows.GridUnitType]::Star)
+            $bcf=[System.Windows.Controls.ColumnDefinition]::new(); $bcf.Width=[System.Windows.GridLength]::new((100-$usedPct),[System.Windows.GridUnitType]::Star)
+            $barGrid.ColumnDefinitions.Add($bcu); $barGrid.ColumnDefinitions.Add($bcf)
+            $fill=[System.Windows.Controls.Border]::new(); $fill.Background=[Windows.Media.BrushConverter]::new().ConvertFrom($barColor)
+            $barGrid.Children.Add($fill) | Out-Null
+            $track.Child=$barGrid; $di.Children.Add($track)|Out-Null
+            [System.Windows.Controls.Grid]::SetColumn($di,1)
             if ($disk.IsSystem) {
                 $sb=[System.Windows.Controls.Border]::new(); $sb.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a4a"); $sb.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFrom("#3a3aaa"); $sb.BorderThickness=[System.Windows.Thickness]::new(1); $sb.CornerRadius=[System.Windows.CornerRadius]::new(4); $sb.Padding=[System.Windows.Thickness]::new(6,2,6,2); $sb.VerticalAlignment="Center"; $sb.Margin=[System.Windows.Thickness]::new(8,0,0,0)
                 $st=[System.Windows.Controls.TextBlock]::new(); $st.Text="СИСТЕМА"; $st.FontSize=10; $st.FontWeight="SemiBold"; $st.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#8080ff")
@@ -120,6 +169,14 @@ function Build-SysPanel {
             $drow.Child=$dg; $sysPanel.Children.Add($drow)|Out-Null
         }
     }
+    $sumLines = @(
+        "PotatoPC сводка [$env:COMPUTERNAME] $(Get-Date -Format 'yyyy-MM-dd HH:mm')",
+        "ОС: $($sysInfo.OS)", "CPU: $($sysInfo.CPU)", "RAM: $($sysInfo.RAM)", "Uptime: $($sysInfo.Uptime)"
+    )
+    foreach ($disk in $allDisks) {
+        $sumLines += ("{0} {1}: {2} ГБ своб. из {3} ГБ" -f $disk.Letter, $disk.Model, $disk.FreeGB, $disk.TotalGB)
+    }
+    $script:SysSummaryText = ($sumLines -join "`r`n")
 }
 
 function Build-DiagPanel {
