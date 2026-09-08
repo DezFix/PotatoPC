@@ -60,7 +60,7 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
     $script:ModuleDir = Join-Path $repoFolder.FullName "modules"
 }
 
-$loadOrder = @("_config.ps1", "_core.ps1", "_theme.ps1", "_ui.ps1", "_xaml.ps1")
+$loadOrder = @("_config.ps1", "_core.ps1", "_theme.ps1", "_icons.ps1", "_ui.ps1", "_xaml.ps1")
 foreach ($module in $loadOrder) {
     $modulePath = Join-Path $script:ModuleDir $module
     if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
@@ -120,7 +120,7 @@ $window.Add_ContentRendered({
 $window.Add_Closing({ Save-UIState })
 
 $uiModules = @(
-    "_scripts.ps1", "_apps.ps1", "_sysdiag.ps1", "_updates.ps1",
+    "_scripts.ps1", "_apps.ps1", "_audit.ps1", "_sysdiag.ps1", "_updates.ps1",
     "_startup.ps1", "_users.ps1", "_search.ps1", "_events.ps1"
 )
 foreach ($module in $uiModules) {
@@ -134,6 +134,7 @@ $requiredCommands = @(
     "Build-ScriptsPanel", "Build-AppsPanel", "Build-SysPanel", "Build-DiagPanel",
     "Build-UpdatesPanel", "Build-StartupPanel", "Build-UsersPanel",
     "New-Card", "New-CategoryHeader", "Set-LogExpanded",
+    "Get-IconImage", "Get-IconSource", "Initialize-WindowIcons", "New-SectionHeader",
     "Invoke-Async", "Invoke-OnUI", "Set-BgResult", "Get-BgResult",
     "Start-BgPoller", "Stop-BgPoller", "Test-BgQueue",
     "Start-Background", "Invoke-ScriptFileWithRetry", "Get-ScriptTimeout", "Get-WingetPath"

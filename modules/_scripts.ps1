@@ -50,11 +50,20 @@ function Build-ScriptsPanel {
     $script:ScriptCheckboxes.Clear()
     $scripts = Load-Scripts
     if ($scripts.Count -eq 0) {
+        $emptyWrap = [System.Windows.Controls.StackPanel]::new()
+        $emptyWrap.HorizontalAlignment = "Center"; $emptyWrap.Margin = "0,60,0,0"
+        $emptyImg = Get-IconImage -Name 'places/folder_open' -Size 32
+        if ($emptyImg) {
+            $emptyImg.HorizontalAlignment = "Center"
+            $emptyImg.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+            $emptyWrap.Children.Add($emptyImg) | Out-Null
+        }
         $empty = [System.Windows.Controls.TextBlock]::new()
-        $empty.Text = "📂 Папка скриптов пуста.`nПапка: $($script:ScriptsFolder)"
+        $empty.Text = "Папка скриптов пуста.`nПапка: $($script:ScriptsFolder)"
         $empty.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0")
-        $empty.FontSize = 13; $empty.TextAlignment = "Center"; $empty.Margin = "0,60,0,0"
-        $scriptsPanel.Children.Add($empty) | Out-Null
+        $empty.FontSize = 13; $empty.TextAlignment = "Center"
+        $emptyWrap.Children.Add($empty) | Out-Null
+        $scriptsPanel.Children.Add($emptyWrap) | Out-Null
         Update-SelectedCount; return
     }
     $grouped = $scripts | Group-Object { $_.Category } | Sort-Object Name
@@ -83,10 +92,15 @@ function Build-ScriptsPanel {
             }
             [System.Windows.Controls.Grid]::SetColumn($cb, 0)
             $script:ScriptCheckboxes[$script_item.Path] = $cb
-            $icon = [System.Windows.Controls.TextBlock]::new()
-            $icon.Text = $script_item.Icon
-            $icon.FontSize = 16; $icon.VerticalAlignment = "Center"; $icon.Margin = [System.Windows.Thickness]::new(0,0,8,0)
-            [System.Windows.Controls.Grid]::SetColumn($icon, 1)
+            $iconImg = Get-IconImage -Name (Get-ScriptIconName -Emoji $script_item.Icon) -Size 22
+            if ($null -eq $iconImg) {
+                $iconImg = [System.Windows.Controls.TextBlock]::new()
+                $iconImg.Text = $script_item.Icon
+                $iconImg.FontSize = 16; $iconImg.VerticalAlignment = "Center"
+            }
+            $iconImg.Margin = [System.Windows.Thickness]::new(0,0,8,0)
+            $iconImg.VerticalAlignment = "Center"
+            [System.Windows.Controls.Grid]::SetColumn($iconImg, 1)
             $textStack = [System.Windows.Controls.StackPanel]::new()
             $textStack.VerticalAlignment = "Center"
             $nameRow = [System.Windows.Controls.StackPanel]::new()
@@ -172,13 +186,13 @@ function Build-ScriptsPanel {
             }
             [System.Windows.Controls.Grid]::SetColumn($runOneBtn, 3)
             $grid.Children.Add($cb) | Out-Null
-            $grid.Children.Add($icon) | Out-Null
+            $grid.Children.Add($iconImg) | Out-Null
             $grid.Children.Add($textStack) | Out-Null
             $grid.Children.Add($runOneBtn) | Out-Null
             $card.Child = $grid
             if (-not $isWin11Incompatible) {
-                $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
-                $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+                $card.Add_MouseEnter({ $this.Background = $script:Theme.CardBgHover })
+                $card.Add_MouseLeave({ $this.Background = $script:Theme.CardBg })
             }
             $scriptsPanel.Children.Add($card) | Out-Null
         }

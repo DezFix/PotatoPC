@@ -641,7 +641,12 @@ function Set-LogExpanded {
             if ($target -lt 38) { $target = 38 }
         }
         $logSplitter.Visibility = if ($Expand) { "Visible" } else { "Collapsed" }
-        $toggleLogBtn.Content   = if ($Expand) { "▾ Свернуть" } else { "▴ Развернуть" }
+        try {
+            $toggleIcon = Get-IconSource -Name $(if ($Expand) { "actions/go_down" } else { "actions/go_up" })
+            if ($ToggleLogIcon -and $toggleIcon) { $ToggleLogIcon.Source = $toggleIcon }
+            if ($ToggleLogText) { $ToggleLogText.Text = if ($Expand) { "Свернуть" } else { "Развернуть" } }
+            else { $toggleLogBtn.Content = if ($Expand) { "▾ Свернуть" } else { "▴ Развернуть" } }
+        } catch { try { $toggleLogBtn.Content = if ($Expand) { "▾ Свернуть" } else { "▴ Развернуть" } } catch {} }
         $from = $logRow.Height.Value
         if ([Math]::Abs($target - $from) -lt 1) { return }
         $heightProp = [System.Windows.Controls.RowDefinition]::HeightProperty

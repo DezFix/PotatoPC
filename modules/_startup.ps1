@@ -249,17 +249,8 @@ function Render-StartupPanel {
         $startupAppsPanel.Children.Add($lbl) | Out-Null
     }
 
-    $secApp = [System.Windows.Controls.Border]::new()
-    $secApp.Margin = [System.Windows.Thickness]::new(0,8,0,4)
-    $secApp.Padding = [System.Windows.Thickness]::new(0,0,0,6)
-    $secApp.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
-    $secApp.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
+    $secApp = New-SectionHeader -Title "АВТОЗАГРУЗКА ПРИЛОЖЕНИЙ ($($startupItems.Count))" -Icon 'mimetypes/nav_apps'
     $secApp.Tag = [PSCustomObject]@{ Type="App"; Name="__header__"; Publisher="" }
-    $secTxt = [System.Windows.Controls.TextBlock]::new()
-    $secTxt.Text = "📦 АВТОЗАГРУЗКА ПРИЛОЖЕНИЙ ($($startupItems.Count))"
-    $secTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
-    $secTxt.FontSize = 10; $secTxt.FontWeight = "SemiBold"
-    $secApp.Child = $secTxt
     $startupAppsPanel.Children.Add($secApp) | Out-Null
 
     $sorted = $startupItems | Sort-Object { -([int]$_.IsEnabled) }, Name
@@ -357,17 +348,8 @@ function Render-StartupPanel {
         $startupAppsPanel.Children.Add($card) | Out-Null
     }
 
-    $secTask = [System.Windows.Controls.Border]::new()
-    $secTask.Margin = [System.Windows.Thickness]::new(0,16,0,4)
-    $secTask.Padding = [System.Windows.Thickness]::new(0,0,0,6)
-    $secTask.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e38")
-    $secTask.BorderThickness = [System.Windows.Thickness]::new(0,0,0,1)
+    $secTask = New-SectionHeader -Title "ЗАПЛАНИРОВАННЫЕ ЗАДАЧИ ($($scheduledTasks.Count))" -Icon 'actions/calendar'
     $secTask.Tag = [PSCustomObject]@{ Type="Task"; Name="__header__"; Publisher="" }
-    $secTaskTxt = [System.Windows.Controls.TextBlock]::new()
-    $secTaskTxt.Text = "🗓️ ЗАПЛАНИРОВАННЫЕ ЗАДАЧИ ($($scheduledTasks.Count))"
-    $secTaskTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
-    $secTaskTxt.FontSize = 10; $secTaskTxt.FontWeight = "SemiBold"
-    $secTask.Child = $secTaskTxt
     $startupAppsPanel.Children.Add($secTask) | Out-Null
 
     if ($scheduledTasks.Count -eq 0) {

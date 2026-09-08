@@ -125,19 +125,107 @@ function Build-SysPanel {
 function Build-DiagPanel {
     $diagPanel.Children.Clear()
 
+    # ── Экспресс-аудит: всё за один проход + отчёт в файл ──
+    $diagPanel.Children.Add((New-CategoryHeader -Title "Экспресс-аудит инженера")) | Out-Null
+    $acard = New-Card -Large
+    $acard.BorderBrush = Get-ThemeBrush "#6c63ff"; $acard.BorderThickness = $script:Theme.BorderAccentR
+    Add-CardFx -Card $acard
+    $ag = [System.Windows.Controls.Grid]::new()
+    $ac1=[System.Windows.Controls.ColumnDefinition]::new(); $ac1.Width=[System.Windows.GridLength]::new(44)
+    $ac2=[System.Windows.Controls.ColumnDefinition]::new(); $ac2.Width=[System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+    $ac3=[System.Windows.Controls.ColumnDefinition]::new(); $ac3.Width=[System.Windows.GridLength]::Auto
+    $ag.ColumnDefinitions.Add($ac1); $ag.ColumnDefinitions.Add($ac2); $ag.ColumnDefinitions.Add($ac3)
+    $aico = Get-IconImage -Name "apps/monitor" -Size 26
+    if ($aico) { $aico.HorizontalAlignment = "Center"; [System.Windows.Controls.Grid]::SetColumn($aico,0); $ag.Children.Add($aico) | Out-Null }
+    $atxt=[System.Windows.Controls.StackPanel]::new(); $atxt.VerticalAlignment="Center"; $atxt.Margin=[System.Windows.Thickness]::new(12,0,12,0)
+    $arow=[System.Windows.Controls.StackPanel]::new(); $arow.Orientation="Horizontal"; $arow.VerticalAlignment="Center"
+    $attl=[System.Windows.Controls.TextBlock]::new(); $attl.Text="Проверить всё за один проход"; $attl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#e0e0f4"); $attl.FontSize=13; $attl.FontWeight="SemiBold"
+    $arow.Children.Add($attl) | Out-Null
+    $script:AuditStatusLbl=[System.Windows.Controls.TextBlock]::new(); $script:AuditStatusLbl.FontSize=11; $script:AuditStatusLbl.VerticalAlignment="Center"; $script:AuditStatusLbl.Margin=[System.Windows.Thickness]::new(10,0,0,0)
+    $script:AuditStatusLbl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0"); $script:AuditStatusLbl.Text=""
+    $arow.Children.Add($script:AuditStatusLbl) | Out-Null
+    $adsc=[System.Windows.Controls.TextBlock]::new()
+    $adsc.Text="SMART, SFC-проверка, DISM, перезагрузка, обновления, журналы, дампы, службы, драйверы, Defender, диски, память, сеть. Только чтение, 5-15 мин. Отчёт сохраняется в рабочую папку."
+    $adsc.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#b8b8cc"); $adsc.FontSize=11; $adsc.Margin=[System.Windows.Thickness]::new(0,3,0,0); $adsc.TextWrapping="Wrap"
+    $atxt.Children.Add($arow) | Out-Null; $atxt.Children.Add($adsc) | Out-Null
+    [System.Windows.Controls.Grid]::SetColumn($atxt,1); $ag.Children.Add($atxt) | Out-Null
+    $abtns=[System.Windows.Controls.StackPanel]::new(); $abtns.Orientation="Horizontal"; $abtns.VerticalAlignment="Center"
+    $arun=[System.Windows.Controls.Button]::new(); $arun.Content="Проверить всё"
+    $arun.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff"); $arun.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#ffffff")
+    $arun.BorderThickness=[System.Windows.Thickness]::new(0); $arun.Cursor=[System.Windows.Input.Cursors]::Hand; $arun.FontSize=12; $arun.FontWeight="SemiBold"; $arun.Padding=[System.Windows.Thickness]::new(14,8,14,8)
+    $arun.Add_MouseEnter({ $this.Opacity=0.85 }); $arun.Add_MouseLeave({ $this.Opacity=1.0 })
+    $script:AuditOpenBtn=[System.Windows.Controls.Button]::new(); $script:AuditOpenBtn.Content="Открыть отчёт"
+    $script:AuditOpenBtn.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#2d2d35"); $script:AuditOpenBtn.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#d4d4e0")
+    $script:AuditOpenBtn.BorderThickness=[System.Windows.Thickness]::new(0); $script:AuditOpenBtn.Cursor=[System.Windows.Input.Cursors]::Hand; $script:AuditOpenBtn.FontSize=12; $script:AuditOpenBtn.Margin=[System.Windows.Thickness]::new(8,0,0,0); $script:AuditOpenBtn.Padding=[System.Windows.Thickness]::new(14,8,14,8)
+    $script:AuditOpenBtn.IsEnabled = $false
+    if ($script:LastAuditReport -and (Test-Path $script:LastAuditReport)) {
+        $script:AuditOpenBtn.IsEnabled = $true
+        $script:AuditStatusLbl.Text = "есть отчёт"
+        $script:AuditStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+    }
+    $script:AuditOpenBtn.Add_Click({
+        try {
+            if ($script:LastAuditReport -and (Test-Path $script:LastAuditReport)) { Start-Process explorer.exe -ArgumentList "/select,`"$script:LastAuditReport`"" }
+            else { Write-Log "Отчёта пока нет — запустите аудит" -Color "Yellow" }
+        } catch { Write-Log "Не удалось открыть отчёт: $_" -Color "Red" }
+    })
+    $arun.Add_Click({
+        $arun.IsEnabled = $false; $arun.Content = "Выполняется..."
+        $script:AuditStatusLbl.Text = "выполняется..."
+        $script:AuditStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+        try { Start-ExpressAudit } catch { Write-Log "Не удалось запустить аудит: $_" -Color "Red" }
+        $t = New-Object System.Windows.Threading.DispatcherTimer
+        $t.Interval = [TimeSpan]::FromMilliseconds(500)
+        $t.Add_Tick({
+            $t.Stop()
+            try { $arun.IsEnabled = $true; $arun.Content = "Проверить всё" } catch {}
+        }.GetNewClosure())
+        $t.Start()
+    }.GetNewClosure())
+    $abtns.Children.Add($arun) | Out-Null; $abtns.Children.Add($script:AuditOpenBtn) | Out-Null
+    [System.Windows.Controls.Grid]::SetColumn($abtns,2); $ag.Children.Add($abtns) | Out-Null
+    $acard.Child = $ag
+    $diagPanel.Children.Add($acard) | Out-Null
+
     $tests = @(
-        @{ Title="Проверка системных файлов (SFC)"; Desc="Сканирует и восстанавливает повреждённые файлы Windows. Занимает 5-15 минут."; Icon="S"; Color="#4a90d9"
+        @{ Group="Быстрые проверки (без изменений)"; Title="SMART всех дисков"; Desc="Здоровье, температура, наработка и ошибки чтения/записи через Storage API."; IconSlot="devices/drive"; Color="#2da86a"
+           Action={ Start-Background { $ss=@(Get-SmartAll); if ($ss.Count -eq 0) { Write-Log "SMART недоступен" -Color "Yellow"; return }; foreach ($s in $ss) { Write-Log ("{0} [{1}]: {2}{3}{4}" -f $s.Disk,$s.Media,$s.Health, $(if($s.Temp){" $($s.Temp)C"}else{""}), $(if($s.Hours){" $($s.Hours)ч"}else{""})) } } } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="SFC-проверка (verifyonly)"; Desc="Только проверка целостности, без восстановления. 3-10 минут."; IconSlot="actions/search"; Color="#4a90d9"
+           Action={ Start-Background { Write-Log "SFC /verifyonly..."; $o=sfc /verifyonly 2>&1|Out-String; ($o -split "`n" | Where-Object {$_ -match "\S"} | Select-Object -Last 4) | ForEach-Object {Write-Log "  $_"} } } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="DISM CheckHealth"; Desc="Быстрая проверка образа Windows (секунды, без изменений)."; IconSlot="actions/restore"; Color="#7c63ff"
+           Action={ Start-Background { $o=DISM /Online /Cleanup-Image /CheckHealth 2>&1|Out-String; ($o -split "`n" | Where-Object {$_ -match "\S"} | Select-Object -Last 4) | ForEach-Object {Write-Log "  $_"}; Write-Log "DISM CheckHealth завершён" -Color "Green" } } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="CHKDSK C: (чтение)"; Desc="Проверка ФС без исправлений и без перезагрузки. 2-10 минут."; IconSlot="apps/terminal"; Color="#2da86a"
+           Action={ Start-Background { Write-Log "CHKDSK C: (только чтение)..."; $o=chkdsk C: 2>&1|Out-String; ($o -split "`n" | Where-Object {$_ -match "\S"} | Select-Object -Last 6) | ForEach-Object {Write-Log "  $_"} } } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="Ожидание перезагрузки"; Desc="CBS, WindowsUpdate, PendingFileRename, pending.xml. Мгновенно."; IconSlot="status/warn"; Color="#d4a017"
+           Action={ $pr=@(Test-PendingReboot); if ($pr.Count -eq 0) { Write-Log "Перезагрузка не требуется" -Color "Green" } else { Write-Log ("Требуется перезагрузка: " + ($pr -join ", ")) -Color "Yellow" } } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="Сбои обновлений (14 дней)"; Desc="История Windows Update: failed/aborted за 2 недели."; IconSlot="apps/nav_updates"; Color="#4a90d9"
+           Action={ $uf=@(Get-UpdateFailures -Days 14); if ($uf.Count -eq 0) { Write-Log "Сбоев обновлений за 14 дней нет" -Color "Green" } else { Write-Log ("Сбоев: " + $uf.Count) -Color "Red"; $uf | Select-Object -First 5 | ForEach-Object { Write-Log ("  {0:dd.MM} [{1}] {2}" -f $_.Date,$_.Result,$_.Title) } } } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="Статус Defender"; Desc="Режим, возраст сигнатур. Без сканирования."; IconSlot="status/password"; Color="#7c63ff"
+           Action={ $ds=Get-DefenderStatus; if (-not $ds.Ok) { Write-Log "Defender недоступен (сторонний АВ?)" -Color "Yellow" } else { Write-Log ("Defender: $($ds.Mode), сигнатуры $($ds.SigAge) дн. назад") -Color "Green" } } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="Батарея"; Desc="Заряд и статус через CIM. На ПК без батареи так и скажет."; IconSlot="actions/power"; Color="#d4a017"
+           Action={ try { $b=@(Get-CimInstance Win32_Battery -ErrorAction Stop); if ($b.Count -eq 0) { Write-Log "Батареи нет (стационарный ПК)" } else { $b | ForEach-Object { Write-Log ("Батарея: {0}% (статус {1})" -f $_.EstimatedChargeRemaining,$_.BatteryStatus) -Color "Green" } } } catch { Write-Log "Нет данных о батарее" -Color "Yellow" } } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="Сеть: шлюз / DNS / интернет"; Desc="По одному ping: шлюз, 1.1.1.1, 8.8.8.8."; IconSlot="devices/network"; Color="#4a90d9"
+           Action={ Start-Background { foreach ($n in (Test-QuickNetwork)) { if ($n.Ok) { Write-Log ("Сеть {0}: {1} OK" -f $n.Name,$n.Note) -Color "Green" } else { Write-Log ("Сеть {0}: {1} НЕТ" -f $n.Name,$n.Note) -Color "Red" } } } } }
+        @{ Group="Журналы и сбои"; Title="Ошибки журналов (24 ч)"; Desc="System + Application, уровни Critical/Error, топ источников."; IconSlot="actions/doc_new"; Color="#d4601a"
+           Action={ Start-Background { $ee=@(Get-RecentEventErrors -Hours 24 -Max 100); Write-Log ("Ошибок System+Application за 24ч: " + $ee.Count); $ee | Group-Object Source | Sort-Object Count -Descending | Select-Object -First 8 | ForEach-Object { Write-Log ("  {0}: {1}" -f $_.Name,$_.Count) } } } }
+        @{ Group="Журналы и сбои"; Title="Minidumps (BSOD)"; Desc="Последние 5 дампов из C:\\Windows\\Minidump."; IconSlot="status/err"; Color="#e74c3c"
+           Action={ $dd=@(Get-MiniDumps -Max 5); if ($dd.Count -eq 0) { Write-Log "Minidump-ов нет" -Color "Green" } else { Write-Log ("Minidump-ов: " + $dd.Count) -Color "Red"; $dd | ForEach-Object { Write-Log ("  {0:dd.MM.yyyy HH:mm} {1}" -f $_.LastWriteTime,$_.Name) } } } }
+        @{ Group="Журналы и сбои"; Title="Службы автозапуска"; Desc="Службы Auto, которые сейчас не работают."; IconSlot="actions/play"; Color="#d4a017"
+           Action={ $fs=@(Get-FailedAutoServices); if ($fs.Count -eq 0) { Write-Log "Все службы автозапуска работают" -Color "Green" } else { Write-Log ("Не запущено: " + $fs.Count) -Color "Yellow"; $fs | Select-Object -First 8 | ForEach-Object { Write-Log ("  {0} [{1}]" -f $_.Name,$_.State) } } } }
+        @{ Group="Журналы и сбои"; Title="Драйверы с ошибками"; Desc="Устройства с ConfigManagerErrorCode <> 0."; IconSlot="apps/tools"; Color="#d4601a"
+           Action={ Start-Background { $dp=@(Get-DriverProblems); if ($dp.Count -eq 0) { Write-Log "Устройства без ошибок" -Color "Green" } else { Write-Log ("Устройств с ошибками: " + $dp.Count) -Color "Red"; $dp | Select-Object -First 8 | ForEach-Object { Write-Log ("  {0} (код {1})" -f $_.Name,$_.ConfigManagerErrorCode) } } } } }
+        @{ Group="Глубокие тесты (долго, с изменениями)"; Title="Проверка системных файлов (SFC)"; Desc="Сканирует и восстанавливает повреждённые файлы Windows. Занимает 5-15 минут."; IconSlot="status/info"; Color="#4a90d9"
            Action={ Start-Background { sfc /scannow 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "SFC завершён" -Color "Green" } } }
-        @{ Title="Восстановление Windows (DISM)"; Desc="Восстанавливает образ через Windows Update. Требует интернет. Занимает 10-30 минут."; Icon="D"; Color="#7c63ff"
+        @{ Group="Глубокие тесты (долго, с изменениями)"; Title="Восстановление Windows (DISM)"; Desc="Восстанавливает образ через Windows Update. Требует интернет. Занимает 10-30 минут."; IconSlot="actions/restore"; Color="#7c63ff"
            Action={ Start-Background { DISM /Online /Cleanup-Image /RestoreHealth 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "DISM завершён" -Color "Green" } } }
-        @{ Title="Проверка диска C: (CHKDSK)"; Desc="Проверяет ФС на ошибки. Полная проверка - при перезагрузке."; Icon="C"; Color="#2da86a"
+        @{ Group="Глубокие тесты (долго, с изменениями)"; Title="Проверка диска C: (CHKDSK)"; Desc="Проверяет ФС на ошибки. Полная проверка - при перезагрузке."; IconSlot="devices/drive"; Color="#2da86a"
            Action={
                $confirm=[System.Windows.MessageBox]::Show("CHKDSK запланирован на следующую перезагрузку.`nПерезагрузить сейчас?","CHKDSK","YesNo","Question")
                Start-Process cmd -WindowStyle Hidden -ArgumentList '/c','echo Y|chkdsk C: /f /r' -Wait
                if($confirm-eq"Yes"){Write-Log "Перезагрузка через 30 сек..."; shutdown /r /t 30 /c "PotatoPC CHKDSK"}
                else{Write-Log "CHKDSK выполнится при следующей перезагрузке." -Color "Yellow"}
            } }
-        @{ Title="Диагностика RAM"; Desc="Windows Memory Diagnostic. Требует перезагрузку."; Icon="R"; Color="#d4601a"
+        @{ Group="Глубокие тесты (долго, с изменениями)"; Title="Диагностика RAM"; Desc="Windows Memory Diagnostic. Требует перезагрузку."; IconSlot="devices/computer"; Color="#d4601a"
            Action={
                $confirm=[System.Windows.MessageBox]::Show("Диагностика запустится после перезагрузки.`nПерезагрузить сейчас?","RAM","YesNo","Question")
                if($confirm-eq"Yes"){Write-Log "Запуск MdSched..."; Start-Process MdSched.exe}
@@ -145,8 +233,13 @@ function Build-DiagPanel {
            } }
     )
 
+    $curGroup = ""
     foreach ($test in $tests) {
-        $card=[System.Windows.Controls.Border]::new(); $card.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e"); $card.CornerRadius=[System.Windows.CornerRadius]::new(10); $card.Margin=[System.Windows.Thickness]::new(0,5,0,5); $card.Padding=[System.Windows.Thickness]::new(16,14,16,14)
+        if ($test.Group -and $test.Group -ne $curGroup) {
+            $curGroup = $test.Group
+            $diagPanel.Children.Add((New-CategoryHeader -Title $curGroup)) | Out-Null
+        }
+        $card=[System.Windows.Controls.Border]::new(); $card.Background=$script:Theme.CardBg; $card.CornerRadius=[System.Windows.CornerRadius]::new(10); $card.Margin=[System.Windows.Thickness]::new(0,5,0,5); $card.Padding=[System.Windows.Thickness]::new(16,14,16,14)
         $card.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFrom($test.Color+"55"); $card.BorderThickness=[System.Windows.Thickness]::new(0,0,0,2)
         $g=[System.Windows.Controls.Grid]::new()
         $c1=[System.Windows.Controls.ColumnDefinition]::new(); $c1.Width=[System.Windows.GridLength]::new(44)
@@ -154,8 +247,16 @@ function Build-DiagPanel {
         $c3=[System.Windows.Controls.ColumnDefinition]::new(); $c3.Width=[System.Windows.GridLength]::Auto
         $g.ColumnDefinitions.Add($c1); $g.ColumnDefinitions.Add($c2); $g.ColumnDefinitions.Add($c3)
 
-        $ico=[System.Windows.Controls.TextBlock]::new(); $ico.Text=$test.Icon; $ico.FontSize=26; $ico.VerticalAlignment="Center"; $ico.HorizontalAlignment="Center"
-        [System.Windows.Controls.Grid]::SetColumn($ico,0)
+        $icoImg = $null
+        try { if ($test.IconSlot) { $icoImg = Get-IconImage -Name $test.IconSlot -Size 26 } } catch {}
+        if ($icoImg) { $icoImg.HorizontalAlignment = "Center" }
+        else {
+            $icoImg = [System.Windows.Controls.TextBlock]::new()
+            $icoImg.Text = "i"; $icoImg.FontSize = 26; $icoImg.FontWeight = "Bold"
+            $icoImg.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($test.Color)
+            $icoImg.VerticalAlignment = "Center"; $icoImg.HorizontalAlignment = "Center"
+        }
+        [System.Windows.Controls.Grid]::SetColumn($icoImg,0)
 
         $txt=[System.Windows.Controls.StackPanel]::new(); $txt.VerticalAlignment="Center"; $txt.Margin=[System.Windows.Thickness]::new(12,0,12,0)
         $titleRow=[System.Windows.Controls.StackPanel]::new(); $titleRow.Orientation="Horizontal"
@@ -202,10 +303,10 @@ function Build-DiagPanel {
         }.GetNewClosure())
 
         [System.Windows.Controls.Grid]::SetColumn($btn,2)
-        $g.Children.Add($ico)|Out-Null; $g.Children.Add($txt)|Out-Null; $g.Children.Add($btn)|Out-Null; $card.Child=$g
+        $g.Children.Add($icoImg)|Out-Null; $g.Children.Add($txt)|Out-Null; $g.Children.Add($btn)|Out-Null; $card.Child=$g
         Add-CardFx -Card $card
-        $card.Add_MouseEnter({ $this.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1e1e35") })
-        $card.Add_MouseLeave({ $this.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+        $card.Add_MouseEnter({ $this.Background=$script:Theme.CardBgHover })
+        $card.Add_MouseLeave({ $this.Background=$script:Theme.CardBg })
         $diagPanel.Children.Add($card)|Out-Null
     }
 }

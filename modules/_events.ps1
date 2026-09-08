@@ -150,6 +150,19 @@ $startupFilterTaskBtn.Add_Click({
 
 $ToolsBtn.Add_Click({ Start-Process control.exe })
 $AdminBtn.Add_Click({ Start-Process compmgmt.msc })
+
+# ═══ Иконки Papirus в шапке/сайдбаре (null-safe) ═══
+try { Initialize-WindowIcons } catch {}
+
+# ═══ Навигация сайдбара 2026 (null-safe: старый XAML тоже запустится) ═══
+try { if ($NavModulesBtn) { $NavModulesBtn.Add_Click({ Set-ActiveNav -Index 0 }) } } catch {}
+try { if ($NavStartupBtn) { $NavStartupBtn.Add_Click({ Set-ActiveNav -Index 1 }) } } catch {}
+try { if ($NavUsersBtn)   { $NavUsersBtn.Add_Click({ Set-ActiveNav -Index 2 }) } } catch {}
+try { if ($NavAppsBtn)    { $NavAppsBtn.Add_Click({ Set-ActiveNav -Index 3 }) } } catch {}
+try { if ($NavUpdatesBtn) { $NavUpdatesBtn.Add_Click({ Set-ActiveNav -Index 4 }) } } catch {}
+try { if ($NavDiagBtn)    { $NavDiagBtn.Add_Click({ Set-ActiveNav -Index 5 }) } } catch {}
+try { if ($NavSysBtn)     { $NavSysBtn.Add_Click({ Set-ActiveNav -Index 6 }) } } catch {}
+try { if ($MainTabControl) { $MainTabControl.Add_SelectionChanged({ try { Set-ActiveNav -Index $MainTabControl.SelectedIndex } catch {} }) } } catch {}
 $presetOfficeBtn.Add_Click({ Select-Preset "Office-pack" })
 $presetGamesBtn.Add_Click({ Select-Preset "Games-pack" })
 
@@ -221,6 +234,22 @@ function Test-BgQueue {
         if ($up.Error) { Write-Log "Ошибка проверки обновлений: $($up.Error)" -Color "Red" }
         Render-UpdatesPanel -Packages @($up.Data)
     }
+    $ar = Get-BgResult -Key 'auditReport'
+    if ($ar -and -not $ar.Consumed) {
+        $ar.Consumed = $true
+        Set-BgResult -Key 'auditReport' -Value $null
+        try {
+            if ($ar.Path) { $script:LastAuditReport = $ar.Path }
+            if ($script:AuditStatusLbl) {
+                $script:AuditStatusLbl.Text = "готово: ошибок $($ar.Err), предупреждений $($ar.Warn)"
+                $c = if ($ar.Err -gt 0) { "#e74c3c" } elseif ($ar.Warn -gt 0) { "#f0c040" } else { "#2ecc71" }
+                $script:AuditStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($c)
+            }
+            if ($script:AuditOpenBtn -and $script:LastAuditReport -and (Test-Path $script:LastAuditReport)) {
+                $script:AuditOpenBtn.IsEnabled = $true
+            }
+        } catch {}
+    }
     if (Get-BgResult -Key 'rebuildScripts') {
         Set-BgResult -Key 'rebuildScripts' -Value $null
         $p = Get-BgResult -Key 'paths'
@@ -239,10 +268,11 @@ function Test-BgQueue {
 # ═══ Окно загружено — финальная инициализация ═══
 $window.Add_Loaded({
     $scriptsFolderText.Text = $script:ScriptsFolder
-    Write-Log "PotatoPC Optimizer v4.1 запущен"
+    Write-Log "PotatoPC Optimizer v5.0 (Sidebar 2026, локально, без пуша) запущен"
     Write-Log "Система: $((Get-SystemInfo).OS)"
     Write-Log "Windows $($script:WindowsMajorVersion) обнаружена"
     Write-Log "Рабочая папка: $($script:WorkFolder)"
+    try { Set-ActiveNav -Index $MainTabControl.SelectedIndex } catch {}
     Start-BgPoller
     Start-Background {
         try { Initialize-PotatoPC }

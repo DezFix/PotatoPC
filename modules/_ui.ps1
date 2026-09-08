@@ -64,6 +64,50 @@ function Initialize-Controls {
         AppSearchClear      = "AppSearchClear"
         ToolsBtn            = "ToolsBtn"
         AdminBtn            = "AdminBtn"
+        NavModulesBtn       = "NavModulesBtn"
+        NavStartupBtn       = "NavStartupBtn"
+        NavUsersBtn         = "NavUsersBtn"
+        NavAppsBtn          = "NavAppsBtn"
+        NavUpdatesBtn       = "NavUpdatesBtn"
+        NavDiagBtn          = "NavDiagBtn"
+        NavSysBtn           = "NavSysBtn"
+        HeaderTitleText     = "HeaderTitleText"
+        HeaderSubtitleText  = "HeaderSubtitleText"
+        LogoIcon            = "LogoIcon"
+        NavModulesIcon      = "NavModulesIcon"
+        NavStartupIcon      = "NavStartupIcon"
+        NavUsersIcon        = "NavUsersIcon"
+        NavAppsIcon         = "NavAppsIcon"
+        NavUpdatesIcon      = "NavUpdatesIcon"
+        NavDiagIcon         = "NavDiagIcon"
+        NavSysIcon          = "NavSysIcon"
+        ModulesFolderIcon   = "ModulesFolderIcon"
+        OpenFolderIcon      = "OpenFolderIcon"
+        RefreshIcon         = "RefreshIcon"
+        ScriptSearchIcon    = "ScriptSearchIcon"
+        StartupSearchIcon   = "StartupSearchIcon"
+        AppSearchIcon       = "AppSearchIcon"
+        RestorePointIcon    = "RestorePointIcon"
+        ToolsIcon           = "ToolsIcon"
+        AdminIcon           = "AdminIcon"
+        PresetsIcon         = "PresetsIcon"
+        PresetOfficeIcon    = "PresetOfficeIcon"
+        PresetGamesIcon     = "PresetGamesIcon"
+        StartupFilterAllIcon  = "StartupFilterAllIcon"
+        StartupFilterAppIcon  = "StartupFilterAppIcon"
+        StartupFilterTaskIcon = "StartupFilterTaskIcon"
+        CheckUpdatesIcon    = "CheckUpdatesIcon"
+        InstallAppsIcon     = "InstallAppsIcon"
+        InstallUpdatesIcon  = "InstallUpdatesIcon"
+        UsersHeaderIcon     = "UsersHeaderIcon"
+        DiagHeaderIcon      = "DiagHeaderIcon"
+        CopyLogIcon         = "CopyLogIcon"
+        ClearLogIcon        = "ClearLogIcon"
+        ToggleLogIcon       = "ToggleLogIcon"
+        ToggleLogText       = "ToggleLogText"
+        RefreshStartupIcon  = "RefreshStartupIcon"
+        AddUserIcon         = "AddUserIcon"
+        RefreshUsersIcon    = "RefreshUsersIcon"
     }
     foreach ($kv in $map.GetEnumerator()) {
         Set-Variable -Name $kv.Key -Value $Window.FindName($kv.Value) -Scope Global
@@ -138,4 +182,42 @@ function New-TagBadge {
     }
     $b.Child = $txt
     return $b
+}
+
+# ── Навигация сайдбара 2026: подсветка + заголовок ──
+$script:NavTitles = @(
+    @{ Title = "Модули";       Sub = "Оптимизационные скрипты" },
+    @{ Title = "Автозагрузка"; Sub = "Приложения и задачи планировщика" },
+    @{ Title = "Пользователи"; Sub = "Локальные учётные записи" },
+    @{ Title = "Приложения";   Sub = "Установка через winget" },
+    @{ Title = "Обновления";   Sub = "Обновление программ через winget" },
+    @{ Title = "Тест системы"; Sub = "Диагностика в фоне" },
+    @{ Title = "О системе";    Sub = "Железо, ОС, диски" }
+)
+
+function Set-ActiveNav {
+    param([int]$Index)
+    try {
+        $btns = @($NavModulesBtn, $NavStartupBtn, $NavUsersBtn, $NavAppsBtn, $NavUpdatesBtn, $NavDiagBtn, $NavSysBtn)
+        $activeBg = Get-ThemeBrush "#32323e"
+        $activeFg = Get-ThemeBrush "#ffffff"
+        $idleFg   = Get-ThemeBrush "#b8b8d0"
+        for ($i = 0; $i -lt $btns.Count; $i++) {
+            if ($null -eq $btns[$i]) { continue }
+            if ($i -eq $Index) {
+                $btns[$i].Background = $activeBg
+                $btns[$i].Foreground = $activeFg
+            } else {
+                $btns[$i].ClearValue([System.Windows.Controls.Control]::BackgroundProperty)
+                $btns[$i].Foreground = $idleFg
+            }
+        }
+        if ($MainTabControl -and $Index -ge 0 -and $Index -lt $MainTabControl.Items.Count) {
+            if ($MainTabControl.SelectedIndex -ne $Index) { $MainTabControl.SelectedIndex = $Index }
+        }
+        if ($HeaderTitleText -and $Index -ge 0 -and $Index -lt $script:NavTitles.Count) {
+            $HeaderTitleText.Text = $script:NavTitles[$Index].Title
+            $HeaderSubtitleText.Text = $script:NavTitles[$Index].Sub
+        }
+    } catch {}
 }

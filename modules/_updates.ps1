@@ -35,12 +35,21 @@ function ConvertFrom-WingetUpgradeOutput {
 function Render-UpdatesPanel {
     param($Packages)
     if ($Packages.Count -eq 0) {
+        $emptyWrap = [System.Windows.Controls.StackPanel]::new()
+        $emptyWrap.HorizontalAlignment = "Center"; $emptyWrap.Margin = "0,60,0,0"
+        $emptyImg = Get-IconImage -Name 'actions/select_all' -Size 32
+        if ($emptyImg) {
+            $emptyImg.HorizontalAlignment = "Center"
+            $emptyImg.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+            $emptyWrap.Children.Add($emptyImg) | Out-Null
+        }
         $lbl = [System.Windows.Controls.TextBlock]::new()
-        $lbl.Text = "✅ Все пакеты актуальны — обновлений нет."
+        $lbl.Text = "Все пакеты актуальны — обновлений нет."
         $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50e050")
-        $lbl.FontSize = 13; $lbl.TextAlignment = "Center"; $lbl.Margin = "0,60,0,0"
-        $updatesPanel.Children.Add($lbl) | Out-Null
-        $updateStatusText.Text = "✅ Обновлений нет"; Write-Log "✅ Обновлений нет"; return
+        $lbl.FontSize = 13; $lbl.TextAlignment = "Center"; $lbl.Margin = "0,0,0,0"
+        $emptyWrap.Children.Add($lbl) | Out-Null
+        $updatesPanel.Children.Add($emptyWrap) | Out-Null
+        $updateStatusText.Text = "Обновлений нет"; Write-Log "Обновлений нет"; return
     }
     $hdr = [System.Windows.Controls.Border]::new()
     $hdr.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#0e0e1e")
