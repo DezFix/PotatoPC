@@ -46,7 +46,7 @@ function Build-UsersPanel {
         $avatarBorder.Width = 38; $avatarBorder.Height = 38
         $avatarBorder.CornerRadius = [System.Windows.CornerRadius]::new(19)
         $avatarBorder.VerticalAlignment = "Center"; $avatarBorder.HorizontalAlignment = "Center"
-        $avatarBgColor = if ($isAdmin) { "#3a2a6a" } else { "#2a2a45" }
+        $avatarBgColor = if ($isAdmin) { "#3a2a6a" } else { "#33333f" }
         $avatarBorder.Background = [Windows.Media.BrushConverter]::new().ConvertFrom($avatarBgColor)
         $avatarImg = Get-IconImage -Name $(if ($isAdmin) { 'status/password' } else { 'apps/nav_users' }) -Size 20
         if ($avatarImg) {
@@ -136,14 +136,14 @@ function Build-UsersPanel {
         $detailTxt = [System.Windows.Controls.TextBlock]::new()
         $detailTxt.Text = ($detailParts -join "  •  ")
         $detailTxt.FontSize = 10; $detailTxt.Margin = [System.Windows.Thickness]::new(0,3,0,0)
-        $detailTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#7070a0")
+        $detailTxt.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#8a8aa5")
         $detailTxt.TextTrimming = "CharacterEllipsis"
         $infoStack.Children.Add($detailTxt) | Out-Null
         [System.Windows.Controls.Grid]::SetColumn($infoStack, 1)
         $cfgBtn = [System.Windows.Controls.Button]::new()
         $cfgBtn.Content = (New-IconButtonContent -Text 'Настроить' -Icon 'actions/admin_gear' -Size 12)
-        $cfgBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a2a4a")
-        $cfgBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#b8b8e8")
+        $cfgBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d2d35")
+        $cfgBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d4d4e0")
         $cfgBtn.BorderThickness = [System.Windows.Thickness]::new(0)
         $cfgBtn.Cursor = [System.Windows.Input.Cursors]::Hand
         $cfgBtn.FontSize = 11; $cfgBtn.FontWeight = "SemiBold"
@@ -162,8 +162,8 @@ function Build-UsersPanel {
         $g.Children.Add($cfgBtn) | Out-Null
         $card.Child = $g
         if ($u.Enabled) {
-            $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
-            $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+            $card.Add_MouseEnter({ $this.Background = $script:Theme.CardBgHover })
+            $card.Add_MouseLeave({ $this.Background = $script:Theme.CardBg })
         }
         $usersPanel.Children.Add($card) | Out-Null
     }
@@ -181,7 +181,7 @@ function Show-UserSettingsDialog {
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Настройка: USERNAME" Width="440" Height="650"
-        WindowStartupLocation="CenterScreen" Background="#12121f" ResizeMode="NoResize">
+        WindowStartupLocation="CenterScreen" Background="#202020" ResizeMode="NoResize">
     <Window.Resources>
         <Style x:Key="DlgBtn" TargetType="Button">
             <Setter Property="Background" Value="#6c63ff"/>
@@ -202,13 +202,13 @@ function Show-UserSettingsDialog {
             </Setter>
         </Style>
         <Style x:Key="DlgBtnSecondary" TargetType="Button" BasedOn="{StaticResource DlgBtn}">
-            <Setter Property="Background" Value="#2a2a42"/>
-            <Setter Property="Foreground" Value="#c0c0dd"/>
+            <Setter Property="Background" Value="#2d2d35"/>
+            <Setter Property="Foreground" Value="#d4d4e0"/>
         </Style>
         <Style x:Key="DlgTextBox" TargetType="PasswordBox">
-            <Setter Property="Background" Value="#1a1a2e"/>
+            <Setter Property="Background" Value="#1a1a20"/>
             <Setter Property="Foreground" Value="#e0e0ff"/>
-            <Setter Property="BorderBrush" Value="#2a2a45"/>
+            <Setter Property="BorderBrush" Value="#33333f"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="CaretBrush" Value="#6c63ff"/>
@@ -217,48 +217,48 @@ function Show-UserSettingsDialog {
     <StackPanel Margin="22">
         <TextBlock Text="Настройки пользователя" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,2"/>
         <TextBlock Text="USERNAME" Foreground="#6c63ff" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,16"/>
-        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
-                <TextBlock Text="Новый пароль" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBlock Text="Новый пароль" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <PasswordBox x:Name="NewPasswordBox" Style="{StaticResource DlgTextBox}" Margin="0,0,0,8"/>
-                <TextBlock Text="Подтверждение пароля" Foreground="#7070a0" FontSize="10" Margin="0,0,0,4"/>
+                <TextBlock Text="Подтверждение пароля" Foreground="#8a8aa5" FontSize="10" Margin="0,0,0,4"/>
                 <PasswordBox x:Name="ConfirmPasswordBox" Style="{StaticResource DlgTextBox}"/>
                 <Button Content="Изменить пароль" x:Name="ChangePasswordBtn" Style="{StaticResource DlgBtn}" Margin="0,10,0,0" HorizontalAlignment="Left"/>
             </StackPanel>
         </Border>
-        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="Пароль без срока действия" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold"/>
-                    <TextBlock Text="Отключает обязательную смену пароля по истечении срока" Foreground="#7070a0" FontSize="10" Margin="0,3,0,0" TextWrapping="Wrap" MaxWidth="240"/>
+                    <TextBlock Text="Пароль без срока действия" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold"/>
+                    <TextBlock Text="Отключает обязательную смену пароля по истечении срока" Foreground="#8a8aa5" FontSize="10" Margin="0,3,0,0" TextWrapping="Wrap" MaxWidth="240"/>
                 </StackPanel>
                 <CheckBox x:Name="NoExpireChk" Grid.Column="1" VerticalAlignment="Center"/>
             </Grid>
         </Border>
-        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
-                <TextBlock Text="Роль учётной записи" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBlock Text="Роль учётной записи" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <StackPanel Orientation="Horizontal">
-                    <RadioButton x:Name="RoleAdminRadio" Content="Администратор" GroupName="Role" Foreground="#c0c0e0" FontSize="12" Margin="0,0,20,0"/>
-                    <RadioButton x:Name="RoleUserRadio" Content="Пользователь" GroupName="Role" Foreground="#c0c0e0" FontSize="12"/>
+                    <RadioButton x:Name="RoleAdminRadio" Content="Администратор" GroupName="Role" Foreground="#c4c4ee" FontSize="12" Margin="0,0,20,0"/>
+                    <RadioButton x:Name="RoleUserRadio" Content="Пользователь" GroupName="Role" Foreground="#c4c4ee" FontSize="12"/>
                 </StackPanel>
             </StackPanel>
         </Border>
-        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
+        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="Учётная запись активна" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock Text="Учётная запись активна" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 <CheckBox x:Name="EnabledChk" Grid.Column="1" VerticalAlignment="Center"/>
             </Grid>
         </Border>
-        <TextBlock x:Name="DialogStatusText" Foreground="#9898c8" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap"/>
+        <TextBlock x:Name="DialogStatusText" Foreground="#8a8aa5" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Закрыть" x:Name="CloseDialogBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0"/>
             <Button Content="Сохранить изменения" x:Name="SaveChangesBtn" Style="{StaticResource DlgBtn}"/>
@@ -361,7 +361,7 @@ function Show-CreateUserDialog {
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Новый пользователь" Width="440" Height="620"
-        WindowStartupLocation="CenterScreen" Background="#12121f" ResizeMode="NoResize">
+        WindowStartupLocation="CenterScreen" Background="#202020" ResizeMode="NoResize">
     <Window.Resources>
         <Style x:Key="DlgBtn" TargetType="Button">
             <Setter Property="Background" Value="#6c63ff"/>
@@ -382,21 +382,21 @@ function Show-CreateUserDialog {
             </Setter>
         </Style>
         <Style x:Key="DlgBtnSecondary" TargetType="Button" BasedOn="{StaticResource DlgBtn}">
-            <Setter Property="Background" Value="#2a2a42"/>
-            <Setter Property="Foreground" Value="#c0c0dd"/>
+            <Setter Property="Background" Value="#2d2d35"/>
+            <Setter Property="Foreground" Value="#d4d4e0"/>
         </Style>
         <Style x:Key="DlgTextBox" TargetType="TextBox">
-            <Setter Property="Background" Value="#1a1a2e"/>
+            <Setter Property="Background" Value="#1a1a20"/>
             <Setter Property="Foreground" Value="#e0e0ff"/>
-            <Setter Property="BorderBrush" Value="#2a2a45"/>
+            <Setter Property="BorderBrush" Value="#33333f"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="CaretBrush" Value="#6c63ff"/>
         </Style>
         <Style x:Key="DlgPasswordBox" TargetType="PasswordBox">
-            <Setter Property="Background" Value="#1a1a2e"/>
+            <Setter Property="Background" Value="#1a1a20"/>
             <Setter Property="Foreground" Value="#e0e0ff"/>
-            <Setter Property="BorderBrush" Value="#2a2a45"/>
+            <Setter Property="BorderBrush" Value="#33333f"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="CaretBrush" Value="#6c63ff"/>
@@ -404,45 +404,45 @@ function Show-CreateUserDialog {
     </Window.Resources>
     <StackPanel Margin="22">
         <TextBlock Text="Новый пользователь" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,16"/>
-        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
-                <TextBlock Text="Имя пользователя" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBlock Text="Имя пользователя" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <TextBox x:Name="NewUserNameBox" Style="{StaticResource DlgTextBox}"/>
-                <TextBlock Text="Описание (необязательно)" Foreground="#9898c8" FontSize="10" Margin="0,8,0,4"/>
+                <TextBlock Text="Описание (необязательно)" Foreground="#8a8aa5" FontSize="10" Margin="0,8,0,4"/>
                 <TextBox x:Name="NewUserDescBox" Style="{StaticResource DlgTextBox}"/>
             </StackPanel>
         </Border>
-        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
-                <TextBlock Text="Пароль" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBlock Text="Пароль" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <PasswordBox x:Name="NewUserPasswordBox" Style="{StaticResource DlgPasswordBox}" Margin="0,0,0,8"/>
-                <TextBlock Text="Подтверждение пароля" Foreground="#9898c8" FontSize="10" Margin="0,0,0,4"/>
+                <TextBlock Text="Подтверждение пароля" Foreground="#8a8aa5" FontSize="10" Margin="0,0,0,4"/>
                 <PasswordBox x:Name="NewUserConfirmBox" Style="{StaticResource DlgPasswordBox}"/>
             </StackPanel>
         </Border>
-        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="Пароль без срока действия" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold"/>
-                    <TextBlock Text="Отключает обязательную смену пароля по истечении срока" Foreground="#9898c8" FontSize="10" Margin="0,3,0,0" TextWrapping="Wrap" MaxWidth="240"/>
+                    <TextBlock Text="Пароль без срока действия" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold"/>
+                    <TextBlock Text="Отключает обязательную смену пароля по истечении срока" Foreground="#8a8aa5" FontSize="10" Margin="0,3,0,0" TextWrapping="Wrap" MaxWidth="240"/>
                 </StackPanel>
                 <CheckBox x:Name="NewUserNoExpireChk" Grid.Column="1" VerticalAlignment="Center" IsChecked="True"/>
             </Grid>
         </Border>
-        <Border Background="#1a1a2e" CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
+        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
             <StackPanel>
-                <TextBlock Text="Роль учётной записи" Foreground="#c0c0e0" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBlock Text="Роль учётной записи" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <StackPanel Orientation="Horizontal">
-                    <RadioButton x:Name="NewUserRoleAdminRadio" Content="Администратор" GroupName="NewRole" Foreground="#c0c0e0" FontSize="12" Margin="0,0,20,0"/>
-                    <RadioButton x:Name="NewUserRoleUserRadio" Content="Пользователь" GroupName="NewRole" Foreground="#c0c0e0" FontSize="12" IsChecked="True"/>
+                    <RadioButton x:Name="NewUserRoleAdminRadio" Content="Администратор" GroupName="NewRole" Foreground="#c4c4ee" FontSize="12" Margin="0,0,20,0"/>
+                    <RadioButton x:Name="NewUserRoleUserRadio" Content="Пользователь" GroupName="NewRole" Foreground="#c4c4ee" FontSize="12" IsChecked="True"/>
                 </StackPanel>
             </StackPanel>
         </Border>
-        <TextBlock x:Name="CreateUserStatusText" Foreground="#9898c8" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap"/>
+        <TextBlock x:Name="CreateUserStatusText" Foreground="#8a8aa5" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Отмена" x:Name="CancelCreateUserBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0"/>
             <Button Content="Создать пользователя" x:Name="ConfirmCreateUserBtn" Style="{StaticResource DlgBtn}"/>

@@ -342,8 +342,8 @@ function Render-StartupPanel {
         $card.Child = $g
         Add-CardFx -Card $card
         if ($item.IsEnabled) {
-            $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
-            $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+            $card.Add_MouseEnter({ $this.Background = $script:Theme.CardBgHover })
+            $card.Add_MouseLeave({ $this.Background = $script:Theme.CardBg })
         }
         $startupAppsPanel.Children.Add($card) | Out-Null
     }
@@ -434,8 +434,8 @@ function Render-StartupPanel {
         $g.Children.Add($trigB) | Out-Null; $g.Children.Add($tStB) | Out-Null
         $card.Child = $g
         Add-CardFx -Card $card
-        $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
-        $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+        $card.Add_MouseEnter({ $this.Background = $script:Theme.CardBgHover })
+        $card.Add_MouseLeave({ $this.Background = $script:Theme.CardBg })
         $startupAppsPanel.Children.Add($card) | Out-Null
     }
     Write-Log "Автозагрузка: $($startupItems.Count) приложений (вкл: $enabledCount), $($scheduledTasks.Count) задач"

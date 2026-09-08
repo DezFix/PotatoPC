@@ -111,8 +111,8 @@ function Render-UpdatesPanel {
         $g.Children.Add($cb) | Out-Null; $g.Children.Add($info) | Out-Null; $g.Children.Add($verStack) | Out-Null
         $card.Child = $g
         Add-CardFx -Card $card
-        $card.Add_MouseEnter({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#20203a") })
-        $card.Add_MouseLeave({ $this.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e") })
+        $card.Add_MouseEnter({ $this.Background = $script:Theme.CardBgHover })
+        $card.Add_MouseLeave({ $this.Background = $script:Theme.CardBg })
         $updatesPanel.Children.Add($card) | Out-Null
     }
     $updateStatusText.Text = "Найдено обновлений: $($Packages.Count)"

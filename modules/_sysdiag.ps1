@@ -27,7 +27,7 @@ function Build-SysPanel {
         @{ L="Рабочая папка"; V=$script:WorkFolder; Btn="Открыть" }
     )) {
         $row=[System.Windows.Controls.Border]::new()
-        $row.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e"); $row.CornerRadius=[System.Windows.CornerRadius]::new(8)
+        $row.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#26262e"); $row.CornerRadius=[System.Windows.CornerRadius]::new(8)
         $row.Margin=[System.Windows.Thickness]::new(0,4,0,4); $row.Padding=[System.Windows.Thickness]::new(16,12,16,12)
         $g=[System.Windows.Controls.Grid]::new()
         $c1=[System.Windows.Controls.ColumnDefinition]::new(); $c1.Width="210"
@@ -40,8 +40,8 @@ function Build-SysPanel {
         $g.Children.Add($lbl) | Out-Null; $g.Children.Add($val) | Out-Null
         if ($item.Btn -eq "Открыть") {
             $fp=$item.V
-            $ob=[System.Windows.Controls.Button]::new(); $ob.Content="Открыть"; $ob.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#2a2a42")
-            $ob.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#c0c0dd"); $ob.BorderThickness=[System.Windows.Thickness]::new(0); $ob.Cursor=[System.Windows.Input.Cursors]::Hand
+            $ob=[System.Windows.Controls.Button]::new(); $ob.Content="Открыть"; $ob.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#2d2d35")
+            $ob.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#d4d4e0"); $ob.BorderThickness=[System.Windows.Thickness]::new(0); $ob.Cursor=[System.Windows.Input.Cursors]::Hand
             $ob.FontSize=11; $ob.Padding=[System.Windows.Thickness]::new(10,5,10,5); $ob.VerticalAlignment="Center"; $ob.Margin=[System.Windows.Thickness]::new(8,0,0,0); $ob.Tag=$fp
             $ob.Add_Click({ $p=$this.Tag; if (-not (Test-Path $p)){New-Item -ItemType Directory -Path $p -Force|Out-Null}; Start-Process explorer.exe $p })
             [System.Windows.Controls.Grid]::SetColumn($ob,2); $g.Children.Add($ob) | Out-Null
@@ -55,7 +55,7 @@ function Build-SysPanel {
         $dht=[System.Windows.Controls.TextBlock]::new(); $dht.Text="ДИСКИ"; $dht.FontSize=11; $dht.FontWeight="SemiBold"; $dht.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
         $dh.Child=$dht; $sysPanel.Children.Add($dh) | Out-Null
         foreach ($disk in $allDisks) {
-            $drow=[System.Windows.Controls.Border]::new(); $drow.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a2e"); $drow.CornerRadius=[System.Windows.CornerRadius]::new(8)
+            $drow=[System.Windows.Controls.Border]::new(); $drow.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#26262e"); $drow.CornerRadius=[System.Windows.CornerRadius]::new(8)
             $drow.Margin=[System.Windows.Thickness]::new(0,3,0,3); $drow.Padding=[System.Windows.Thickness]::new(16,10,16,10)
             $dg=[System.Windows.Controls.Grid]::new()
             foreach ($w in @("40","*","Auto","Auto")) { $dc=[System.Windows.Controls.ColumnDefinition]::new(); $dc.Width=$w; $dg.ColumnDefinitions.Add($dc) }
@@ -97,17 +97,17 @@ function Build-SysPanel {
                     $fName    = ConvertTo-XmlText -Text ([string]$physDisk.FriendlyName)
                     $mediaTxt = ConvertTo-XmlText -Text ([string]$physDisk.MediaType)
                     [xml]$sx=@"
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Title="SMART" Width="460" Height="420" WindowStartupLocation="CenterScreen" Background="#12121f" ResizeMode="NoResize">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Title="SMART" Width="460" Height="420" WindowStartupLocation="CenterScreen" Background="#202020" ResizeMode="NoResize">
   <StackPanel Margin="20">
     <TextBlock Text="$fName" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,0,0,4"/>
-    <TextBlock Text="$mediaTxt  -  $([math]::Round($physDisk.Size/1GB)) ГБ" Foreground="#606080" FontSize="11" Margin="0,0,0,14"/>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Состояние" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$healthRu" Foreground="$healthColor" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Температура" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$tempVal" Foreground="$tempCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Часов наработки" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$powerVal" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки чтения" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$readVal" Foreground="$readCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки записи" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$writeVal" Foreground="$writeCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#1a1a2e" CornerRadius="8" Padding="14,9" Margin="0,0,0,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Износ" Foreground="#808090" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$wearVal" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <TextBlock Text="Данные через Windows Storage API. Для детального анализа используйте CrystalDiskInfo." Foreground="#9898c8" FontSize="10" TextWrapping="Wrap"/>
+    <TextBlock Text="$mediaTxt  -  $([math]::Round($physDisk.Size/1GB)) ГБ" Foreground="#6a6a85" FontSize="11" Margin="0,0,0,14"/>
+    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Состояние" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$healthRu" Foreground="$healthColor" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Температура" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$tempVal" Foreground="$tempCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Часов наработки" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$powerVal" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки чтения" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$readVal" Foreground="$readCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки записи" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$writeVal" Foreground="$writeCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Износ" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$wearVal" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <TextBlock Text="Данные через Windows Storage API. Для детального анализа используйте CrystalDiskInfo." Foreground="#8a8aa5" FontSize="10" TextWrapping="Wrap"/>
   </StackPanel>
 </Window>
 "@

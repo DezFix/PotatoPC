@@ -167,7 +167,7 @@ function Build-ScriptsPanel {
                 $runOneBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1a1a28")
                 $runOneBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#505068")
             } else {
-                $runOneBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2a2a4a")
+                $runOneBtn.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d2d35")
                 $runOneBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
                 $runOneBtn.Add_Click({
                     $scriptPath = $this.Tag
