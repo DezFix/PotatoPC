@@ -182,6 +182,7 @@ $installUpdatesBtn.Add_Click({ Install-SelectedUpdates })
 
 # ═══ Очередь фон->UI: таймер забирает готовые результаты из шины ═══
 function Test-BgQueue {
+    Drain-BgLog
     if (-not $script:PanelsBuilt) {
         if (Get-BgResult -Key 'init') {
             $script:PanelsBuilt = $true

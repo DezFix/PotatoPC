@@ -23,8 +23,8 @@ if (-not $isAdmin) {
 
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue
 
-# Предзагрузка системных модулей в основном потоке: фоновые ранспейсы больше
-# не дерутся за автозагрузку ("module could not be loaded" на Join-Path и т.п.)
+# Preload system modules on the main thread: background runspaces no longer
+# fight over autoloading ("module could not be loaded" on Join-Path etc.)
 foreach ($m in @('Microsoft.PowerShell.Management','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Archive','CimCmdlets','ScheduledTasks','Microsoft.PowerShell.LocalAccounts','PrintManagement')) {
     try { Import-Module $m -ErrorAction SilentlyContinue } catch {}
 }

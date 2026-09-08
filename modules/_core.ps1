@@ -1,30 +1,90 @@
-﻿function Write-Log {
+﻿# Очередь строк лога фон->UI. Thread-safe: фон только кладёт, UI-таймер забирает.
+# Делегаты PowerShell между ранспейсами не пересылаем: привязанный к чужой сессии
+# делегат на UI-диспетчере молча умирает. Только данные через очередь.
+if (-not $global:BgLogQueue) {
+    $global:BgLogQueue = [System.Collections.Queue]::Synchronized((New-Object System.Collections.Queue))
+}
+
+function Write-LogLine {
+    # Низкоуровневая доставка строки: файл + (UI-напрямую | очередь для поллера).
+    # Никаких делегатов в чужой поток — только данные.
+    param([string]$line)
+    try {
+        $lp = $null
+        try { $lp = $script:LogPath } catch {}
+        if ($lp) { "$line`n" | Out-File -FilePath $lp -Append -Encoding UTF8 -ErrorAction SilentlyContinue }
+    } catch {}
+    $delivered = $false
+    try {
+        $box = $null
+        try { $box = $LogBox } catch {}
+        if ($box -and $box.Dispatcher -and $box.Dispatcher.CheckAccess()) {
+            $box.AppendText("$line`n"); $box.ScrollToEnd()
+            $delivered = $true
+        }
+    } catch {}
+    if (-not $delivered) {
+        try {
+            $q = $null
+            try { $q = $bgLogQueue } catch {}
+            if (-not $q) { try { $q = $global:BgLogQueue } catch {} }
+            if ($q) {
+                if ($q.Count -gt 5000) { try { $q.Dequeue() | Out-Null } catch {} }
+                $q.Enqueue($line)
+            }
+        } catch {}
+    }
+}
+
+function Write-Log {
     param([string]$msg, [string]$color = "Default")
     $time = (Get-Date).ToString("HH:mm:ss")
     $line = "[$time] $msg"
-    # файл первым: фоновая диагностика сохраняется, даже если UI-поток занят
-    if ($script:LogPath) {
-        try { "$line`n" | Out-File -FilePath $script:LogPath -Append -Encoding UTF8 -ErrorAction SilentlyContinue } catch {}
-    }
-    try {
-        if ($LogBox -and $LogBox.Dispatcher) {
-            # неблокирующе: текстбокс догонит, когда UI свободен; фоновый поток не виснет
-            $LogBox.Dispatcher.InvokeAsync([System.Action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() }) | Out-Null
-        }
-    } catch {}
+    Write-LogLine -line $line
     $consoleColor = switch ($color) { "Green" {"Green"} "Red" {"Red"} "Yellow" {"Yellow"} default {"White"} }
     Write-Host $line -ForegroundColor $consoleColor
 }
 
-# Определение Write-Log для runspace (Invoke-Async). Использует переменную $LogBox из runspace.
+function Drain-BgLog {
+    # Выполняется СТРОГО в UI-потоке (таймер поллера): прямой доступ к текстбоксу.
+    try {
+        $q = $null
+        try { $q = $global:BgLogQueue } catch {}
+        if (-not $q -or $q.Count -eq 0) { return }
+        $box = $null
+        try { $box = $LogBox } catch {}
+        if (-not $box) { return }
+        $n = 0
+        while ($n -lt 500) {
+            $item = $null
+            try { if ($q.Count -eq 0) { break }; $item = $q.Dequeue() } catch { break }
+            if ($null -eq $item) { break }
+            try { $box.AppendText("$item`n") } catch { break }
+            $n++
+        }
+        if ($n -gt 0) { try { $box.ScrollToEnd() } catch {} }
+    } catch {}
+}
+
+# Определение Write-Log для runspace (Invoke-Async). Пишет в файл напрямую,
+# в UI — только через очередь $bgLogQueue (см. Write-LogLine, без делегатов).
 $script:AsyncLogWriter = {
     function Write-Log {
         param([string]$msg, [string]$color = "Default")
         $time = (Get-Date).ToString("HH:mm:ss")
         $line = "[$time] $msg"
         try {
-            if ($LogBox -and $LogBox.Dispatcher) {
-                $LogBox.Dispatcher.InvokeAsync([System.Action]{ $LogBox.AppendText("$line`n"); $LogBox.ScrollToEnd() }) | Out-Null
+            $lp = $null
+            try { $lp = $bgLogPath } catch {}
+            if (-not $lp) { try { $lp = $script:LogPath } catch {} }
+            if ($lp) { "$line`n" | Out-File -FilePath $lp -Append -Encoding UTF8 -ErrorAction SilentlyContinue }
+        } catch {}
+        try {
+            $q = $null
+            try { $q = $bgLogQueue } catch {}
+            if ($q) {
+                if ($q.Count -gt 5000) { try { $q.Dequeue() | Out-Null } catch {} }
+                $q.Enqueue($line)
             }
         } catch {}
         $consoleColor = switch ($color) { "Green" {"Green"} "Red" {"Red"} "Yellow" {"Yellow"} default {"White"} }
@@ -388,6 +448,7 @@ function Start-Background {
     try { if ($LogBox) { $liveVars['LogBox'] = $LogBox } } catch {}
     try { if ($LogBox -and $LogBox.Dispatcher) { $liveVars['bpDispatcher'] = $LogBox.Dispatcher } } catch {}
     try { if ($global:BgResults) { $liveVars['bgResults'] = $global:BgResults } } catch {}
+    try { if ($global:BgLogQueue) { $liveVars['bgLogQueue'] = $global:BgLogQueue } } catch {}
     foreach ($kv in $Variables.GetEnumerator()) { $liveVars[$kv.Key] = $kv.Value }
     $logPathStr = [string]$script:LogPath
     $runner = {
@@ -438,6 +499,8 @@ function Invoke-Async {
     $rs.ThreadOptions  = "ReuseThread"
     $rs.Open()
     if ($LogBox) { $rs.SessionStateProxy.SetVariable("LogBox", $LogBox) }
+    try { if ($global:BgLogQueue) { $rs.SessionStateProxy.SetVariable("bgLogQueue", $global:BgLogQueue) } } catch {}
+    try { if ($script:LogPath) { $rs.SessionStateProxy.SetVariable("bgLogPath", [string]$script:LogPath) } } catch {}
     foreach ($kv in $Variables.GetEnumerator()) {
         $rs.SessionStateProxy.SetVariable($kv.Key, $kv.Value)
     }
