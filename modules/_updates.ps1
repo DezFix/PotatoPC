@@ -151,6 +151,7 @@ function Update-UpdateCount {
 }
 
 function Build-UpdatesPanel {
+    if ($null -eq $updatesPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     $updatesPanel.Children.Clear()
     $script:UpdateCheckboxes.Clear()
     $updateStatusText.Text = "Идёт проверка обновлений..."; $updateCountText.Text = ""

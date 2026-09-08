@@ -46,6 +46,7 @@ function Update-SelectedCount {
 }
 
 function Build-ScriptsPanel {
+    if ($null -eq $scriptsPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     $scriptsPanel.Children.Clear()
     $script:ScriptCheckboxes.Clear()
     $scripts = Load-Scripts

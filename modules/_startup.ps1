@@ -482,6 +482,7 @@ function Render-StartupPanel {
 }
 
 function Build-StartupPanel {
+    if ($null -eq $startupAppsPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     Trace-S 'sync start'
     $startupAppsPanel.Children.Clear()
     $script:StartupCheckboxes.Clear()

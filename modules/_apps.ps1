@@ -43,6 +43,7 @@ function Get-AppCategoryIcon {
 }
 
 function Build-AppsPanel {
+    if ($null -eq $appsPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     $appsPanel.Children.Clear()
     $script:AppCheckboxes = @{}
     $appsData = Load-Apps

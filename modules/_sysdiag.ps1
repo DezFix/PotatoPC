@@ -4,6 +4,7 @@
 }
 
 function Build-SysPanel {
+    if ($null -eq $sysPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     $sysInfo = Get-SystemInfo
     $allDisks = @()
     try {
@@ -180,6 +181,7 @@ function Build-SysPanel {
 }
 
 function Build-DiagPanel {
+    if ($null -eq $diagPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     $diagPanel.Children.Clear()
 
     # ── Экспресс-аудит: всё за один проход + отчёт в файл ──

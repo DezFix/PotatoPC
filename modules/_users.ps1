@@ -34,6 +34,7 @@ function Get-UserRoleLabel {    param($LocalUser)
 }
 
 function Build-UsersPanel {
+    if ($null -eq $usersPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     $usersPanel.Children.Clear()
     $script:AdminGroupMembers = $null
     $users = @()
@@ -247,7 +248,7 @@ function Show-UserSettingsDialog {
     $dialogXaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Настройка: USERNAME" Width="440" Height="700"
+        Title="Настройка: USERNAME" Width="720" SizeToContent="Height" MaxHeight="780"
         WindowStartupLocation="CenterScreen" Background="#202020" ResizeMode="NoResize">
     <Window.Resources>
         <Style x:Key="DlgBtn" TargetType="Button">
@@ -289,10 +290,15 @@ function Show-UserSettingsDialog {
             <Setter Property="CaretBrush" Value="#6c63ff"/>
         </Style>
     </Window.Resources>
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="22">
         <TextBlock Text="Настройки пользователя" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,2"/>
-        <TextBlock Text="USERNAME" Foreground="#6c63ff" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,16"/>
+        <TextBlock Text="USERNAME" Foreground="#6c63ff" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,14"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Margin="0,0,6,0">
         <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock Text="Новый пароль" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
@@ -322,6 +328,8 @@ function Show-UserSettingsDialog {
                 <TextBox x:Name="ExpireBox" Style="{StaticResource DlgTextInput}"/>
             </StackPanel>
         </Border>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="6,0,0,0">
         <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock Text="Роль учётной записи" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
@@ -354,13 +362,14 @@ function Show-UserSettingsDialog {
                 <CheckBox x:Name="EnabledChk" Grid.Column="1" VerticalAlignment="Center"/>
             </Grid>
         </Border>
+            </StackPanel>
+        </Grid>
         <TextBlock x:Name="DialogStatusText" Foreground="#8a8aa5" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Закрыть" x:Name="CloseDialogBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0"/>
             <Button Content="Сохранить изменения" x:Name="SaveChangesBtn" Style="{StaticResource DlgBtn}"/>
         </StackPanel>
     </StackPanel>
-    </ScrollViewer>
 </Window>
 '@
     $dialogXaml = $dialogXaml.Replace('USERNAME', [System.Security.SecurityElement]::Escape($UserName))
@@ -508,7 +517,7 @@ function Show-CreateUserDialog {
     $dialogXaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Новый пользователь" Width="440" Height="700"
+        Title="Новый пользователь" Width="720" SizeToContent="Height" MaxHeight="780"
         WindowStartupLocation="CenterScreen" Background="#202020" ResizeMode="NoResize">
     <Window.Resources>
         <Style x:Key="DlgBtn" TargetType="Button">
@@ -550,9 +559,14 @@ function Show-CreateUserDialog {
             <Setter Property="CaretBrush" Value="#6c63ff"/>
         </Style>
     </Window.Resources>
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="22">
-        <TextBlock Text="Новый пользователь" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,16"/>
+        <TextBlock Text="Новый пользователь" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,14"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Margin="0,0,6,0">
         <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock Text="Имя пользователя" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
@@ -570,6 +584,8 @@ function Show-CreateUserDialog {
                 <Button Content="Сгенерировать пароль" x:Name="GenPasswordBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,10,0,0" HorizontalAlignment="Left" ToolTip="Случайный пароль 14 символов"/>
             </StackPanel>
         </Border>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="6,0,0,0">
         <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <Grid>
@@ -608,13 +624,14 @@ function Show-CreateUserDialog {
                 <CheckBox x:Name="NewUserRdpChk" Grid.Column="1" VerticalAlignment="Center"/>
             </Grid>
         </Border>
+            </StackPanel>
+        </Grid>
         <TextBlock x:Name="CreateUserStatusText" Foreground="#8a8aa5" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Отмена" x:Name="CancelCreateUserBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0"/>
             <Button Content="Создать пользователя" x:Name="ConfirmCreateUserBtn" Style="{StaticResource DlgBtn}"/>
         </StackPanel>
     </StackPanel>
-    </ScrollViewer>
 </Window>
 '@
     $dReader = [System.Xml.XmlNodeReader]::new(([xml]$dialogXaml))
