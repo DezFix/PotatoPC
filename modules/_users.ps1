@@ -9,6 +9,20 @@
     } finally { try { $rng.Dispose() } catch {} }
 }
 
+function New-EasyPassword {
+    # Простой пароль из словаря (для тестовых/временных учёток)
+    $easy = @('admin','user','root','guest','123456','12345','1234','qwerty','password','admin123','user123','root123','qwerty123','12345678')
+    return $easy[(Get-Random -Maximum $easy.Count)]
+}
+
+function Copy-TextToClipboard {
+    param([string]$Text)
+    try {
+        [System.Windows.Clipboard]::SetText($Text)
+        return $true
+    } catch { return $false }
+}
+
 function Get-RdpGroupName {
     foreach ($g in @('Remote Desktop Users', 'Пользователи удалённого рабочего стола')) {
         if (Get-LocalGroup -Name $g -ErrorAction SilentlyContinue) { return $g }
@@ -307,7 +321,9 @@ function Show-UserSettingsDialog {
                 <PasswordBox x:Name="ConfirmPasswordBox" Style="{StaticResource DlgTextBox}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                     <Button Content="Изменить пароль" x:Name="ChangePasswordBtn" Style="{StaticResource DlgBtn}" Margin="0,0,8,0"/>
-                    <Button Content="Сгенерировать" x:Name="GenPasswordBtn2" Style="{StaticResource DlgBtnSecondary}" ToolTip="Случайный пароль 14 символов"/>
+                    <Button Content="🎲 Стандарт" x:Name="GenPasswordBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
+                    <Button Content="🔓 Простой" x:Name="GenEasyBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
+                    <Button Content="📋" x:Name="CopyPassBtn2" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать текущий пароль в буфер обмена"/>
                 </StackPanel>
             </StackPanel>
         </Border>
@@ -401,10 +417,37 @@ function Show-UserSettingsDialog {
         if ($rdpGroupName) { $rdpChk.ToolTip = $rdpGroupName } else { $rdpChk.ToolTip = "Группа RDP не найдена" }
     } catch {}
     try { Enable-DarkTitleBar -Window $dlg } catch {}
+    $genEasyBtn2 = $dlg.FindName("GenEasyBtn2")
+    $copyPassBtn2 = $dlg.FindName("CopyPassBtn2")
     $genPasswordBtn.Add_Click({
         $np = New-RandomPassword -Length 14
         $newPasswordBox.Password = $np; $confirmPasswordBox.Password = $np
-        $dialogStatusText.Text = "Сгенерирован пароль (скопируйте): $np"
+        if (Copy-TextToClipboard -Text $np) {
+            $dialogStatusText.Text = "Сгенерирован стандартный пароль и скопирован в буфер: $np"
+        } else {
+            $dialogStatusText.Text = "Сгенерирован пароль (не удалось скопировать): $np"
+        }
+        $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+    })
+    $genEasyBtn2.Add_Click({
+        $np = New-EasyPassword
+        $newPasswordBox.Password = $np; $confirmPasswordBox.Password = $np
+        if (Copy-TextToClipboard -Text $np) {
+            $dialogStatusText.Text = "Сгенерирован простой пароль и скопирован в буфер: $np"
+        } else {
+            $dialogStatusText.Text = "Сгенерирован простой пароль (не удалось скопировать): $np"
+        }
+        $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+    })
+    $copyPassBtn2.Add_Click({
+        $cur = $newPasswordBox.Password
+        if ([string]::IsNullOrEmpty($cur)) {
+            $dialogStatusText.Text = "⚠ Пароль пустой — нечего копировать"
+        } elseif (Copy-TextToClipboard -Text $cur) {
+            $dialogStatusText.Text = "✓ Пароль скопирован в буфер обмена"
+        } else {
+            $dialogStatusText.Text = "✗ Не удалось скопировать в буфер"
+        }
         $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
     })
     $changePasswordBtn.Add_Click({
@@ -581,7 +624,11 @@ function Show-CreateUserDialog {
                 <PasswordBox x:Name="NewUserPasswordBox" Style="{StaticResource DlgPasswordBox}" Margin="0,0,0,8"/>
                 <TextBlock Text="Подтверждение пароля" Foreground="#8a8aa5" FontSize="10" Margin="0,0,0,4"/>
                 <PasswordBox x:Name="NewUserConfirmBox" Style="{StaticResource DlgPasswordBox}"/>
-                <Button Content="Сгенерировать пароль" x:Name="GenPasswordBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,10,0,0" HorizontalAlignment="Left" ToolTip="Случайный пароль 14 символов"/>
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                    <Button Content="🎲 Сгенерировать" x:Name="GenPasswordBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
+                    <Button Content="🔓 Простой" x:Name="GenEasyBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
+                    <Button Content="📋" x:Name="CopyPassBtn" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать текущий пароль в буфер обмена"/>
+                </StackPanel>
             </StackPanel>
         </Border>
             </StackPanel>
@@ -651,10 +698,37 @@ function Show-CreateUserDialog {
     $confirmCreateUserBtn  = $dlg.FindName("ConfirmCreateUserBtn")
     $newUserExpireChk.Add_Checked({ $newUserExpireBox.IsEnabled = $true })
     $newUserExpireChk.Add_Unchecked({ $newUserExpireBox.IsEnabled = $false; $newUserExpireBox.Text = "" })
+    $genEasyBtn = $dlg.FindName("GenEasyBtn")
+    $copyPassBtn = $dlg.FindName("CopyPassBtn")
     $genCreateBtn.Add_Click({
         $np = New-RandomPassword -Length 14
         $newUserPasswordBox.Password = $np; $newUserConfirmBox.Password = $np
-        $createUserStatusText.Text = "Сгенерирован пароль (скопируйте): $np"
+        if (Copy-TextToClipboard -Text $np) {
+            $createUserStatusText.Text = "Сгенерирован стандартный пароль и скопирован в буфер: $np"
+        } else {
+            $createUserStatusText.Text = "Сгенерирован пароль (не удалось скопировать): $np"
+        }
+        $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+    })
+    $genEasyBtn.Add_Click({
+        $np = New-EasyPassword
+        $newUserPasswordBox.Password = $np; $newUserConfirmBox.Password = $np
+        if (Copy-TextToClipboard -Text $np) {
+            $createUserStatusText.Text = "Сгенерирован простой пароль и скопирован в буфер: $np"
+        } else {
+            $createUserStatusText.Text = "Сгенерирован простой пароль (не удалось скопировать): $np"
+        }
+        $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+    })
+    $copyPassBtn.Add_Click({
+        $cur = $newUserPasswordBox.Password
+        if ([string]::IsNullOrEmpty($cur)) {
+            $createUserStatusText.Text = "⚠ Пароль пустой — нечего копировать"
+        } elseif (Copy-TextToClipboard -Text $cur) {
+            $createUserStatusText.Text = "✓ Пароль скопирован в буфер обмена"
+        } else {
+            $createUserStatusText.Text = "✗ Не удалось скопировать в буфер"
+        }
         $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
     })
     try { Enable-DarkTitleBar -Window $dlg } catch {}
