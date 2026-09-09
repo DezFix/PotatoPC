@@ -316,45 +316,6 @@ function Show-UserSettingsDialog {
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="CaretBrush" Value="#6c63ff"/>
         </Style>
-        <Style TargetType="TabControl">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabControl">
-                        <StackPanel>
-                            <TabPanel Panel.ZIndex="1" Margin="0,0,0,6" IsItemsHost="True" Background="Transparent"/>
-                            <ContentPresenter ContentSource="SelectedContent"/>
-                        </StackPanel>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="#c4c4ee"/>
-            <Setter Property="Background" Value="#26262e"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="12,6" BorderBrush="#3a3a48" BorderThickness="1">
-                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="bd" Property="BorderBrush" Value="#6c63ff"/>
-                                <Setter Property="Foreground" Value="#ffffff"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
     <StackPanel Margin="22">
         <TextBlock Text="Настройки пользователя" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,2"/>
@@ -372,15 +333,17 @@ function Show-UserSettingsDialog {
                 <TextBlock Text="Подтверждение пароля" Foreground="#8a8aa5" FontSize="10" Margin="0,0,0,4"/>
                 <PasswordBox x:Name="ConfirmPasswordBox" Style="{StaticResource DlgTextBox}"/>
                 <Button Content="Изменить пароль" x:Name="ChangePasswordBtn" Style="{StaticResource DlgBtn}" Margin="0,10,0,0" HorizontalAlignment="Left"/>
-                <TabControl Margin="0,10,0,0">
-                    <TabItem x:Name="GenPassTab2" Header="Сгенерировать пароль">
-                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                            <Button Content="Стандарт" x:Name="GenPasswordBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
-                            <Button Content="Простой" x:Name="GenEasyBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
-                            <Button Content="Копировать" x:Name="CopyPassBtn2" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать текущий пароль в буфер обмена"/>
-                        </StackPanel>
-                    </TabItem>
-                </TabControl>
+            </StackPanel>
+        </Border>
+        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="Сгенерировать пароль" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBox x:Name="GenPassView2" Style="{StaticResource DlgTextInput}" IsReadOnly="True" Margin="0,0,0,8"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Стандарт" x:Name="GenPasswordBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
+                    <Button Content="Простой" x:Name="GenEasyBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
+                    <Button Content="Копировать" x:Name="CopyPassBtn2" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать пароль в буфер обмена"/>
+                </StackPanel>
             </StackPanel>
         </Border>
         <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
@@ -475,8 +438,7 @@ function Show-UserSettingsDialog {
     try { Enable-DarkTitleBar -Window $dlg } catch {}
     $genEasyBtn2 = $dlg.FindName("GenEasyBtn2")
     $copyPassBtn2 = $dlg.FindName("CopyPassBtn2")
-    $genPassTab2 = $dlg.FindName("GenPassTab2")
-    Set-DialogButtonIcon -Button $genPassTab2 -Property Header -Text 'Сгенерировать пароль' -Icon 'status/password' -Size 12
+    $genPassView2 = $dlg.FindName("GenPassView2")
     Set-DialogButtonIcon -Button $genPasswordBtn -Text 'Стандарт' -Icon 'actions/refresh'
     Set-DialogButtonIcon -Button $genEasyBtn2 -Text 'Простой' -Icon 'devices/keyboard'
     $copyImg2 = Get-IconImage -Name 'actions/copy' -Size 14
@@ -484,25 +446,28 @@ function Show-UserSettingsDialog {
     $genPasswordBtn.Add_Click({
         $np = New-RandomPassword -Length 14
         $newPasswordBox.Password = $np; $confirmPasswordBox.Password = $np
+        $genPassView2.Text = $np
         if (Copy-TextToClipboard -Text $np) {
-            $dialogStatusText.Text = "Сгенерирован стандартный пароль и скопирован в буфер: $np"
+            $dialogStatusText.Text = "✓ Стандартный пароль скопирован в буфер"
         } else {
-            $dialogStatusText.Text = "Сгенерирован пароль (не удалось скопировать): $np"
+            $dialogStatusText.Text = "⚠ Пароль в поле выше, скопируйте вручную"
         }
         $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
     })
     $genEasyBtn2.Add_Click({
         $np = New-EasyPassword
         $newPasswordBox.Password = $np; $confirmPasswordBox.Password = $np
+        $genPassView2.Text = $np
         if (Copy-TextToClipboard -Text $np) {
-            $dialogStatusText.Text = "Сгенерирован простой пароль и скопирован в буфер: $np"
+            $dialogStatusText.Text = "✓ Простой пароль скопирован в буфер"
         } else {
-            $dialogStatusText.Text = "Сгенерирован простой пароль (не удалось скопировать): $np"
+            $dialogStatusText.Text = "⚠ Пароль в поле выше, скопируйте вручную"
         }
         $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
     })
     $copyPassBtn2.Add_Click({
-        $cur = $newPasswordBox.Password
+        $cur = $genPassView2.Text
+        if ([string]::IsNullOrEmpty($cur)) { $cur = $newPasswordBox.Password }
         if ([string]::IsNullOrEmpty($cur)) {
             $dialogStatusText.Text = "⚠ Пароль пустой — нечего копировать"
         } elseif (Copy-TextToClipboard -Text $cur) {
@@ -663,45 +628,6 @@ function Show-CreateUserDialog {
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="CaretBrush" Value="#6c63ff"/>
         </Style>
-        <Style TargetType="TabControl">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabControl">
-                        <StackPanel>
-                            <TabPanel Panel.ZIndex="1" Margin="0,0,0,6" IsItemsHost="True" Background="Transparent"/>
-                            <ContentPresenter ContentSource="SelectedContent"/>
-                        </StackPanel>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="#c4c4ee"/>
-            <Setter Property="Background" Value="#26262e"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="12,6" BorderBrush="#3a3a48" BorderThickness="1">
-                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="bd" Property="BorderBrush" Value="#6c63ff"/>
-                                <Setter Property="Foreground" Value="#ffffff"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
     <StackPanel Margin="22">
         <TextBlock Text="Новый пользователь" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,14"/>
@@ -725,15 +651,17 @@ function Show-CreateUserDialog {
                 <PasswordBox x:Name="NewUserPasswordBox" Style="{StaticResource DlgPasswordBox}" Margin="0,0,0,8"/>
                 <TextBlock Text="Подтверждение пароля" Foreground="#8a8aa5" FontSize="10" Margin="0,0,0,4"/>
                 <PasswordBox x:Name="NewUserConfirmBox" Style="{StaticResource DlgPasswordBox}"/>
-                <TabControl Margin="0,10,0,0">
-                    <TabItem x:Name="GenPassTab" Header="Сгенерировать пароль">
-                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                            <Button Content="Стандарт" x:Name="GenPasswordBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
-                            <Button Content="Простой" x:Name="GenEasyBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
-                            <Button Content="Копировать" x:Name="CopyPassBtn" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать текущий пароль в буфер обмена"/>
-                        </StackPanel>
-                    </TabItem>
-                </TabControl>
+            </StackPanel>
+        </Border>
+        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="Сгенерировать пароль" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBox x:Name="GenPassView" Style="{StaticResource DlgTextBox}" IsReadOnly="True" Margin="0,0,0,8"/>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Стандарт" x:Name="GenPasswordBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
+                    <Button Content="Простой" x:Name="GenEasyBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
+                    <Button Content="Копировать" x:Name="CopyPassBtn" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать пароль в буфер обмена"/>
+                </StackPanel>
             </StackPanel>
         </Border>
             </StackPanel>
@@ -805,8 +733,7 @@ function Show-CreateUserDialog {
     $newUserExpireChk.Add_Unchecked({ $newUserExpireBox.IsEnabled = $false; $newUserExpireBox.Text = "" })
     $genEasyBtn = $dlg.FindName("GenEasyBtn")
     $copyPassBtn = $dlg.FindName("CopyPassBtn")
-    $genPassTab = $dlg.FindName("GenPassTab")
-    Set-DialogButtonIcon -Button $genPassTab -Property Header -Text 'Сгенерировать пароль' -Icon 'status/password' -Size 12
+    $genPassView = $dlg.FindName("GenPassView")
     Set-DialogButtonIcon -Button $genCreateBtn -Text 'Стандарт' -Icon 'actions/refresh'
     Set-DialogButtonIcon -Button $genEasyBtn -Text 'Простой' -Icon 'devices/keyboard'
     $copyImg = Get-IconImage -Name 'actions/copy' -Size 14
@@ -814,25 +741,28 @@ function Show-CreateUserDialog {
     $genCreateBtn.Add_Click({
         $np = New-RandomPassword -Length 14
         $newUserPasswordBox.Password = $np; $newUserConfirmBox.Password = $np
+        $genPassView.Text = $np
         if (Copy-TextToClipboard -Text $np) {
-            $createUserStatusText.Text = "Сгенерирован стандартный пароль и скопирован в буфер: $np"
+            $createUserStatusText.Text = "✓ Стандартный пароль скопирован в буфер"
         } else {
-            $createUserStatusText.Text = "Сгенерирован пароль (не удалось скопировать): $np"
+            $createUserStatusText.Text = "⚠ Пароль в поле выше, скопируйте вручную"
         }
         $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
     })
     $genEasyBtn.Add_Click({
         $np = New-EasyPassword
         $newUserPasswordBox.Password = $np; $newUserConfirmBox.Password = $np
+        $genPassView.Text = $np
         if (Copy-TextToClipboard -Text $np) {
-            $createUserStatusText.Text = "Сгенерирован простой пароль и скопирован в буфер: $np"
+            $createUserStatusText.Text = "✓ Простой пароль скопирован в буфер"
         } else {
-            $createUserStatusText.Text = "Сгенерирован простой пароль (не удалось скопировать): $np"
+            $createUserStatusText.Text = "⚠ Пароль в поле выше, скопируйте вручную"
         }
         $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
     })
     $copyPassBtn.Add_Click({
-        $cur = $newUserPasswordBox.Password
+        $cur = $genPassView.Text
+        if ([string]::IsNullOrEmpty($cur)) { $cur = $newUserPasswordBox.Password }
         if ([string]::IsNullOrEmpty($cur)) {
             $createUserStatusText.Text = "⚠ Пароль пустой — нечего копировать"
         } elseif (Copy-TextToClipboard -Text $cur) {
