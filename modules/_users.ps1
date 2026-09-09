@@ -23,6 +23,19 @@ function Copy-TextToClipboard {
     } catch { return $false }
 }
 
+function Set-DialogButtonIcon {
+    # Текст + PNG-иконка из assets (фолбэк — просто текст, если иконки нет).
+    # -Property: Content для кнопок, Header для вкладок.
+    param($Button, [string]$Text, [string]$Icon = '', [int]$Size = 13, [string]$Property = 'Content')
+    try {
+        if ($Icon) {
+            $c = New-IconButtonContent -Text $Text -Icon $Icon -Size $Size
+            if ($c) { $Button.$Property = $c; return }
+        }
+        if ($Text) { $Button.$Property = $Text }
+    } catch { try { if ($Text) { $Button.$Property = $Text } } catch {} }
+}
+
 function Get-RdpGroupName {
     foreach ($g in @('Remote Desktop Users', 'Пользователи удалённого рабочего стола')) {
         if (Get-LocalGroup -Name $g -ErrorAction SilentlyContinue) { return $g }
@@ -303,6 +316,45 @@ function Show-UserSettingsDialog {
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="CaretBrush" Value="#6c63ff"/>
         </Style>
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <StackPanel>
+                            <TabPanel Panel.ZIndex="1" Margin="0,0,0,6" IsItemsHost="True" Background="Transparent"/>
+                            <ContentPresenter ContentSource="SelectedContent"/>
+                        </StackPanel>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="#c4c4ee"/>
+            <Setter Property="Background" Value="#26262e"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="12,6" BorderBrush="#3a3a48" BorderThickness="1">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#6c63ff"/>
+                                <Setter Property="Foreground" Value="#ffffff"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <StackPanel Margin="22">
         <TextBlock Text="Настройки пользователя" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,2"/>
@@ -319,12 +371,16 @@ function Show-UserSettingsDialog {
                 <PasswordBox x:Name="NewPasswordBox" Style="{StaticResource DlgTextBox}" Margin="0,0,0,8"/>
                 <TextBlock Text="Подтверждение пароля" Foreground="#8a8aa5" FontSize="10" Margin="0,0,0,4"/>
                 <PasswordBox x:Name="ConfirmPasswordBox" Style="{StaticResource DlgTextBox}"/>
-                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                    <Button Content="Изменить пароль" x:Name="ChangePasswordBtn" Style="{StaticResource DlgBtn}" Margin="0,0,8,0"/>
-                    <Button Content="🎲 Стандарт" x:Name="GenPasswordBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
-                    <Button Content="🔓 Простой" x:Name="GenEasyBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
-                    <Button Content="📋" x:Name="CopyPassBtn2" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать текущий пароль в буфер обмена"/>
-                </StackPanel>
+                <Button Content="Изменить пароль" x:Name="ChangePasswordBtn" Style="{StaticResource DlgBtn}" Margin="0,10,0,0" HorizontalAlignment="Left"/>
+                <TabControl Margin="0,10,0,0">
+                    <TabItem x:Name="GenPassTab2" Header="Сгенерировать пароль">
+                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                            <Button Content="Стандарт" x:Name="GenPasswordBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
+                            <Button Content="Простой" x:Name="GenEasyBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
+                            <Button Content="Копировать" x:Name="CopyPassBtn2" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать текущий пароль в буфер обмена"/>
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
             </StackPanel>
         </Border>
         <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
@@ -419,6 +475,12 @@ function Show-UserSettingsDialog {
     try { Enable-DarkTitleBar -Window $dlg } catch {}
     $genEasyBtn2 = $dlg.FindName("GenEasyBtn2")
     $copyPassBtn2 = $dlg.FindName("CopyPassBtn2")
+    $genPassTab2 = $dlg.FindName("GenPassTab2")
+    Set-DialogButtonIcon -Button $genPassTab2 -Property Header -Text 'Сгенерировать пароль' -Icon 'status/password' -Size 12
+    Set-DialogButtonIcon -Button $genPasswordBtn -Text 'Стандарт' -Icon 'actions/refresh'
+    Set-DialogButtonIcon -Button $genEasyBtn2 -Text 'Простой' -Icon 'devices/keyboard'
+    $copyImg2 = Get-IconImage -Name 'actions/copy' -Size 14
+    if ($copyImg2) { $copyPassBtn2.Content = $copyImg2 } else { $copyPassBtn2.Content = 'Копировать' }
     $genPasswordBtn.Add_Click({
         $np = New-RandomPassword -Length 14
         $newPasswordBox.Password = $np; $confirmPasswordBox.Password = $np
@@ -601,6 +663,45 @@ function Show-CreateUserDialog {
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="CaretBrush" Value="#6c63ff"/>
         </Style>
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <StackPanel>
+                            <TabPanel Panel.ZIndex="1" Margin="0,0,0,6" IsItemsHost="True" Background="Transparent"/>
+                            <ContentPresenter ContentSource="SelectedContent"/>
+                        </StackPanel>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="#c4c4ee"/>
+            <Setter Property="Background" Value="#26262e"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="12,6" BorderBrush="#3a3a48" BorderThickness="1">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#6c63ff"/>
+                                <Setter Property="Foreground" Value="#ffffff"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <StackPanel Margin="22">
         <TextBlock Text="Новый пользователь" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,14"/>
@@ -624,11 +725,15 @@ function Show-CreateUserDialog {
                 <PasswordBox x:Name="NewUserPasswordBox" Style="{StaticResource DlgPasswordBox}" Margin="0,0,0,8"/>
                 <TextBlock Text="Подтверждение пароля" Foreground="#8a8aa5" FontSize="10" Margin="0,0,0,4"/>
                 <PasswordBox x:Name="NewUserConfirmBox" Style="{StaticResource DlgPasswordBox}"/>
-                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                    <Button Content="🎲 Сгенерировать" x:Name="GenPasswordBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
-                    <Button Content="🔓 Простой" x:Name="GenEasyBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
-                    <Button Content="📋" x:Name="CopyPassBtn" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать текущий пароль в буфер обмена"/>
-                </StackPanel>
+                <TabControl Margin="0,10,0,0">
+                    <TabItem x:Name="GenPassTab" Header="Сгенерировать пароль">
+                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                            <Button Content="Стандарт" x:Name="GenPasswordBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
+                            <Button Content="Простой" x:Name="GenEasyBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
+                            <Button Content="Копировать" x:Name="CopyPassBtn" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать текущий пароль в буфер обмена"/>
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
             </StackPanel>
         </Border>
             </StackPanel>
@@ -700,6 +805,12 @@ function Show-CreateUserDialog {
     $newUserExpireChk.Add_Unchecked({ $newUserExpireBox.IsEnabled = $false; $newUserExpireBox.Text = "" })
     $genEasyBtn = $dlg.FindName("GenEasyBtn")
     $copyPassBtn = $dlg.FindName("CopyPassBtn")
+    $genPassTab = $dlg.FindName("GenPassTab")
+    Set-DialogButtonIcon -Button $genPassTab -Property Header -Text 'Сгенерировать пароль' -Icon 'status/password' -Size 12
+    Set-DialogButtonIcon -Button $genCreateBtn -Text 'Стандарт' -Icon 'actions/refresh'
+    Set-DialogButtonIcon -Button $genEasyBtn -Text 'Простой' -Icon 'devices/keyboard'
+    $copyImg = Get-IconImage -Name 'actions/copy' -Size 14
+    if ($copyImg) { $copyPassBtn.Content = $copyImg } else { $copyPassBtn.Content = 'Копировать' }
     $genCreateBtn.Add_Click({
         $np = New-RandomPassword -Length 14
         $newUserPasswordBox.Password = $np; $newUserConfirmBox.Password = $np
