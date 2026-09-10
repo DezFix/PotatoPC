@@ -130,7 +130,7 @@ foreach ($module in $uiModules) {
 }
 
 $requiredCommands = @(
-    "Run-SelectedScripts", "Select-RecommendedScripts",
+    "Run-SelectedScripts", "Stop-SelectedScripts", "Reset-RunButton", "Select-RecommendedScripts",
     "Build-ScriptsPanel", "Build-AppsPanel", "Build-SysPanel", "Build-DiagPanel",
     "Build-UpdatesPanel", "Build-StartupPanel", "Build-UsersPanel",
     "New-Card", "New-CategoryHeader", "Set-LogExpanded",

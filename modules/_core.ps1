@@ -170,8 +170,9 @@ function Test-RequiredCommands {
 }
 
 function Invoke-ScriptFileWithRetry {
-    param([string]$FilePath, [int]$MaxAttempts = 3, [int]$TimeoutSec = 120)
+    param([string]$FilePath, [int]$MaxAttempts = 3, [int]$TimeoutSec = 120, [hashtable]$Control = $null)
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        if ($Control -and $Control.Abort) { throw "STOPPED_BY_USER: $(Split-Path $FilePath -Leaf)" }
         Write-Log "[$attempt/$MaxAttempts] Запуск: $(Split-Path $FilePath -Leaf)"
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
@@ -184,6 +185,7 @@ function Invoke-ScriptFileWithRetry {
         $proc = $null
         try {
             $proc = [System.Diagnostics.Process]::Start($psi)
+            if ($Control) { try { $Control.ChildPid = $proc.Id } catch {} }
             $outTask = $proc.StandardOutput.ReadToEndAsync()
             $errTask = $proc.StandardError.ReadToEndAsync()
             $exited = $proc.WaitForExit($TimeoutSec * 1000)
@@ -191,12 +193,14 @@ function Invoke-ScriptFileWithRetry {
                 Write-Log "ЗАВИС: $(Split-Path $FilePath -Leaf) не отвечает ${TimeoutSec}c, убиваю PID $($proc.Id)..." -Color Yellow
                 try { $proc.Kill() } catch {}
                 try { $null = $proc.WaitForExit(5000) } catch {}
+                if ($Control -and $Control.Abort) { throw "STOPPED_BY_USER: $(Split-Path $FilePath -Leaf)" }
                 if ($attempt -eq $MaxAttempts) {
                     throw "Скрипт `"$FilePath`" завис 3 раза подряд (таймаут ${TimeoutSec}c)"
                 }
                 Write-Log "Перезапуск $(Split-Path $FilePath -Leaf) (попытка $($attempt+1)/$MaxAttempts)" -Color Yellow
                 continue
             }
+            if ($Control -and $Control.Abort) { throw "STOPPED_BY_USER: $(Split-Path $FilePath -Leaf)" }
             $stdout = $outTask.Result
             $stderr = $errTask.Result
             if ($stdout) { $stdout -split "`r?`n" | Where-Object { $_.Trim() -ne "" } | ForEach-Object { Write-Log "   $_" } }
@@ -211,6 +215,7 @@ function Invoke-ScriptFileWithRetry {
             Write-Log "Ошибка запуска $(Split-Path $FilePath -Leaf): $_" -Color Red
             if ($attempt -eq $MaxAttempts) { throw "Скрипт `"$FilePath`" упал 3 раза: $_" }
         } finally {
+            if ($Control) { try { $Control.ChildPid = 0 } catch {} }
             if ($proc) { try { $proc.Dispose() } catch {} }
         }
     }
@@ -535,6 +540,12 @@ function Invoke-Async {
     $completion = [Action]$OnComplete
     $action = [PSAsyncHelper]::MakeCompletion($ps, $iar, $completion, $rs, $callerRunspace)
     [System.Threading.Tasks.Task]::Run($action) | Out-Null
+    # Handle для внешней остановки: Stop() тормозит конвейер, завершение подчистит ранспейс.
+    # Остальные вызовы возвращаемое значение игнорируют — безопасно.
+    $handlePs = $ps
+    return [PSCustomObject]@{
+        Stop = { try { $handlePs.Stop() } catch {} }.GetNewClosure()
+    }
 }
 
 function Save-Settings {

@@ -1,4 +1,40 @@
 ﻿$script:ScriptCheckboxes = @{}
+$script:BatchRunning = $false
+$script:BatchControl = $null
+$script:BatchHandle  = $null
+$script:RunBtnSaved  = $false
+$script:RunBtnContent = $null
+$script:RunBtnStyle   = $null
+
+function Reset-RunButton {
+    try {
+        if ($script:RunBtnSaved) {
+            $runScriptsBtn.Content = $script:RunBtnContent
+            $runScriptsBtn.Style = $script:RunBtnStyle
+        }
+    } catch {}
+    $script:BatchRunning = $false
+    $script:BatchHandle = $null
+}
+
+function Stop-SelectedScripts {
+    if (-not $script:BatchRunning) { Reset-RunButton; return }
+    try { if ($script:BatchControl) { $script:BatchControl.Abort = $true } } catch {}
+    try {
+        $pidToKill = 0
+        try { $pidToKill = [int]$script:BatchControl.ChildPid } catch {}
+        if ($pidToKill -gt 0) {
+            $p = Get-Process -Id $pidToKill -ErrorAction SilentlyContinue
+            if ($p -and ($p.ProcessName -like 'powershell*')) {
+                Write-Log "Останавливаю процесс PID $pidToKill..." -Color Yellow
+                Stop-Process -Id $pidToKill -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch {}
+    try { if ($script:BatchHandle -and $script:BatchHandle.Stop) { & $script:BatchHandle.Stop } } catch {}
+    Write-Log "Остановка запрошена, жду завершения..." -Color Yellow
+    Reset-RunButton
+}
 
 function Read-ScriptHeader {
     param([string]$Path)
@@ -204,39 +240,64 @@ function Build-ScriptsPanel {
 }
 
 function Run-SelectedScripts {
+    if ($script:BatchRunning) { Stop-SelectedScripts; return }
     $selected = $script:ScriptCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked }
     if (-not $selected) { Write-Log "⚠ Нет выбранных скриптов" -Color "Yellow"; return }
     $pathsList = @($selected | ForEach-Object { $_.Key })
     $reboot    = $rebootAfterChk.IsChecked
     $count     = $pathsList.Count
+    if (-not $script:RunBtnSaved) {
+        try {
+            $script:RunBtnContent = $runScriptsBtn.Content
+            $script:RunBtnStyle = $runScriptsBtn.Style
+            $script:RunBtnSaved = $true
+        } catch {}
+    }
+    $script:BatchControl = [hashtable]::Synchronized(@{ Abort = $false; ChildPid = 0 })
+    $script:BatchRunning = $true
+    try {
+        $runScriptsBtn.Content = "⏹ Стоп"
+        $runScriptsBtn.Style = $window.FindResource("BtnDanger")
+    } catch {}
     Write-Log "══════════════════════════════════════"
     Write-Log "▶ Запуск $count скриптов..."
     Write-Log "══════════════════════════════════════"
-    Invoke-Async -ScriptBlock {
-        $ok=0; $fail=0; $aborted=$false; $abortedScript=$null
+    $script:BatchHandle = Invoke-Async -ScriptBlock {
+        $ok=0; $fail=0; $aborted=$false; $abortedScript=$null; $stoppedByUser=$false
         foreach ($scriptPath in $pathsList) {
             Write-Log "── $(Split-Path $scriptPath -Leaf)"
             try {
-                $res = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 3 -TimeoutSec (Get-ScriptTimeout $scriptPath)
+                $res = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 3 -TimeoutSec (Get-ScriptTimeout $scriptPath) -Control $batchControl
                 if ($res) { Write-Log "   ✓ Готово" -Color "Green"; $ok++ }
                 else { Write-Log "   ✗ Ошибка (код выхода)" -Color Yellow; $fail++ }
             } catch {
                 $fail++; $aborted=$true; $abortedScript=$scriptPath
-                Write-Log "   ✗ КРИТИЧНО: $_" -Color Red
-                Write-Log "Останавливаю всю очередь. Проблемный скрипт: $scriptPath" -Color Red
+                if ("$_" -like "*STOPPED_BY_USER*") {
+                    $stoppedByUser=$true
+                    Write-Log "⏹ Остановлено пользователем: $(Split-Path $scriptPath -Leaf)" -Color Yellow
+                } else {
+                    Write-Log "   ✗ КРИТИЧНО: $_" -Color Red
+                    Write-Log "Останавливаю всю очередь. Проблемный скрипт: $scriptPath" -Color Red
+                }
                 break
             }
         }
         Write-Log "══════════════════════════════════════"
         if ($aborted) {
-            Write-Log "ПРЕРВАНО: $abortedScript завис 3 раза. Выполнено: ✓$ok ✗$fail" -Color Red
-            Write-Log "ОШИБКА: $abortedScript" -Color Red
+            if ($stoppedByUser) {
+                Write-Log "⏹ Выполнение остановлено пользователем. Выполнено: ✓$ok ✗$fail" -Color Yellow
+            } else {
+                Write-Log "ПРЕРВАНО: $abortedScript завис 3 раза. Выполнено: ✓$ok ✗$fail" -Color Red
+                Write-Log "ОШИБКА: $abortedScript" -Color Red
+            }
         } else {
             Write-Log "Завершено: ✓$ok$(if($fail -gt 0){ `" ✗$fail ошибок`" })" -Color Green
         }
         Write-Log "══════════════════════════════════════"
         if (-not $aborted -and $reboot) { Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force }
-    } -Variables @{ pathsList=$pathsList; reboot=$reboot }
+    } -Variables @{ pathsList=$pathsList; reboot=$reboot; batchControl=$script:BatchControl } -OnComplete {
+        Invoke-OnUI { Reset-RunButton }
+    }
 }
 
 function Select-RecommendedScripts {
