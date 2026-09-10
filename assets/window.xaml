@@ -146,7 +146,7 @@
                 <Border Grid.Row="1" Background="#23232b" CornerRadius="6" Padding="8,6" Margin="0,12,0,8">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="●" FontSize="8" Foreground="#2ecc71" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBlock Text="Локально • без пуша" Foreground="#a8a8c0" FontSize="10" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="SideStatusText" Text="Загрузка…" Foreground="#a8a8c0" FontSize="10" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -399,6 +399,9 @@
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                     <Image x:Name="PresetsIcon" Width="12" Height="12" Margin="0,0,7,0" VerticalAlignment="Center"/>
                                     <TextBlock Foreground="#a8a8d8" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0"><Run Text="Пресеты:"/></TextBlock>
+                                    <Button x:Name="PresetPotatoBtn" Style="{StaticResource BtnGold}" Margin="0,0,6,0" Height="26" FontSize="11" Padding="12,0" ToolTip="Лёгкий набор для слабого ПК">
+                                        <StackPanel Orientation="Horizontal"><TextBlock Text="🥔 Potato" VerticalAlignment="Center"/></StackPanel>
+                                    </Button>
                                     <Button x:Name="PresetOfficeBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="26" FontSize="11" ToolTip="Офисный набор">
                                         <StackPanel Orientation="Horizontal"><Image x:Name="PresetOfficeIcon" Width="12" Height="12" Margin="0,0,5,0" VerticalAlignment="Center"/><TextBlock Text="Офисный" VerticalAlignment="Center"/></StackPanel>
                                     </Button>
@@ -448,7 +451,10 @@
                                         <StackPanel Orientation="Horizontal"><Image x:Name="CheckUpdatesIcon" Width="12" Height="12" Margin="0,0,5,0" VerticalAlignment="Center"/><TextBlock Text="Проверить" VerticalAlignment="Center"/></StackPanel>
                                     </Button>
                                     <Button Content="✓ Все" x:Name="SelectAllUpdatesBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="26" Width="52" FontSize="11"/>
-                                    <Button Content="✗ Снять" x:Name="DeselectAllUpdatesBtn" Style="{StaticResource BtnSecondary}" Height="26" Width="58" FontSize="11"/>
+                                    <Button Content="✗ Снять" x:Name="DeselectAllUpdatesBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="26" Width="58" FontSize="11"/>
+                                    <Button x:Name="HiddenUpdatesBtn" Style="{StaticResource BtnSecondary}" Height="26" FontSize="11" Padding="12,0" ToolTip="Скрытые обновления — вернуть в список">
+                                        <StackPanel Orientation="Horizontal"><TextBlock x:Name="HiddenUpdatesBtnText" Text="📌 Скрытые" VerticalAlignment="Center"/></StackPanel>
+                                    </Button>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -460,6 +466,9 @@
                         <Border Grid.Row="2" Background="#232328" Padding="10,6" BorderBrush="#2e2e38" BorderThickness="0,1,0,0">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <TextBlock x:Name="UpdateCountText" Foreground="#a8a8c8" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <Button x:Name="UpdateAllBtn" Style="{StaticResource BtnSecondary}" Height="26" FontSize="11" Margin="0,0,6,0" Padding="12,0" ToolTip="Выбрать всё и обновить">
+                                    <StackPanel Orientation="Horizontal"><TextBlock Text="⬆ Всё" VerticalAlignment="Center"/></StackPanel>
+                                </Button>
                                 <Button x:Name="InstallUpdatesBtn" Style="{StaticResource BtnPrimary}" Height="26" FontSize="12">
                                     <StackPanel Orientation="Horizontal"><Image x:Name="InstallUpdatesIcon" Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="Обновить выбранные" VerticalAlignment="Center"/></StackPanel>
                                 </Button>

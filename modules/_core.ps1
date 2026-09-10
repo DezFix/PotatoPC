@@ -620,6 +620,7 @@ function Invoke-Async {
     $rs.Open()
     if ($LogBox) { $rs.SessionStateProxy.SetVariable("LogBox", $LogBox) }
     try { if ($global:BgLogQueue) { $rs.SessionStateProxy.SetVariable("bgLogQueue", $global:BgLogQueue) } } catch {}
+    try { if ($global:BgResults) { $rs.SessionStateProxy.SetVariable("bgResults", $global:BgResults) } } catch {}
     try { if ($script:LogPath) { $rs.SessionStateProxy.SetVariable("bgLogPath", [string]$script:LogPath) } } catch {}
     foreach ($kv in $Variables.GetEnumerator()) {
         $rs.SessionStateProxy.SetVariable($kv.Key, $kv.Value)
@@ -637,6 +638,8 @@ function Invoke-Async {
         $ps.AddScript("function Get-WingetPath {`n$wingetSrc`n}") | Out-Null
         $onUISrc = ${function:Invoke-OnUI}.ToString()
         $ps.AddScript("function Invoke-OnUI {`n$onUISrc`n}") | Out-Null
+        $bgResSrc = ${function:Set-BgResult}.ToString()
+        $ps.AddScript("function Set-BgResult {`n$bgResSrc`n}") | Out-Null
     } catch {}
     if ($LogBox) { try { $rs.SessionStateProxy.SetVariable("bpDispatcher", $LogBox.Dispatcher) } catch {} }
     $ps.AddScript($ScriptBlock) | Out-Null

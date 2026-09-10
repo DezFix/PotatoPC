@@ -83,7 +83,8 @@ function Load-Scripts {
 function Update-SelectedCount {
     $count = @($script:ScriptCheckboxes.Values | Where-Object { $_.IsChecked }).Count
     $total = $script:ScriptCheckboxes.Count
-    if ($selectedCountText) { $selectedCountText.Text = "Выбрано: $count из $total скриптов" }
+    if ($selectedCountText) { $selectedCountText.Text = "Выбрано: $count из $total" }
+    try { Update-HeaderCount } catch {}
 }
 
 function Build-ScriptsPanel {

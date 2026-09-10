@@ -5,7 +5,8 @@
       {"Name": "OperaGX", "Id": "Opera.OperaGX", "Description": "Браузер для геймеров с контролем ресурсов."},
       {"Name": "Google Chrome", "Id": "Google.Chrome", "Description": "Популярный веб-браузер от Google."},
       {"Name": "LibreWolf", "Id": "LibreWolf.LibreWolf", "Description": "Форк Firefox, ориентированный на приватность, защиту от телеметрии и блокировку слежки."},
-      {"Name": "Mozilla Firefox", "Id": "Mozilla.Firefox", "Description": "Открытый веб-браузер, ориентированный на конфиденциальность."}
+      {"Name": "Mozilla Firefox", "Id": "Mozilla.Firefox", "Description": "Открытый веб-браузер, ориентированный на конфиденциальность."},
+      {"Name": "Brave", "Id": "Brave.Brave", "Description": "Быстрый браузер с блокировкой рекламы."}
     ],
     "Мультимедиа": [
       {"Name": "VLC Media Player", "Id": "VideoLAN.VLC", "Description": "Универсальный медиаплеер."},
@@ -14,21 +15,29 @@
       {"Name": "Audacity", "Id": "Audacity.Audacity", "Description": "Бесплатный аудиоредактор и звукозаписывающее приложение."},
       {"Name": "Shotcut", "Id": "Meltytech.Shotcut", "Description": "Бесплатный видеоредактор с открытым исходным кодом."},
       {"Name": "Kdenlive", "Id": "KDE.Kdenlive", "Description": "Бесплатный и открытый видеоредактор."},
-      {"Name": "OBS Studio", "Id": "OBSProject.OBSStudio", "Description": "Бесплатное ПО для записи видео и потокового вещания."}
+      {"Name": "OBS Studio", "Id": "OBSProject.OBSStudio", "Description": "Бесплатное ПО для записи видео и потокового вещания."},
+      {"Name": "Spotify", "Id": "Spotify.Spotify", "Description": "Музыка и подкасты."},
+      {"Name": "foobar2000", "Id": "PeterPawlowski.foobar2000", "Description": "Очень лёгкий аудиоплеер."},
+      {"Name": "HandBrake", "Id": "HandBrake.HandBrake", "Description": "Конвертер видео."}
     ],
     "Офис и Документы": [
       {"Name": "Onlyoffice", "Id": "ONLYOFFICE.DesktopEditors", "Description": "Пакет офисных программ."},
       {"Name": "FreeOffice 2024", "Id": "SoftMaker.FreeOffice.2024", "Description": "Бесплатный офисный пакет от SoftMaker с поддержкой форматов Microsoft Office."},
       {"Name": "LibreOffice", "Id": "TheDocumentFoundation.LibreOffice", "Description": "Бесплатный офисный пакет, совместимый с Microsoft Office."},
       {"Name": "SumatraPDF", "Id": "SumatraPDF.SumatraPDF", "Description": "Легкий просмотрщик PDF и других форматов."},
-      {"Name": "Notepad++", "Id": "Notepad++.Notepad++", "Description": "Бесплатный текстовый редактор с открытым исходным кодом."}
+      {"Name": "Notepad++", "Id": "Notepad++.Notepad++", "Description": "Бесплатный текстовый редактор с открытым исходным кодом."},
+      {"Name": "Thunderbird", "Id": "Mozilla.Thunderbird", "Description": "Почта и календарь."},
+      {"Name": "calibre", "Id": "calibre.calibre", "Description": "Библиотека электронных книг."}
     ],
     "Файловые и Архиваторы": [
       {"Name": "7-Zip", "Id": "7zip.7zip", "Description": "Бесплатный архиватор с высокой степенью сжатия."},
       {"Name": "PeaZip", "Id": "Giorgiotani.Peazip", "Description": "Свободный и открытый архиватор с поддержкой более 200 форматов и упором на безопасность."},
       {"Name": "Free Download Manager", "Id": "SoftDeluxe.FreeDownloadManager", "Description": "Мощный современный менеджер загрузок и ускоритель с поддержкой HTTP, FTP и BitTorrent."},
       {"Name": "File Converter", "Id": "AdrienAllard.FileConverter", "Description": "Инструмент для конвертации файлов через контекстное меню."},
-      {"Name": "ShareX", "Id": "ShareX.ShareX", "Description": "Инструмент для захвата экрана и обмена файлами."}
+      {"Name": "ShareX", "Id": "ShareX.ShareX", "Description": "Инструмент для захвата экрана и обмена файлами."},
+      {"Name": "NanaZip", "Id": "M2Team.NanaZip", "Description": "Современный архиватор."},
+      {"Name": "WinSCP", "Id": "WinSCP.WinSCP", "Description": "Файлы по SFTP и FTP."},
+      {"Name": "qBittorrent", "Id": "qBittorrent.qBittorrent", "Description": "Торрент-клиент без рекламы."}
     ],
     "Системные Утилиты": [
       {"Name": "AnyDesk", "Id": "AnyDesk.AnyDesk", "Description": "Программа для удаленного доступа и управления."},
@@ -39,7 +48,10 @@
       {"Name": "NetTime", "Id": "MarkGriffiths.NetTime", "Description": "Утилита для синхронизации времени с NTP-серверами."},
       {"Name": "NormCap", "Id": "dynobo.NormCap", "Description": "Инструмент для захвата экрана с функцией OCR, позволяющий извлекать текст из любого места на рабочем столе."},
       {"Name": "LockHunter", "Id": "CrystalRich.LockHunter", "Description": "Бесплатный инструмент для разблокировки файлов, занятых неизвестными процессами, с возможностью их удаления или переименования."},
-      {"Name": "Flameshot", "Id": "Flameshot.Flameshot", "Description": "Мощный инструмент для создания скриншотов."}
+      {"Name": "Flameshot", "Id": "Flameshot.Flameshot", "Description": "Мощный инструмент для создания скриншотов."},
+      {"Name": "Everything", "Id": "voidtools.Everything", "Description": "Мгновенный поиск файлов."},
+      {"Name": "WizTree", "Id": "AntibodySoftware.WizTree", "Description": "Показывает, чем забит диск."},
+      {"Name": "KeePassXC", "Id": "KeePassXCTeam.KeePassXC", "Description": "Хранилище паролей."}
     ],
     "Связь и Сеть": [
       {"Name": "Telegram", "Id": "Telegram.TelegramDesktop", "Description": "Быстрый и безопасный мессенджер."},
@@ -52,16 +64,21 @@
       {"Name": "VS Code", "Id": "Microsoft.VisualStudioCode", "Description": "Мощный редактор кода от Microsoft."},
       {"Name": "Git", "Id": "Git.Git", "Description": "Система контроля версий для отслеживания изменений."},
       {"Name": "Python", "Id": "Python.Python", "Description": "Популярный язык программирования."},
-      {"Name": "Docker Desktop", "Id": "Docker.DockerDesktop", "Description": "Платформа для разработки и запуска приложений в контейнерах."}
+      {"Name": "Docker Desktop", "Id": "Docker.DockerDesktop", "Description": "Платформа для разработки и запуска приложений в контейнерах."},
+      {"Name": "GitHub Desktop", "Id": "GitHub.GitHubDesktop", "Description": "Git без командной строки."}
     ],
     "Игры": [
       {"Name": "Steam", "Id": "Valve.Steam", "Description": "Крупнейшая платформа для цифровой дистрибуции игр."},
       {"Name": "Discord", "Id": "Discord.Discord", "Description": "Платформа для голосового, видео и текстового общения."},
-      {"Name": "Heroic Games Launcher", "Id": "HeroicGamesLauncher.HeroicGamesLauncher", "Description": "Открытый игровой лаунчер для Epic Games, GOG и Amazon Games."}
+      {"Name": "Heroic Games Launcher", "Id": "HeroicGamesLauncher.HeroicGamesLauncher", "Description": "Открытый игровой лаунчер для Epic Games, GOG и Amazon Games."},
+      {"Name": "GOG Galaxy", "Id": "GOG.Galaxy", "Description": "Магазин игр без DRM."},
+      {"Name": "Epic Games", "Id": "EpicGames.EpicGamesLauncher", "Description": "Магазин Epic Games."},
+      {"Name": "Prism Launcher", "Id": "PrismLauncher.PrismLauncher", "Description": "Запуск Minecraft."}
     ]
   },
   "Presets": {
+    "Potato-pack": ["7zip.7zip", "SumatraPDF.SumatraPDF", "LibreWolf.LibreWolf", "VideoLAN.VLC", "Notepad++.Notepad++", "AnyDesk.AnyDesk", "IrfanSkiljan.IrfanView"],
     "Office-pack": ["Microsoft.Teams", "Google.Chrome", "Rakuten.Viber", "VideoLAN.VLC", "SumatraPDF.SumatraPDF", "IrfanSkiljan.IrfanView", "AnyDesk.AnyDesk"],
-    "Games-pack": ["Valve.Steam", "Discord.Discord"]
+    "Games-pack": ["Valve.Steam", "Discord.Discord", "GOG.Galaxy"]
   }
 }

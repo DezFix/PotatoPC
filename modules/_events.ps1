@@ -177,13 +177,26 @@ try { if ($NavUpdatesBtn) { $NavUpdatesBtn.Add_Click({ Set-ActiveNav -Index 4 })
 try { if ($NavDiagBtn)    { $NavDiagBtn.Add_Click({ Set-ActiveNav -Index 5 }) } } catch {}
 try { if ($NavSysBtn)     { $NavSysBtn.Add_Click({ Set-ActiveNav -Index 6 }) } } catch {}
 try { if ($MainTabControl) { $MainTabControl.Add_SelectionChanged({ try { Set-ActiveNav -Index $MainTabControl.SelectedIndex } catch {} }) } } catch {}
+$presetPotatoBtn.Add_Click({ Select-Preset "Potato-pack" })
 $presetOfficeBtn.Add_Click({ Select-Preset "Office-pack" })
 $presetGamesBtn.Add_Click({ Select-Preset "Games-pack" })
 
 $installAppsBtn.Add_Click({
     $sel = $script:AppCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked }
     if (-not $sel) { Write-Log "⚠ Нет выбранных приложений" -Color "Yellow"; return }
+    try {
+        $wgTest = Get-WingetPath
+        if ($wgTest -eq "winget" -and -not (Get-Command winget -ErrorAction SilentlyContinue)) {
+            Write-Log "winget не найден. Поставь его: Модули → Магазин программ." -Color "Red"
+            return
+        }
+    } catch {}
     $idList = @($sel | ForEach-Object { $_.Key })
+    try { $knownIds = @($script:InstalledAppIds) } catch { $knownIds = @() }
+    $skipped = @($idList | Where-Object { $knownIds -contains $_ })
+    $idList = @($idList | Where-Object { $knownIds -notcontains $_ })
+    if ($skipped.Count -gt 0) { Write-Log ("Пропускаю уже установленные: " + ($skipped -join ", ")) }
+    if ($idList.Count -eq 0) { Write-Log "Все выбранные уже стоят." -Color "Green"; return }
     Write-Log "══ Установка $($idList.Count) приложений ══"
     Invoke-Async -ScriptBlock {
         $wg = Get-WingetPath
@@ -196,16 +209,29 @@ $installAppsBtn.Add_Click({
             else { Write-Log "✗ ${id}: ошибка (код $LASTEXITCODE)" -Color "Red"; $fail++ }
         }
         Write-Log "══ Установка завершена: ✓$ok$(if($fail -gt 0){ `" ✗$fail`" }) ══"
+        Set-BgResult -Key 'appsRefresh' -Value $true
     } -Variables @{ idList = $idList }
 })
 $selectAllAppsBtn.Add_Click({ foreach($cb in $script:AppCheckboxes.Values){$cb.IsChecked=$true}; Update-AppsCount })
 $deselectAllAppsBtn.Add_Click({ foreach($cb in $script:AppCheckboxes.Values){$cb.IsChecked=$false}; Update-AppsCount })
 
 # ═══ Кнопки обновлений ═══
-$checkUpdatesBtn.Add_Click({ $updatesPanel.Children.Clear(); $script:UpdateCheckboxes.Clear(); Build-UpdatesPanel })
+$checkUpdatesBtn.Add_Click({ $updatesPanel.Children.Clear(); $script:UpdateCheckboxes.Clear(); Build-UpdatesPanel -Force })
 $selectAllUpdatesBtn.Add_Click({ foreach($cb in $script:UpdateCheckboxes.Values){$cb.IsChecked=$true}; Update-UpdateCount })
 $deselectAllUpdatesBtn.Add_Click({ foreach($cb in $script:UpdateCheckboxes.Values){$cb.IsChecked=$false}; Update-UpdateCount })
 $installUpdatesBtn.Add_Click({ Install-SelectedUpdates })
+$updateAllBtn.Add_Click({
+    foreach ($cb in $script:UpdateCheckboxes.Values) { $cb.IsChecked = $true }
+    Update-UpdateCount
+    Install-SelectedUpdates
+})
+$hiddenUpdatesBtn.Add_Click({
+    if (-not (Get-Command Show-HiddenUpdatesDialog -ErrorAction SilentlyContinue)) {
+        Write-Log "ОШИБКА: модуль _updates.ps1 не загружен." -Color Red
+        return
+    }
+    Show-HiddenUpdatesDialog
+})
 
 # ═══ Очередь фон->UI: таймер забирает готовые результаты из шины ═══
 function Test-BgQueue {
@@ -226,6 +252,12 @@ function Test-BgQueue {
             Build-StartupPanel
             Build-UsersPanel
             Write-Log "✓ Готов к работе." -Color "Green"
+            try {
+                if ($sideStatusText) {
+                    $sideStatusText.Text = "Скриптов: $($script:ScriptCheckboxes.Count) • Программ: $($script:AppCheckboxes.Count)"
+                }
+                Update-HeaderCount
+            } catch {}
             $restoreResult=[System.Windows.MessageBox]::Show(
                 "Рекомендуется создать точку восстановления системы перед внесением изменений.`n`nСоздать точку восстановления сейчас?",
                 "PotatoPC Optimizer",
@@ -246,11 +278,66 @@ function Test-BgQueue {
     if ($up -and -not $up.Consumed) {
         $up.Consumed = $true
         if ($up.Error) { Write-Log "Ошибка проверки обновлений: $($up.Error)" -Color "Red" }
-        Render-UpdatesPanel -Packages @($up.Data)
+        else {
+            $pins = @($up.Pinned)
+            $script:UpdatesCache = @{ Time = (Get-Date); Data = @($up.Data); PinnedItems = $pins }
+            if ($pins.Count -gt 0) { Write-Log "Скрыто закреплённых: $($pins.Count)" }
+            try {
+                if ($hiddenUpdatesBtnText) {
+                    $hiddenUpdatesBtnText.Text = if ($pins.Count -gt 0) { "📌 Скрытые ($($pins.Count))" } else { "📌 Скрытые" }
+                }
+            } catch {}
+        }
+        $cpins = @(); try { $cpins = @($script:UpdatesCache.PinnedItems) } catch {}
+        Render-UpdatesPanel -Packages @($up.Data) -PinnedItems $cpins
     }
     if (Get-BgResult -Key 'updatesRefresh') {
         Set-BgResult -Key 'updatesRefresh' -Value $null
-        try { $updatesPanel.Children.Clear(); $script:UpdateCheckboxes.Clear(); Build-UpdatesPanel } catch {}
+        try { $updatesPanel.Children.Clear(); $script:UpdateCheckboxes.Clear(); Build-UpdatesPanel -Force } catch {}
+    }
+    if (Get-BgResult -Key 'appsRefresh') {
+        Set-BgResult -Key 'appsRefresh' -Value $null
+        try { Build-AppsPanel } catch {}
+    }
+    $ai = Get-BgResult -Key 'appIcons'
+    if ($ai -and -not $ai.Consumed) {
+        $ai.Consumed = $true
+        try {
+            foreach ($it in @($ai.Items)) {
+                if ($script:AppIconImgs.ContainsKey($it.Id)) {
+                    $ctl = $script:AppIconImgs[$it.Id]
+                    if ($ctl -is [System.Windows.Controls.Image]) { $ctl.Source = $it.Img }
+                }
+            }
+        } catch {}
+    }
+    $ui = Get-BgResult -Key 'updateIcons'
+    if ($ui -and -not $ui.Consumed) {
+        $ui.Consumed = $true
+        try {
+            foreach ($it in @($ui.Items)) {
+                if ($script:UpdateIconImgs.ContainsKey($it.Id)) {
+                    $ctl = $script:UpdateIconImgs[$it.Id]
+                    if ($ctl -is [System.Windows.Controls.Image]) { $ctl.Source = $it.Img }
+                }
+            }
+        } catch {}
+    }
+    $ia = Get-BgResult -Key 'installedApps'
+    if ($ia -and -not $ia.Consumed) {
+        $ia.Consumed = $true
+        try {
+            $ids = @($ia.Ids)
+            $script:InstalledAppIds = $ids
+            $n = 0
+            foreach ($id in $ids) {
+                if ($script:AppBadges.ContainsKey($id)) {
+                    $script:AppBadges[$id].Visibility = "Visible"
+                    $n++
+                }
+            }
+            if ($n -gt 0) { Write-Log "Установлено приложений из списка: $n" }
+        } catch {}
     }
     $ar = Get-BgResult -Key 'auditReport'
     if ($ar -and -not $ar.Consumed) {

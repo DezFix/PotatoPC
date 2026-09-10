@@ -30,6 +30,7 @@ function Initialize-Controls {
         DeselectAllAppsBtn  = "DeselectAllAppsBtn"
         AppCountText        = "AppCountText"
         RestorePointBtn     = "RestorePointBtn"
+        PresetPotatoBtn       = "PresetPotatoBtn"
         PresetOfficeBtn     = "PresetOfficeBtn"
         PresetGamesBtn      = "PresetGamesBtn"
         ScriptPresetPotatoBtn = "ScriptPresetPotatoBtn"
@@ -39,6 +40,9 @@ function Initialize-Controls {
         SelectAllUpdatesBtn = "SelectAllUpdatesBtn"
         DeselectAllUpdatesBtn="DeselectAllUpdatesBtn"
         InstallUpdatesBtn   = "InstallUpdatesBtn"
+        UpdateAllBtn          = "UpdateAllBtn"
+        HiddenUpdatesBtn      = "HiddenUpdatesBtn"
+        HiddenUpdatesBtnText  = "HiddenUpdatesBtnText"
         UpdateStatusText    = "UpdateStatusText"
         UpdateCountText     = "UpdateCountText"
         StartupAppsPanel    = "StartupAppsPanel"
@@ -75,6 +79,7 @@ function Initialize-Controls {
         NavSysBtn           = "NavSysBtn"
         HeaderTitleText     = "HeaderTitleText"
         HeaderSubtitleText  = "HeaderSubtitleText"
+        SideStatusText      = "SideStatusText"
         LogoIcon            = "LogoIcon"
         NavModulesIcon      = "NavModulesIcon"
         NavStartupIcon      = "NavStartupIcon"
@@ -220,6 +225,40 @@ function Set-ActiveNav {
         if ($HeaderTitleText -and $Index -ge 0 -and $Index -lt $script:NavTitles.Count) {
             $HeaderTitleText.Text = $script:NavTitles[$Index].Title
             $HeaderSubtitleText.Text = $script:NavTitles[$Index].Sub
+        }
+        try { Update-HeaderCount } catch {}
+    } catch {}
+}
+
+function Update-HeaderCount {
+    # Счётчик в шапке — только для текущей вкладки.
+    try {
+        if (-not $selectedCountText) { return }
+        $idx = -1
+        try { $idx = $MainTabControl.SelectedIndex } catch {}
+        switch ($idx) {
+            0 {
+                $c = @($script:ScriptCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+                $selectedCountText.Text = "Выбрано: $c из $($script:ScriptCheckboxes.Count)"
+            }
+            1 {
+                $c = 0; $t = 0
+                try {
+                    $c = @($script:StartupCheckboxes.Values | Where-Object { $_.Value.IsChecked }).Count +
+                         @($script:TaskCheckboxes.Values | Where-Object { $_.Value.IsChecked }).Count
+                    $t = $script:StartupCheckboxes.Count + $script:TaskCheckboxes.Count
+                } catch {}
+                $selectedCountText.Text = if ($t -gt 0) { "Выбрано: $c из $t" } else { "" }
+            }
+            3 {
+                $c = @($script:AppCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+                $selectedCountText.Text = "Выбрано: $c из $($script:AppCheckboxes.Count)"
+            }
+            4 {
+                $c = @($script:UpdateCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+                $selectedCountText.Text = if ($script:UpdateCheckboxes.Count -gt 0) { "Выбрано: $c" } else { "" }
+            }
+            default { $selectedCountText.Text = "" }
         }
     } catch {}
 }

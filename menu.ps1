@@ -133,7 +133,7 @@ $requiredCommands = @(
     "Run-SelectedScripts", "Stop-SelectedScripts", "Reset-RunButton", "Select-RecommendedScripts", "Select-ScriptPreset",
     "Build-ScriptsPanel", "Build-AppsPanel", "Build-SysPanel", "Build-DiagPanel",
     "Build-UpdatesPanel", "Build-StartupPanel", "Build-UsersPanel",
-    "New-Card", "New-CategoryHeader", "Set-LogExpanded",
+    "New-Card", "New-CategoryHeader", "Set-LogExpanded", "Update-HeaderCount",
     "Get-IconImage", "Get-IconSource", "Initialize-WindowIcons", "New-SectionHeader",
     "Invoke-Async", "Invoke-OnUI", "Set-BgResult", "Get-BgResult",
     "Start-BgPoller", "Stop-BgPoller", "Test-BgQueue",
