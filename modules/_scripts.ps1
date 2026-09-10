@@ -270,8 +270,11 @@ function Run-SelectedScripts {
     Write-Log "══════════════════════════════════════"
     $script:BatchHandle = Invoke-Async -ScriptBlock {
         $ok=0; $fail=0; $aborted=$false; $abortedScript=$null; $stoppedByUser=$false
+        $total=@($pathsList).Count; $idx=0
+        try {
         foreach ($scriptPath in $pathsList) {
             Write-Log "── $(Split-Path $scriptPath -Leaf)"
+            $idx++; Set-Progress ([double]$idx / [double]([Math]::Max(1, $total)))
             try {
                 $res = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 3 -TimeoutSec (Get-ScriptTimeout $scriptPath) -Control $batchControl
                 if ($res) { Write-Log "   ✓ Готово" -Color "Green"; $ok++ }
@@ -301,6 +304,7 @@ function Run-SelectedScripts {
         }
         Write-Log "══════════════════════════════════════"
         if (-not $aborted -and $reboot) { Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force }
+        } finally { Clear-Progress }
     } -Variables @{ pathsList=$pathsList; reboot=$reboot; batchControl=$script:BatchControl } -OnComplete {
         Invoke-OnUI { Reset-RunButton }
     }

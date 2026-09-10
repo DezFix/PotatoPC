@@ -43,6 +43,47 @@ function Get-LogConsoleColor {
     }
 }
 
+function Set-Progress {
+    # Фон->UI: доля 0..1 или -1 = неопределённый (бегущий). Видно в шапке консоли и таскбаре.
+    param([double]$Value = -1)
+    try {
+        if ($Value -lt 0) { Set-BgResult -Key 'progress' -Value @{ Mode = 'Marquee'; Value = 0 } }
+        elseif ($Value -ge 1) { Set-BgResult -Key 'progress' -Value @{ Mode = 'None'; Value = 1 } }
+        else { Set-BgResult -Key 'progress' -Value @{ Mode = 'Bar'; Value = $Value } }
+    } catch {}
+}
+
+function Clear-Progress {
+    try { Set-BgResult -Key 'progress' -Value @{ Mode = 'None'; Value = 0 } } catch {}
+}
+
+function Update-ProgressUI {
+    # СТРОГО UI-поток: применяет состояние прогресса к полоске и таскбару.
+    try {
+        $p = $null
+        try { $p = Get-BgResult -Key 'progress' } catch {}
+        $bar = $null
+        try { $bar = $taskProgressBar } catch {}
+        $tbi = $null
+        try { if ($window) { $tbi = $window.TaskbarItemInfo } } catch {}
+        if (-not $p -or $p.Mode -eq 'None') {
+            if ($bar) { $bar.Visibility = 'Collapsed' }
+            if ($tbi) { $tbi.ProgressState = 'None' }
+            return
+        }
+        if ($p.Mode -eq 'Marquee') {
+            if ($bar) { $bar.Visibility = 'Visible'; $bar.IsIndeterminate = $true }
+            if ($tbi) { $tbi.ProgressState = 'Indeterminate' }
+        } else {
+            $v = [double]$p.Value
+            if ($v -lt 0) { $v = 0 }
+            if ($v -gt 1) { $v = 1 }
+            if ($bar) { $bar.Visibility = 'Visible'; $bar.IsIndeterminate = $false; $bar.Value = $v }
+            if ($tbi) { $tbi.ProgressState = 'Normal'; $tbi.ProgressValue = $v }
+        }
+    } catch {}
+}
+
 function Add-LogColoredText {
     # СТРОГО UI-поток: дописывает строку в RichTextBox заданным цветом.
     param($Box, [string]$Text, [string]$ColorName = 'Default')
@@ -640,6 +681,10 @@ function Invoke-Async {
         $ps.AddScript("function Invoke-OnUI {`n$onUISrc`n}") | Out-Null
         $bgResSrc = ${function:Set-BgResult}.ToString()
         $ps.AddScript("function Set-BgResult {`n$bgResSrc`n}") | Out-Null
+        $setPrgSrc = ${function:Set-Progress}.ToString()
+        $ps.AddScript("function Set-Progress {`n$setPrgSrc`n}") | Out-Null
+        $clrPrgSrc = ${function:Clear-Progress}.ToString()
+        $ps.AddScript("function Clear-Progress {`n$clrPrgSrc`n}") | Out-Null
     } catch {}
     if ($LogBox) { try { $rs.SessionStateProxy.SetVariable("bpDispatcher", $LogBox.Dispatcher) } catch {} }
     $ps.AddScript($ScriptBlock) | Out-Null

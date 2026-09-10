@@ -507,6 +507,7 @@
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Border x:Name="LogHeaderBorder" Background="#1c1c21" Padding="8,3">
+                        <StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
@@ -524,6 +525,8 @@
                                 </Button>
                             </StackPanel>
                         </Grid>
+                        <ProgressBar x:Name="TaskProgressBar" Height="3" Minimum="0" Maximum="1" Value="0" Margin="0,5,0,1" Background="Transparent" Foreground="#6c63ff" BorderThickness="0" Visibility="Collapsed" IsIndeterminate="False"/>
+                        </StackPanel>
                     </Border>
                     <RichTextBox x:Name="LogOutput" Grid.Row="1" Background="#141417" Foreground="#d4d4e4" FontFamily="Consolas" FontSize="12"
                               BorderThickness="0" Padding="10,4" IsReadOnly="True" VerticalScrollBarVisibility="Auto"/>

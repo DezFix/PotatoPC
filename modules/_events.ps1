@@ -201,11 +201,14 @@ $installAppsBtn.Add_Click({
     Invoke-Async -ScriptBlock {
         $wg = Get-WingetPath
         $ok = 0; $fail = 0; $i = 0
+        $total=@($idList).Count
         Write-Log "Не закрывай окно: большие пакеты ставятся молча по несколько минут."
+        try {
         foreach ($id in $idList) {
             $i++
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
-            Write-Log "⏳ Установка [$i/$($idList.Count)]: $id..."
+            Write-Log "⏳ Установка [$i/$total]: $id..."
+            Set-Progress ([double]$i / [double]([Math]::Max(1, $total)))
             & $wg install --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
                 ForEach-Object { Write-Log "   $_" }
             $sw.Stop()
@@ -215,6 +218,7 @@ $installAppsBtn.Add_Click({
         }
         Write-Log "══ Установка завершена: ✓$ok$(if($fail -gt 0){ `" ✗$fail`" }) ══"
         Set-BgResult -Key 'appsRefresh' -Value $true
+        } finally { Clear-Progress }
     } -Variables @{ idList = $idList }
 })
 $selectAllAppsBtn.Add_Click({ foreach($cb in $script:AppCheckboxes.Values){$cb.IsChecked=$true}; Update-AppsCount })
@@ -241,6 +245,7 @@ $hiddenUpdatesBtn.Add_Click({
 # ═══ Очередь фон->UI: таймер забирает готовые результаты из шины ═══
 function Test-BgQueue {
     Drain-BgLog
+    try { Update-ProgressUI } catch {}
     if (-not $script:PanelsBuilt) {
         if (Get-BgResult -Key 'init') {
             $script:PanelsBuilt = $true
@@ -295,6 +300,7 @@ function Test-BgQueue {
         }
         $cpins = @(); try { $cpins = @($script:UpdatesCache.PinnedItems) } catch {}
         Render-UpdatesPanel -Packages @($up.Data) -PinnedItems $cpins
+        try { Clear-Progress } catch {}
     }
     if (Get-BgResult -Key 'updatesRefresh') {
         Set-BgResult -Key 'updatesRefresh' -Value $null
@@ -314,6 +320,7 @@ function Test-BgQueue {
                     if ($ctl -is [System.Windows.Controls.Image]) { $ctl.Source = $it.Img }
                 }
             }
+            try { Clear-Progress } catch {}
         } catch {}
     }
     $ui = Get-BgResult -Key 'updateIcons'
@@ -342,6 +349,7 @@ function Test-BgQueue {
                 }
             }
             if ($n -gt 0) { Write-Log "Установлено приложений из списка: $n" }
+            try { Clear-Progress } catch {}
         } catch {}
     }
     $ar = Get-BgResult -Key 'auditReport'
@@ -358,6 +366,7 @@ function Test-BgQueue {
             if ($script:AuditOpenBtn -and $script:LastAuditReport -and (Test-Path $script:LastAuditReport)) {
                 $script:AuditOpenBtn.IsEnabled = $true
             }
+            try { Clear-Progress } catch {}
         } catch {}
     }
     if (Get-BgResult -Key 'rebuildScripts') {
@@ -378,6 +387,11 @@ function Test-BgQueue {
 # ═══ Окно загружено — финальная инициализация ═══
 $window.Add_Loaded({
     try { Enable-DarkTitleBar -Window $window } catch {}
+    try {
+        if (-not $window.TaskbarItemInfo) {
+            $window.TaskbarItemInfo = New-Object System.Windows.Shell.TaskbarItemInfo
+        }
+    } catch {}
     $scriptsFolderText.Text = $script:ScriptsFolder
     Write-Log "PotatoPC Optimizer v5.0 (Sidebar 2026, локально, без пуша) запущен"
     Write-Log "Система: $((Get-SystemInfo).OS)"

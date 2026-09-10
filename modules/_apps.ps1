@@ -161,6 +161,7 @@ function Build-AppsPanel {
         }
     }
     Update-AppsCount
+    Set-Progress
     # Фоновая сверка установленных (winget list): бейджи + пропуск при установке.
     Start-Background {
         try {

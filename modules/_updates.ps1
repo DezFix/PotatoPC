@@ -221,13 +221,16 @@ function Render-UpdatesPanel {
             $singleId=$this.Tag; $singleBtn=$this
             $singleBtn.IsEnabled=$false
             Write-Log ("Обновление: " + $singleId)
+            Set-Progress
             Invoke-Async -ScriptBlock {
+                try {
                 $wg=Get-WingetPath
                 & $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
                     ForEach-Object { Write-Log ("   " + $_) }
                 if ($LASTEXITCODE -eq 0) { Write-Log ("Готово: " + $id) -Color "Green" }
                 else { Write-Log ("Ошибка $id (код $LASTEXITCODE)") -Color "Red" }
                 Set-BgResult -Key 'updatesRefresh' -Value $true
+                } finally { Clear-Progress }
             } -Variables @{ id=$singleId }
         })
         [System.Windows.Controls.Grid]::SetColumn($oneBtn,4)
@@ -243,12 +246,15 @@ function Render-UpdatesPanel {
         $pinBtn.Add_Click({
             $pinId=$this.Tag
             Write-Log ("Скрываю обновление: " + $pinId)
+            Set-Progress
             Invoke-Async -ScriptBlock {
+                try {
                 $wg=Get-WingetPath
                 & $wg pin add --id $id 2>&1 | ForEach-Object { Write-Log ("   " + $_) }
                 if ($LASTEXITCODE -eq 0) { Write-Log ("Скрыто: " + $id) -Color "Green" }
                 else { Write-Log ("Не вышло скрыть $id (код $LASTEXITCODE)") -Color "Yellow" }
                 Set-BgResult -Key 'updatesRefresh' -Value $true
+                } finally { Clear-Progress }
             } -Variables @{ id=$pinId }
         })
         [System.Windows.Controls.Grid]::SetColumn($pinBtn,5)
@@ -284,13 +290,15 @@ function Render-UpdatesPanel {
             $unBtn.Add_Click({
                 $unId=$this.Tag
                 Write-Log ("Возвращаю обновление: " + $unId)
-                Invoke-Async -ScriptBlock {
-                    $wg=Get-WingetPath
-                    & $wg pin remove --id $id 2>&1 | ForEach-Object { Write-Log ("   " + $_) }
-                    if ($LASTEXITCODE -eq 0) { Write-Log ("Вернуто: " + $id) -Color "Green" }
-                    else { Write-Log ("Не вышло вернуть $id (код $LASTEXITCODE)") -Color "Yellow" }
-                    Set-BgResult -Key 'updatesRefresh' -Value $true
-                } -Variables @{ id=$unId }
+            Invoke-Async -ScriptBlock {
+                try {
+                $wg=Get-WingetPath
+                & $wg pin remove --id $id 2>&1 | ForEach-Object { Write-Log ("   " + $_) }
+                if ($LASTEXITCODE -eq 0) { Write-Log ("Вернуто: " + $id) -Color "Green" }
+                else { Write-Log ("Не вышло вернуть $id (код $LASTEXITCODE)") -Color "Yellow" }
+                Set-BgResult -Key 'updatesRefresh' -Value $true
+                } finally { Clear-Progress }
+            } -Variables @{ id=$unId }
             })
             [System.Windows.Controls.Grid]::SetColumn($unBtn,1)
             $hg2.Children.Add($unBtn) | Out-Null
@@ -329,6 +337,7 @@ function Build-UpdatesPanel {
     $script:UpdateCheckboxes.Clear()
     $script:UpdateIconImgs = @{}
     $updateStatusText.Text = "Идёт проверка обновлений..."; $updateCountText.Text = ""
+    Set-Progress
     Start-Background {
         try {
             $wg = Get-WingetPath
@@ -370,11 +379,14 @@ function Install-SelectedUpdates {
     Invoke-Async -ScriptBlock {
         $wg = Get-WingetPath
         $ok = 0; $fail = 0; $i = 0
+        $total=@($idList).Count
         Write-Log "Не закрывай окно: большие пакеты ставятся молча по несколько минут."
+        try {
         foreach ($id in $idList) {
             $i++
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
-            Write-Log "⬆ [$i/$($idList.Count)] $id..."
+            Write-Log "⬆ [$i/$total] $id..."
+            Set-Progress ([double]$i / [double]([Math]::Max(1, $total)))
             & $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
                 ForEach-Object { Write-Log "   $_" }
             $sw.Stop()
@@ -384,6 +396,7 @@ function Install-SelectedUpdates {
         }
         Write-Log "══ Обновление завершено: ✓$ok$(if($fail -gt 0){ `" ✗$fail`" }) ══"
         Set-BgResult -Key 'updatesRefresh' -Value $true
+        } finally { Clear-Progress }
     } -Variables @{ idList = $idList }
 }
 
@@ -448,12 +461,15 @@ function Show-HiddenUpdatesDialog {
             Write-Log ("Возвращаю обновление: " + $unId)
             try { $ubList.Children.Remove($ubRow) } catch {}
             if ($ubList.Children.Count -eq 0) { try { $ubDlg.Close() } catch {} }
+            Set-Progress
             Invoke-Async -ScriptBlock {
-                $wg = Get-WingetPath
+                try {
+                $wg=Get-WingetPath
                 & $wg pin remove --id $id 2>&1 | ForEach-Object { Write-Log ("   " + $_) }
                 if ($LASTEXITCODE -eq 0) { Write-Log ("Вернуто: " + $id) -Color "Green" }
                 else { Write-Log ("Не вышло вернуть $id (код $LASTEXITCODE)") -Color "Yellow" }
                 Set-BgResult -Key 'updatesRefresh' -Value $true
+                } finally { Clear-Progress }
             } -Variables @{ id = $unId }
         }.GetNewClosure())
         [System.Windows.Controls.Grid]::SetColumn($ub, 1)

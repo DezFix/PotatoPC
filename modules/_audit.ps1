@@ -177,6 +177,7 @@ function Test-DiskSpeed {
 # Экспресс-аудит целиком: выполняется в фоне, пишет в лог и сохраняет отчёт.
 function Start-ExpressAudit {
     Write-Log "══ Экспресс-аудит запущен (только чтение, 5-15 мин) ══"
+    Set-Progress
     Start-Background {
         $rep = [System.Collections.Generic.List[string]]::new()
         $script:warnCount = 0; $script:errCount = 0

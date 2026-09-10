@@ -4,6 +4,7 @@ function Initialize-Controls {
     param([System.Windows.Window]$Window)
     $map = @{
         LogBox              = "LogOutput"
+        TaskProgressBar     = "TaskProgressBar"
         ScriptsPanel        = "ScriptsPanel"
         AppsPanel           = "AppsPanel"
         SysPanel            = "SysPanel"
