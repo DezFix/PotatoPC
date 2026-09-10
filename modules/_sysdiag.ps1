@@ -204,7 +204,7 @@ function Build-DiagPanel {
     $script:AuditStatusLbl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0"); $script:AuditStatusLbl.Text=""
     $arow.Children.Add($script:AuditStatusLbl) | Out-Null
     $adsc=[System.Windows.Controls.TextBlock]::new()
-    $adsc.Text="SMART, SFC-проверка, DISM, перезагрузка, обновления, журналы, дампы, службы, драйверы, Defender, диски, память, сеть. Только чтение, 5-15 мин. Отчёт сохраняется в рабочую папку."
+    $adsc.Text="SMART, SFC-проверка, DISM, перезагрузка, обновления, журналы, дампы, службы, драйверы, Defender, диски, CPU, память по слотам, видео, батарея с износом, сеть. Только чтение, 5-15 мин. Отчёт сохраняется в рабочую папку."
     $adsc.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#b8b8cc"); $adsc.FontSize=11; $adsc.Margin=[System.Windows.Thickness]::new(0,3,0,0); $adsc.TextWrapping="Wrap"
     $atxt.Children.Add($arow) | Out-Null; $atxt.Children.Add($adsc) | Out-Null
     [System.Windows.Controls.Grid]::SetColumn($atxt,1); $ag.Children.Add($atxt) | Out-Null
@@ -248,48 +248,60 @@ function Build-DiagPanel {
 
     $tests = @(
         @{ Group="Быстрые проверки (без изменений)"; Title="SMART всех дисков"; Desc="Здоровье, температура, наработка и ошибки чтения/записи через Storage API."; IconSlot="devices/drive"; Color="#2da86a"
-           Action={ Start-Background { $ss=@(Get-SmartAll); if ($ss.Count -eq 0) { Write-Log "SMART недоступен" -Color "Yellow"; return }; foreach ($s in $ss) { Write-Log ("{0} [{1}]: {2}{3}{4}" -f $s.Disk,$s.Media,$s.Health, $(if($s.Temp){" $($s.Temp)C"}else{""}), $(if($s.Hours){" $($s.Hours)ч"}else{""})) } } } }
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ SMART всех дисков'; $ss=@(Get-SmartAll); if ($ss.Count -eq 0) { Write-Log "SMART недоступен" -Color "Yellow"; Write-Log ('═' * 44); return }; foreach ($s in $ss) { Write-Log ("{0} [{1}]: {2}{3}{4}" -f $s.Disk,$s.Media,$s.Health, $(if($s.Temp){" $($s.Temp)C"}else{""}), $(if($s.Hours){" $($s.Hours)ч"}else{""})) }; Write-Log ('═' * 44) } } }
         @{ Group="Быстрые проверки (без изменений)"; Title="SFC-проверка (verifyonly)"; Desc="Только проверка целостности, без восстановления. 3-10 минут."; IconSlot="actions/search"; Color="#4a90d9"
-           Action={ Start-Background { Write-Log "SFC /verifyonly..."; $o=sfc /verifyonly 2>&1|Out-String; ($o -split "`n" | Where-Object {$_ -match "\S"} | Select-Object -Last 4) | ForEach-Object {Write-Log "  $_"} } } }
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ SFC-проверка'; Write-Log "SFC /verifyonly..."; $o=sfc /verifyonly 2>&1|Out-String; ($o -split "`n" | Where-Object {$_ -match "\S"} | Select-Object -Last 4) | ForEach-Object {Write-Log "  $_"}; Write-Log ('═' * 44) } } }
         @{ Group="Быстрые проверки (без изменений)"; Title="DISM CheckHealth"; Desc="Быстрая проверка образа Windows (секунды, без изменений)."; IconSlot="actions/restore"; Color="#7c63ff"
-           Action={ Start-Background { $o=DISM /Online /Cleanup-Image /CheckHealth 2>&1|Out-String; ($o -split "`n" | Where-Object {$_ -match "\S"} | Select-Object -Last 4) | ForEach-Object {Write-Log "  $_"}; Write-Log "DISM CheckHealth завершён" -Color "Green" } } }
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ DISM CheckHealth'; $o=DISM /Online /Cleanup-Image /CheckHealth 2>&1|Out-String; ($o -split "`n" | Where-Object {$_ -match "\S"} | Select-Object -Last 4) | ForEach-Object {Write-Log "  $_"}; Write-Log "DISM CheckHealth завершён" -Color "Green"; Write-Log ('═' * 44) } } }
         @{ Group="Быстрые проверки (без изменений)"; Title="CHKDSK C: (чтение)"; Desc="Проверка ФС без исправлений и без перезагрузки. 2-10 минут."; IconSlot="apps/terminal"; Color="#2da86a"
-           Action={ Start-Background { Write-Log "CHKDSK C: (только чтение)..."; $o=chkdsk C: 2>&1|Out-String; ($o -split "`n" | Where-Object {$_ -match "\S"} | Select-Object -Last 6) | ForEach-Object {Write-Log "  $_"} } } }
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ CHKDSK C:'; Write-Log "CHKDSK C: (только чтение)..."; $o=chkdsk C: 2>&1|Out-String; ($o -split "`n" | Where-Object {$_ -match "\S"} | Select-Object -Last 6) | ForEach-Object {Write-Log "  $_"}; Write-Log ('═' * 44) } } }
         @{ Group="Быстрые проверки (без изменений)"; Title="Ожидание перезагрузки"; Desc="CBS, WindowsUpdate, PendingFileRename, pending.xml. Мгновенно."; IconSlot="status/warn"; Color="#d4a017"
-           Action={ $pr=@(Test-PendingReboot); if ($pr.Count -eq 0) { Write-Log "Перезагрузка не требуется" -Color "Green" } else { Write-Log ("Требуется перезагрузка: " + ($pr -join ", ")) -Color "Yellow" } } }
+           Action={ Write-Log ('═' * 44); Write-Log '▶ Ожидание перезагрузки'; $pr=@(Test-PendingReboot); if ($pr.Count -eq 0) { Write-Log "Перезагрузка не требуется" -Color "Green" } else { Write-Log ("Требуется перезагрузка: " + ($pr -join ", ")) -Color "Yellow" }; Write-Log ('═' * 44) } }
         @{ Group="Быстрые проверки (без изменений)"; Title="Сбои обновлений (14 дней)"; Desc="История Windows Update: failed/aborted за 2 недели."; IconSlot="apps/nav_updates"; Color="#4a90d9"
-           Action={ $uf=@(Get-UpdateFailures -Days 14); if ($uf.Count -eq 0) { Write-Log "Сбоев обновлений за 14 дней нет" -Color "Green" } else { Write-Log ("Сбоев: " + $uf.Count) -Color "Red"; $uf | Select-Object -First 5 | ForEach-Object { Write-Log ("  {0:dd.MM} [{1}] {2}" -f $_.Date,$_.Result,$_.Title) } } } }
+           Action={ Write-Log ('═' * 44); Write-Log '▶ Сбои обновлений'; $uf=@(Get-UpdateFailures -Days 14); if ($uf.Count -eq 0) { Write-Log "Сбоев обновлений за 14 дней нет" -Color "Green" } else { Write-Log ("Сбоев: " + $uf.Count) -Color "Red"; $uf | Select-Object -First 5 | ForEach-Object { Write-Log ("  {0:dd.MM} [{1}] {2}" -f $_.Date,$_.Result,$_.Title) } }; Write-Log ('═' * 44) } }
         @{ Group="Быстрые проверки (без изменений)"; Title="Статус Defender"; Desc="Режим, возраст сигнатур. Без сканирования."; IconSlot="status/password"; Color="#7c63ff"
-           Action={ $ds=Get-DefenderStatus; if (-not $ds.Ok) { Write-Log "Defender недоступен (сторонний АВ?)" -Color "Yellow" } else { Write-Log ("Defender: $($ds.Mode), сигнатуры $($ds.SigAge) дн. назад") -Color "Green" } } }
-        @{ Group="Быстрые проверки (без изменений)"; Title="Батарея"; Desc="Заряд и статус через CIM. На ПК без батареи так и скажет."; IconSlot="actions/power"; Color="#d4a017"
-           Action={ try { $b=@(Get-CimInstance Win32_Battery -ErrorAction Stop); if ($b.Count -eq 0) { Write-Log "Батареи нет (стационарный ПК)" } else { $b | ForEach-Object { Write-Log ("Батарея: {0}% (статус {1})" -f $_.EstimatedChargeRemaining,$_.BatteryStatus) -Color "Green" } } } catch { Write-Log "Нет данных о батарее" -Color "Yellow" } } }
+           Action={ Write-Log ('═' * 44); Write-Log '▶ Статус Defender'; $ds=Get-DefenderStatus; if (-not $ds.Ok) { Write-Log "Defender недоступен (сторонний АВ?)" -Color "Yellow" } else { Write-Log ("Defender: $($ds.Mode), сигнатуры $($ds.SigAge) дн. назад") -Color "Green" }; Write-Log ('═' * 44) } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="Батарея"; Desc="Заряд и износ через CIM. На ПК без батареи так и скажет."; IconSlot="actions/power"; Color="#d4a017"
+           Action={ Write-Log ('═' * 44); Write-Log '▶ Батарея'; try { $b=@(Get-BatteryWear -ErrorAction Stop); if ($b.Count -eq 0) { Write-Log "Батареи нет (стационарный ПК)" } else { $b | ForEach-Object { $w=if($null -ne $_.WearPct){" износ $($_.WearPct)%"}else{""}; if($null -ne $_.WearPct -and $_.WearPct -ge 40){Write-Log ("Батарея: {0}%{1} — сильно изношена" -f $_.EstimatedChargeRemaining,$w) -Color "Yellow"}else{Write-Log ("Батарея: {0}%{1}" -f $_.EstimatedChargeRemaining,$w) -Color "Green"} } } } catch { Write-Log "Нет данных о батарее" -Color "Yellow" }; Write-Log ('═' * 44) } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="Процессор"; Desc="Модель, ядра/потоки и текущая нагрузка."; IconSlot="devices/hw_cpu"; Color="#4a90d9"
+           Action={ Write-Log ('═' * 44); Write-Log '▶ Процессор'; $cc=@(Get-CpuInfo); if ($cc.Count -eq 0) { Write-Log "Нет данных о CPU" -Color "Yellow" } else { $c=$cc[0]; Write-Log ("CPU: {0}" -f $c.Name.Trim()) -Color "Green"; Write-Log ("  Ядер: {0} / потоков: {1}, до {2} МГц, нагрузка {3}%" -f $c.NumberOfCores,$c.NumberOfLogicalProcessors,$c.MaxClockSpeed,$c.LoadPercentage) }; Write-Log ('═' * 44) } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="Память подробно"; Desc="Планки, частоты и занятость памяти."; IconSlot="devices/hw_memory"; Color="#7c63ff"
+           Action={ Write-Log ('═' * 44); Write-Log '▶ Память'; $ss=@(Get-RamDetails); if ($ss.Count -eq 0) { Write-Log "Нет данных SPD" -Color "Yellow" } else { $ss | ForEach-Object { Write-Log ("RAM {0}: {1} ГБ, {2} МГц" -f $_.DeviceLocator,$_.SizeGB,$_.SpeedMHz) -Color "Green" }; try { $os=Get-CimInstance Win32_OperatingSystem -ErrorAction Stop; Write-Log ("  Занято сейчас: {0}%" -f [math]::Round(100*(1-$os.FreePhysicalMemory/$os.TotalVisibleMemorySize))) } catch {} }; Write-Log ('═' * 44) } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="Видео"; Desc="Видеокарта, память, драйвер и режим экрана."; IconSlot="devices/display"; Color="#2da86a"
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Видео'; $gg=@(Get-GpuInfo); if ($gg.Count -eq 0) { Write-Log "Видеокарта не найдена" -Color "Yellow"; Write-Log ('═' * 44); return }; foreach ($g in $gg) { $v=if($g.VRAM_GB){" VRAM $($g.VRAM_GB) ГБ"}else{""}; $m=if($g.CurrentHorizontalResolution){" $($g.CurrentHorizontalResolution)x$($g.CurrentVerticalResolution)@$($g.CurrentRefreshRate)Гц"}else{""}; Write-Log ("Видео: {0}{1}{2}" -f $g.Name.Trim(),$v,$m) -Color "Green"; Write-Log ("  Драйвер: {0} от {1:dd.MM.yyyy}" -f $g.DriverVersion,$g.DriverDate) }; Write-Log ('═' * 44) } } }
+        @{ Group="Быстрые проверки (без изменений)"; Title="Скорость диска"; Desc="Запись+чтение 64 МБ во временной папке. Безопасно для SSD."; IconSlot="devices/drive"; Color="#d4601a"
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Скорость диска'; Write-Log "Замеряю диск C:..."; $sp=Test-DiskSpeed -MB 64; if (-not $sp) { Write-Log "Не удалось замерить" -Color "Yellow"; Write-Log ('═' * 44); return }; Write-Log ("Диск C: запись {0} МБ/с, чтение {1} МБ/с" -f $sp.WriteMBs,$sp.ReadMBs) -Color "Green"; if ($sp.WriteMBs -ge 300) { Write-Log "  Уровень SSD — отлично" -Color "Green" } elseif ($sp.WriteMBs -ge 80) { Write-Log "  Обычная скорость" } else { Write-Log "  Медленно — проверь здоровье диска (SMART)" -Color "Yellow" }; Write-Log ('═' * 44) } } }
         @{ Group="Быстрые проверки (без изменений)"; Title="Сеть: шлюз / DNS / интернет"; Desc="По одному ping: шлюз, 1.1.1.1, 8.8.8.8."; IconSlot="devices/network"; Color="#4a90d9"
-           Action={ Start-Background { foreach ($n in (Test-QuickNetwork)) { if ($n.Ok) { Write-Log ("Сеть {0}: {1} OK" -f $n.Name,$n.Note) -Color "Green" } else { Write-Log ("Сеть {0}: {1} НЕТ" -f $n.Name,$n.Note) -Color "Red" } } } } }
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Сеть'; foreach ($n in (Test-QuickNetwork)) { if ($n.Ok) { Write-Log ("Сеть {0}: {1} OK" -f $n.Name,$n.Note) -Color "Green" } else { Write-Log ("Сеть {0}: {1} НЕТ" -f $n.Name,$n.Note) -Color "Red" } }; Write-Log ('═' * 44) } } }
         @{ Group="Журналы и сбои"; Title="Ошибки журналов (24 ч)"; Desc="System + Application, уровни Critical/Error, топ источников."; IconSlot="actions/doc_new"; Color="#d4601a"
-           Action={ Start-Background { $ee=@(Get-RecentEventErrors -Hours 24 -Max 100); Write-Log ("Ошибок System+Application за 24ч: " + $ee.Count); $ee | Group-Object Source | Sort-Object Count -Descending | Select-Object -First 8 | ForEach-Object { Write-Log ("  {0}: {1}" -f $_.Name,$_.Count) } } } }
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Ошибки журналов'; $ee=@(Get-RecentEventErrors -Hours 24 -Max 100); Write-Log ("Ошибок System+Application за 24ч: " + $ee.Count); $ee | Group-Object Source | Sort-Object Count -Descending | Select-Object -First 8 | ForEach-Object { Write-Log ("  {0}: {1}" -f $_.Name,$_.Count) }; Write-Log ('═' * 44) } } }
         @{ Group="Журналы и сбои"; Title="Minidumps (BSOD)"; Desc="Последние 5 дампов из C:\\Windows\\Minidump."; IconSlot="status/err"; Color="#e74c3c"
-           Action={ $dd=@(Get-MiniDumps -Max 5); if ($dd.Count -eq 0) { Write-Log "Minidump-ов нет" -Color "Green" } else { Write-Log ("Minidump-ов: " + $dd.Count) -Color "Red"; $dd | ForEach-Object { Write-Log ("  {0:dd.MM.yyyy HH:mm} {1}" -f $_.LastWriteTime,$_.Name) } } } }
+           Action={ Write-Log ('═' * 44); Write-Log '▶ Minidumps'; $dd=@(Get-MiniDumps -Max 5); if ($dd.Count -eq 0) { Write-Log "Minidump-ов нет" -Color "Green" } else { Write-Log ("Minidump-ов: " + $dd.Count) -Color "Red"; $dd | ForEach-Object { Write-Log ("  {0:dd.MM.yyyy HH:mm} {1}" -f $_.LastWriteTime,$_.Name) } }; Write-Log ('═' * 44) } }
         @{ Group="Журналы и сбои"; Title="Службы автозапуска"; Desc="Службы Auto, которые сейчас не работают."; IconSlot="actions/play"; Color="#d4a017"
-           Action={ $fs=@(Get-FailedAutoServices); if ($fs.Count -eq 0) { Write-Log "Все службы автозапуска работают" -Color "Green" } else { Write-Log ("Не запущено: " + $fs.Count) -Color "Yellow"; $fs | Select-Object -First 8 | ForEach-Object { Write-Log ("  {0} [{1}]" -f $_.Name,$_.State) } } } }
+           Action={ Write-Log ('═' * 44); Write-Log '▶ Службы автозапуска'; $fs=@(Get-FailedAutoServices); if ($fs.Count -eq 0) { Write-Log "Все службы автозапуска работают" -Color "Green" } else { Write-Log ("Не запущено: " + $fs.Count) -Color "Yellow"; $fs | Select-Object -First 8 | ForEach-Object { Write-Log ("  {0} [{1}]" -f $_.Name,$_.State) } }; Write-Log ('═' * 44) } }
         @{ Group="Журналы и сбои"; Title="Драйверы с ошибками"; Desc="Устройства с ConfigManagerErrorCode <> 0."; IconSlot="apps/tools"; Color="#d4601a"
-           Action={ Start-Background { $dp=@(Get-DriverProblems); if ($dp.Count -eq 0) { Write-Log "Устройства без ошибок" -Color "Green" } else { Write-Log ("Устройств с ошибками: " + $dp.Count) -Color "Red"; $dp | Select-Object -First 8 | ForEach-Object { Write-Log ("  {0} (код {1})" -f $_.Name,$_.ConfigManagerErrorCode) } } } } }
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Драйверы'; $dp=@(Get-DriverProblems); if ($dp.Count -eq 0) { Write-Log "Устройства без ошибок" -Color "Green" } else { Write-Log ("Устройств с ошибками: " + $dp.Count) -Color "Red"; $dp | Select-Object -First 8 | ForEach-Object { Write-Log ("  {0} (код {1})" -f $_.Name,$_.ConfigManagerErrorCode) } }; Write-Log ('═' * 44) } } }
         @{ Group="Глубокие тесты (долго, с изменениями)"; Title="Проверка системных файлов (SFC)"; Desc="Сканирует и восстанавливает повреждённые файлы Windows. Занимает 5-15 минут."; IconSlot="status/info"; Color="#4a90d9"
-           Action={ Start-Background { sfc /scannow 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "SFC завершён" -Color "Green" } } }
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ SFC восстановление'; sfc /scannow 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "SFC завершён" -Color "Green"; Write-Log ('═' * 44) } } }
         @{ Group="Глубокие тесты (долго, с изменениями)"; Title="Восстановление Windows (DISM)"; Desc="Восстанавливает образ через Windows Update. Требует интернет. Занимает 10-30 минут."; IconSlot="actions/restore"; Color="#7c63ff"
-           Action={ Start-Background { DISM /Online /Cleanup-Image /RestoreHealth 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "DISM завершён" -Color "Green" } } }
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ DISM восстановление'; DISM /Online /Cleanup-Image /RestoreHealth 2>&1|ForEach-Object{Write-Log "  $_"}; Write-Log "DISM завершён" -Color "Green"; Write-Log ('═' * 44) } } }
         @{ Group="Глубокие тесты (долго, с изменениями)"; Title="Проверка диска C: (CHKDSK)"; Desc="Проверяет ФС на ошибки. Полная проверка - при перезагрузке."; IconSlot="devices/drive"; Color="#2da86a"
            Action={
-               $confirm=[System.Windows.MessageBox]::Show("CHKDSK запланирован на следующую перезагрузку.`nПерезагрузить сейчас?","CHKDSK","YesNo","Question")
-               Start-Process cmd -WindowStyle Hidden -ArgumentList '/c','echo Y|chkdsk C: /f /r' -Wait
-               if($confirm-eq"Yes"){Write-Log "Перезагрузка через 30 сек..."; shutdown /r /t 30 /c "PotatoPC CHKDSK"}
-               else{Write-Log "CHKDSK выполнится при следующей перезагрузке." -Color "Yellow"}
-           } }
+                Write-Log ('═' * 44); Write-Log '▶ CHKDSK с исправлением'
+                $confirm=[System.Windows.MessageBox]::Show("CHKDSK запланирован на следующую перезагрузку.`nПерезагрузить сейчас?","CHKDSK","YesNo","Question")
+                Start-Process cmd -WindowStyle Hidden -ArgumentList '/c','echo Y|chkdsk C: /f /r' -Wait
+                if($confirm-eq"Yes"){Write-Log "Перезагрузка через 30 сек..."; shutdown /r /t 30 /c "PotatoPC CHKDSK"}
+                else{Write-Log "CHKDSK выполнится при следующей перезагрузке." -Color "Yellow"}
+                Write-Log ('═' * 44)
+            } }
         @{ Group="Глубокие тесты (долго, с изменениями)"; Title="Диагностика RAM"; Desc="Windows Memory Diagnostic. Требует перезагрузку."; IconSlot="devices/computer"; Color="#d4601a"
            Action={
-               $confirm=[System.Windows.MessageBox]::Show("Диагностика запустится после перезагрузки.`nПерезагрузить сейчас?","RAM","YesNo","Question")
-               if($confirm-eq"Yes"){Write-Log "Запуск MdSched..."; Start-Process MdSched.exe}
-               else{Write-Log "Диагностика RAM отменена." -Color "Yellow"}
-           } }
+                Write-Log ('═' * 44); Write-Log '▶ Диагностика RAM'
+                $confirm=[System.Windows.MessageBox]::Show("Диагностика запустится после перезагрузки.`nПерезагрузить сейчас?","RAM","YesNo","Question")
+                if($confirm-eq"Yes"){Write-Log "Запуск MdSched..."; Start-Process MdSched.exe}
+                else{Write-Log "Диагностика RAM отменена." -Color "Yellow"}
+                Write-Log ('═' * 44)
+            } }
     )
 
     $curGroup = ""

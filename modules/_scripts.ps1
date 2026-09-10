@@ -58,6 +58,7 @@ function Load-Scripts {
             Category    = $category
             Icon        = "📄"
             Recommended = $false
+            Presets     = @()
             Tag         = 0
             Win11Only   = $false
             Path        = $file.FullName
@@ -67,8 +68,12 @@ function Load-Scripts {
             if ($line -match '^#\s*DESC:\s*(.+)')        { $meta.Desc        = $Matches[1].Trim() }
             if ($line -match '^#\s*ICON:\s*(.+)')        { $meta.Icon        = $Matches[1].Trim() }
             if ($line -match '^#\s*RECOMMENDED:\s*true') { $meta.Recommended = $true }
+            if ($line -match '^#\s*PRESET:\s*(.+)')      { $meta.Presets     = @($Matches[1].Split(',') | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ -ne '' }) }
             if ($line -match '^#\s*TAGS:\s*(\d)')        { $meta.Tag         = [int]$Matches[1].Trim() }
             if ($line -match '^#\s*TAGS:.*win11')        { $meta.Win11Only   = $true }
+        }
+        if ($meta.Recommended -and $meta.Tag -eq 3) {
+            Write-Log "ВНИМАНИЕ: $($meta.Name) помечен RECOMMENDED при TAGS 3 - проверь" -Color Yellow
         }
         $result += $meta
     }
@@ -309,5 +314,28 @@ function Select-RecommendedScripts {
         }
     }
     Write-Log "✓ Выбрано $n рекомендованных скриптов" -Color "Green"
+    Update-SelectedCount
+}
+
+$script:PresetTitles = @{ potato = "Potato (слабый ПК)"; office = "Офис"; game = "Игры" }
+
+function Select-ScriptPreset {
+    param([string]$Preset)
+    $key = $Preset.ToLower().Trim()
+    $title = if ($script:PresetTitles.ContainsKey($key)) { $script:PresetTitles[$key] } else { $Preset }
+    foreach ($cb in $script:ScriptCheckboxes.Values) { $cb.IsChecked = $false }
+    $scripts = Load-Scripts; $n = 0; $skip = 0
+    foreach ($s in $scripts) {
+        if ($s.Win11Only -and $script:WindowsMajorVersion -lt 11) {
+            if ($s.Presets -contains $key) { $skip++ }
+            continue
+        }
+        if (($s.Presets -contains $key) -and $script:ScriptCheckboxes.ContainsKey($s.Path)) {
+            $script:ScriptCheckboxes[$s.Path].IsChecked = $true; $n++
+        }
+    }
+    $msg = "✓ Пресет '$title': выбрано $n скриптов"
+    if ($skip -gt 0) { $msg += " (пропущено только для Win11: $skip)" }
+    Write-Log $msg -Color "Green"
     Update-SelectedCount
 }

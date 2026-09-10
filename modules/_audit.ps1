@@ -117,6 +117,63 @@ function Test-QuickNetwork {
     return $res
 }
 
+# --- Железо: CPU / RAM / GPU / батарея / скорость диска (только чтение) ---
+
+function Get-CpuInfo {
+    try {
+        return @(Get-CimInstance Win32_Processor -ErrorAction Stop | Select-Object -First 1 Name,
+            NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed, LoadPercentage)
+    } catch { return @() }
+}
+
+function Get-RamDetails {
+    try {
+        return @(Get-CimInstance Win32_PhysicalMemory -ErrorAction Stop |
+            Select-Object DeviceLocator, Manufacturer,
+            @{N='SizeGB';E={[math]::Round($_.Capacity/1GB,1)}},
+            @{N='SpeedMHz';E={$_.Speed}})
+    } catch { return @() }
+}
+
+function Get-GpuInfo {
+    try {
+        return @(Get-CimInstance Win32_VideoController -ErrorAction Stop | Select-Object Name,
+            @{N='VRAM_GB';E={ if ($_.AdapterRAM -and $_.AdapterRAM -gt 0) { [math]::Round($_.AdapterRAM/1GB,1) } else { $null } }},
+            DriverVersion, DriverDate, CurrentHorizontalResolution, CurrentVerticalResolution, CurrentRefreshRate, Status)
+    } catch { return @() }
+}
+
+function Get-BatteryWear {
+    try {
+        return @(Get-CimInstance Win32_Battery -ErrorAction Stop | Select-Object EstimatedChargeRemaining, BatteryStatus,
+            DesignCapacity, FullChargeCapacity,
+            @{N='WearPct';E={
+                if ($_.DesignCapacity -and $_.FullChargeCapacity -and $_.DesignCapacity -gt 0) {
+                    [math]::Max(0, 100 - [math]::Round(100 * $_.FullChargeCapacity / $_.DesignCapacity))
+                } else { $null } }})
+    } catch { return @() }
+}
+
+function Test-DiskSpeed {
+    # Быстрый замер во TEMP: запись+чтение 64 МБ, файл удаляется. Безопасно для SSD.
+    param([int]$MB = 64)
+    $file = Join-Path ([System.IO.Path]::GetTempPath()) ('potato-speed-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+    try {
+        $buf = New-Object byte[] (1MB)
+        (New-Object Random).NextBytes($buf)
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $fs = [System.IO.File]::OpenWrite($file)
+        try { for ($i = 0; $i -lt $MB; $i++) { $fs.Write($buf, 0, $buf.Length) } } finally { $fs.Close() }
+        $w = $MB / $sw.Elapsed.TotalSeconds
+        $sw.Restart()
+        $fr = [System.IO.File]::OpenRead($file)
+        try { while ($fr.Read($buf, 0, $buf.Length) -gt 0) {} } finally { $fr.Close() }
+        $r = $MB / $sw.Elapsed.TotalSeconds
+        return @{ WriteMBs = [math]::Round($w, 1); ReadMBs = [math]::Round($r, 1) }
+    } catch { return $null }
+    finally { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
+}
+
 # Экспресс-аудит целиком: выполняется в фоне, пишет в лог и сохраняет отчёт.
 function Start-ExpressAudit {
     Write-Log "══ Экспресс-аудит запущен (только чтение, 5-15 мин) ══"
@@ -252,12 +309,66 @@ function Start-ExpressAudit {
                     Select-Object -First 5 | ForEach-Object { Write-Audit ("    - {0}: CPU {1:N0} c, RAM {2:N0} МБ" -f $_.ProcessName, $_.CPU, ($_.WorkingSet64/1MB)) }
             } catch {}
 
+            # --- CPU ---
+            Write-Audit '── Процессор ──'
+            try {
+                $cpu = @(Get-CpuInfo)
+                if ($cpu.Count -eq 0) { Write-Audit '  ⚠ Нет данных о CPU' -Color 'Yellow' -Sev 'warn' }
+                else {
+                    $c = $cpu[0]
+                    Write-Audit ("  ✓ {0} ({1} ядер / {2} потоков, до {3} МГц, нагрузка {4}%)" -f $c.Name.Trim(), $c.NumberOfCores, $c.NumberOfLogicalProcessors, $c.MaxClockSpeed, $c.LoadPercentage) -Color 'Green'
+                }
+            } catch { Write-Audit '  ⚠ Нет данных о CPU' -Color 'Yellow' -Sev 'warn' }
+
+            # --- RAM по слотам ---
+            Write-Audit '── Память по слотам ──'
+            try {
+                $slots = @(Get-RamDetails)
+                if ($slots.Count -eq 0) { Write-Audit '  ⚠ Нет данных SPD' -Color 'Yellow' -Sev 'warn' }
+                else {
+                    $tot = [math]::Round(($slots | Measure-Object SizeGB -Sum).Sum, 1)
+                    Write-Audit ("  ✓ Планок: {0}, всего {1} ГБ" -f $slots.Count, $tot) -Color 'Green'
+                    $slots | ForEach-Object { Write-Audit ("    - {0}: {1} ГБ, {2} МГц" -f $_.DeviceLocator, $_.SizeGB, $_.SpeedMHz) }
+                    if (($slots | Select-Object SpeedMHz -Unique).Count -gt 1) {
+                        Write-Audit '  ⚠ Планки с разной частотой — работают на минимальной' -Color 'Yellow' -Sev 'warn'
+                    }
+                }
+            } catch { Write-Audit '  ⚠ Нет данных SPD' -Color 'Yellow' -Sev 'warn' }
+
+            # --- Видео ---
+            Write-Audit '── Видео ──'
+            try {
+                $gpus = @(Get-GpuInfo)
+                if ($gpus.Count -eq 0) { Write-Audit '  ⚠ Видеокарта не найдена' -Color 'Yellow' -Sev 'warn' }
+                else {
+                    foreach ($g in $gpus) {
+                        $vram = if ($g.VRAM_GB) { ", VRAM $($g.VRAM_GB) ГБ" } else { "" }
+                        $mode = if ($g.CurrentHorizontalResolution) { ", $($g.CurrentHorizontalResolution)x$($g.CurrentVerticalResolution)@$($g.CurrentRefreshRate)Гц" } else { "" }
+                        Write-Audit ("  ✓ {0}{1}{2}" -f $g.Name.Trim(), $vram, $mode) -Color 'Green'
+                        if ($g.DriverDate) {
+                            $dd = [DateTime]$g.DriverDate
+                            $age = [int]((Get-Date) - $dd).TotalDays
+                            if ($age -gt 365) { Write-Audit ("  ⚠ Драйвер видео старше года ({0:dd.MM.yyyy})" -f $dd) -Color 'Yellow' -Sev 'warn' }
+                        }
+                    }
+                }
+            } catch { Write-Audit '  ⚠ Нет данных о видео' -Color 'Yellow' -Sev 'warn' }
+
             # --- Батарея ---
             Write-Audit '── Батарея ──'
             try {
-                $bat = @(Get-CimInstance Win32_Battery -ErrorAction Stop)
+                $bat = @(Get-BatteryWear)
                 if ($bat.Count -eq 0) { Write-Audit '  - Батареи нет (стационарный ПК)' }
-                else { $bat | ForEach-Object { Write-Audit ("  ✓ Заряд: {0}% (статус {1})" -f $_.EstimatedChargeRemaining, $_.BatteryStatus) -Color 'Green' } }
+                else {
+                    foreach ($b in $bat) {
+                        $wear = if ($null -ne $b.WearPct) { ", износ $($b.WearPct)%" } else { "" }
+                        if ($null -ne $b.WearPct -and $b.WearPct -ge 40) {
+                            Write-Audit ("  ⚠ Заряд: {0}%{1} — батарея сильно изношена" -f $b.EstimatedChargeRemaining, $wear) -Color 'Yellow' -Sev 'warn'
+                        } else {
+                            Write-Audit ("  ✓ Заряд: {0}%{1}" -f $b.EstimatedChargeRemaining, $wear) -Color 'Green'
+                        }
+                    }
+                }
             } catch { Write-Audit '  - Нет данных' }
 
             # --- Сеть ---

@@ -16,12 +16,26 @@ $selectAllBtn.Add_Click({
     Update-SelectedCount
 })
 $deselectAllBtn.Add_Click({ foreach($cb in $script:ScriptCheckboxes.Values){$cb.IsChecked=$false}; Update-SelectedCount })
-$selectRecommendedBtn.Add_Click({
-    if (-not (Get-Command Select-RecommendedScripts -ErrorAction SilentlyContinue)) {
+$scriptPresetPotatoBtn.Add_Click({
+    if (-not (Get-Command Select-ScriptPreset -ErrorAction SilentlyContinue)) {
         Write-Log "ОШИБКА: модуль _scripts.ps1 не загружен. Удали $env:TEMP\PotatoPC и перезапусти." -Color Red
         return
     }
-    Select-RecommendedScripts
+    Select-ScriptPreset "potato"
+})
+$scriptPresetOfficeBtn.Add_Click({
+    if (-not (Get-Command Select-ScriptPreset -ErrorAction SilentlyContinue)) {
+        Write-Log "ОШИБКА: модуль _scripts.ps1 не загружен. Удали $env:TEMP\PotatoPC и перезапусти." -Color Red
+        return
+    }
+    Select-ScriptPreset "office"
+})
+$scriptPresetGameBtn.Add_Click({
+    if (-not (Get-Command Select-ScriptPreset -ErrorAction SilentlyContinue)) {
+        Write-Log "ОШИБКА: модуль _scripts.ps1 не загружен. Удали $env:TEMP\PotatoPC и перезапусти." -Color Red
+        return
+    }
+    Select-ScriptPreset "game"
 })
 
 $refreshBtn.Add_Click({
@@ -43,10 +57,10 @@ $openFolderBtn.Add_Click({
     Start-Process explorer.exe $script:ScriptsFolder
 })
 
-$clearLogBtn.Add_Click({ $LogBox.Clear() })
+$clearLogBtn.Add_Click({ try { $LogBox.Document.Blocks.Clear() } catch {} })
 $copyLogBtn.Add_Click({
     try {
-        [System.Windows.Clipboard]::SetText($LogBox.Text)
+        [System.Windows.Clipboard]::SetText((Get-LogPlainText -Box $LogBox))
         Write-Log "✓ Лог скопирован" -Color "Green"
     } catch {
         Write-Log "Не удалось скопировать лог: $_" -Color "Yellow"

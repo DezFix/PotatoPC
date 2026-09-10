@@ -37,6 +37,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/DezFix/PotatoPC/main/Install
 # TAGS: 1,2,3,win11 (1-безопасно 2-осторожно 3-опасно win11-то что работает только на windows11)
 # ICON: Емодзи брать на сайте https://emojidb.org/
 # RECOMMENDED: true (те скрипты что я рекомендую)
+# PRESET: potato,office,game (в какие пресеты входит: potato-слабый ПК, office-работа, game-игры)
 ```
 
 ## Атрибуция

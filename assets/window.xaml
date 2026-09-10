@@ -41,6 +41,9 @@
         <Style x:Key="BtnDanger" TargetType="Button" BasedOn="{StaticResource BtnPrimary}">
             <Setter Property="Background" Value="#8b1a1a"/>
         </Style>
+        <Style x:Key="BtnNavy" TargetType="Button" BasedOn="{StaticResource BtnPrimary}">
+            <Setter Property="Background" Value="#1a3a5c"/>
+        </Style>
         <Style x:Key="BtnSmall" TargetType="Button" BasedOn="{StaticResource BtnSecondary}">
             <Setter Property="Height" Value="24"/><Setter Property="FontSize" Value="10"/><Setter Property="Padding" Value="8,0"/>
         </Style>
@@ -256,7 +259,9 @@
                                     <CheckBox.Content><TextBlock Text="Перезагрузить после" Foreground="#a8a8c8" FontSize="11" VerticalAlignment="Center"/></CheckBox.Content>
                                 </CheckBox>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Content="⭐ Рекомендованное" x:Name="SelectRecommendedBtn" Style="{StaticResource BtnGold}" Margin="0,0,5,0" Height="26" FontSize="11" Width="132"/>
+                                    <Button Content="🥔 Potato" x:Name="ScriptPresetPotatoBtn" Style="{StaticResource BtnGold}" Margin="0,0,5,0" Height="26" FontSize="11" Padding="12,0" ToolTip="Всё для слабого ПК"/>
+                                    <Button Content="💼 Офис" x:Name="ScriptPresetOfficeBtn" Style="{StaticResource BtnNavy}" Margin="0,0,5,0" Height="26" FontSize="11" Padding="12,0" ToolTip="Причесать ПК для работы"/>
+                                    <Button Content="🎮 Игры" x:Name="ScriptPresetGameBtn" Style="{StaticResource BtnDanger}" Margin="0,0,5,0" Height="26" FontSize="11" Padding="12,0" ToolTip="Настроить ПК для игр"/>
                                     <Button Content="✓ Все" x:Name="SelectAllBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,5,0" Height="26" FontSize="11" Width="60"/>
                                     <Button Content="✗ Снять" x:Name="DeselectAllBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,8,0" Height="26" FontSize="11" Width="62"/>
                                     <Button Content="▶ Запустить" x:Name="RunScriptsBtn" Style="{StaticResource BtnPrimary}" Height="26" FontSize="12" Padding="14,5"/>
@@ -511,8 +516,8 @@
                             </StackPanel>
                         </Grid>
                     </Border>
-                    <TextBox x:Name="LogOutput" Grid.Row="1" Background="#141417" Foreground="#4ade80" FontFamily="Consolas" FontSize="12"
-                             BorderThickness="0" Padding="10,4" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True"/>
+                    <RichTextBox x:Name="LogOutput" Grid.Row="1" Background="#141417" Foreground="#d4d4e4" FontFamily="Consolas" FontSize="12"
+                              BorderThickness="0" Padding="10,4" IsReadOnly="True" VerticalScrollBarVisibility="Auto"/>
                 </Grid>
             </Border>
         </Grid>

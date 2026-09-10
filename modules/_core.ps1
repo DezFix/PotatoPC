@@ -5,10 +5,90 @@ if (-not $global:BgLogQueue) {
     $global:BgLogQueue = [System.Collections.Queue]::Synchronized((New-Object System.Collections.Queue))
 }
 
+$script:LogColors = @{
+    Green   = '#4ade80'
+    Red     = '#f87171'
+    Yellow  = '#fbbf24'
+    Orange  = '#fb9231'
+    Blue    = '#60a5fa'
+    Cyan    = '#22d3ee'
+    Gray    = '#9ca3af'
+    Default = '#d4d4e4'
+}
+
+function Get-LogAutoColor {
+    # Linux-style: цвет по маркерам строки, если вызывающий цвет не указал.
+    param([string]$m)
+    if ([string]::IsNullOrEmpty($m)) { return 'Default' }
+    if ($m -match '═══') { return 'Blue' }
+    if ($m -match '✗|\[X\]|✖|КРИТИЧНО|ОШИБКА|Ошибк|ERROR|не удалось|Не удалось|ПРЕРВАНО| НЕТ\b') { return 'Red' }
+    if ($m -match '⚠|\[!\]|ВНИМАНИЕ|пропущ|Пропущ|отмен|Отмен') { return 'Orange' }
+    if ($m -match '✓|\[OK\]|Готово|готово|Готов|Успешно|успешно|заверш|Заверш|скопирован|Скопирован') { return 'Green' }
+    if ($m -match '──|\[\*\]|▶') { return 'Cyan' }
+    if ($m -match '^\[=\]|уже настроено|Нет данных|нет данных|не найден|не найдена|пропускаю|Пропускаю|не требуется|не требуется') { return 'Gray' }
+    return 'Default'
+}
+
+function Get-LogConsoleColor {
+    param([string]$color)
+    switch ($color) {
+        "Green"  { "Green" }
+        "Red"    { "Red" }
+        "Yellow" { "Yellow" }
+        "Orange" { "DarkYellow" }
+        "Blue"   { "Cyan" }
+        "Cyan"   { "Cyan" }
+        "Gray"   { "Gray" }
+        default  { "White" }
+    }
+}
+
+function Add-LogColoredText {
+    # СТРОГО UI-поток: дописывает строку в RichTextBox заданным цветом.
+    param($Box, [string]$Text, [string]$ColorName = 'Default')
+    try {
+        $hex = $script:LogColors[$ColorName]
+        if (-not $hex) { $hex = $script:LogColors['Default'] }
+        $doc = $Box.Document
+        $para = $null
+        if ($doc.Blocks.Count -gt 0) { $para = $doc.Blocks.LastBlock }
+        if (-not ($para -is [System.Windows.Documents.Paragraph])) {
+            $para = New-Object System.Windows.Documents.Paragraph
+            $para.Margin = [System.Windows.Thickness]::new(0)
+            $doc.Blocks.Add($para) | Out-Null
+        }
+        $stamp = ''
+        $body = $Text
+        if ($Text -match '^(\[\d{2}:\d{2}:\d{2}\])\s?(.*)$') {
+            $stamp = $Matches[1] + ' '
+            $body = $Matches[2]
+        }
+        if ($stamp -ne '') {
+            $rs = New-Object System.Windows.Documents.Run($stamp)
+            $rs.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom('#6a6a85')
+            $para.Inlines.Add($rs) | Out-Null
+        }
+        $run = New-Object System.Windows.Documents.Run($body + "`r`n")
+        $run.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($hex)
+        $para.Inlines.Add($run) | Out-Null
+        while ($doc.Blocks.Count -gt 2000) { $doc.Blocks.Remove($doc.Blocks.FirstBlock) }
+        $Box.ScrollToEnd()
+    } catch {}
+}
+
+function Get-LogPlainText {
+    # СТРОГО UI-поток: весь текст лога для копирования.
+    param($Box)
+    try {
+        $tr = New-Object System.Windows.Documents.TextRange($Box.Document.ContentStart, $Box.Document.ContentEnd)
+        return $tr.Text
+    } catch { return '' }
+}
+
 function Write-LogLine {
     # Низкоуровневая доставка строки: файл + (UI-напрямую | очередь для поллера).
     # Никаких делегатов в чужой поток — только данные.
-    param([string]$line)
+    param([string]$line, [string]$color = 'Default')
     try {
         $lp = $null
         try { $lp = $script:LogPath } catch {}
@@ -19,7 +99,7 @@ function Write-LogLine {
         $box = $null
         try { $box = $LogBox } catch {}
         if ($box -and $box.Dispatcher -and $box.Dispatcher.CheckAccess()) {
-            $box.AppendText("$line`n"); $box.ScrollToEnd()
+            Add-LogColoredText -Box $box -Text $line -ColorName $color
             $delivered = $true
         }
     } catch {}
@@ -30,7 +110,7 @@ function Write-LogLine {
             if (-not $q) { try { $q = $global:BgLogQueue } catch {} }
             if ($q) {
                 if ($q.Count -gt 5000) { try { $q.Dequeue() | Out-Null } catch {} }
-                $q.Enqueue($line)
+                $q.Enqueue(@{ T = $line; C = $color })
             }
         } catch {}
     }
@@ -38,15 +118,20 @@ function Write-LogLine {
 
 function Write-Log {
     param([string]$msg, [string]$color = "Default")
+    if ([string]::IsNullOrWhiteSpace($msg)) { return }
+    if ([string]::IsNullOrEmpty($color) -or $color -eq 'Default') {
+        $color = Get-LogAutoColor $msg
+    } elseif (-not $script:LogColors.ContainsKey($color)) {
+        $color = 'Default'
+    }
     $time = (Get-Date).ToString("HH:mm:ss")
     $line = "[$time] $msg"
-    Write-LogLine -line $line
-    $consoleColor = switch ($color) { "Green" {"Green"} "Red" {"Red"} "Yellow" {"Yellow"} default {"White"} }
-    Write-Host $line -ForegroundColor $consoleColor
+    Write-LogLine -line $line -color $color
+    Write-Host $line -ForegroundColor (Get-LogConsoleColor $color)
 }
 
 function Drain-BgLog {
-    # Выполняется СТРОГО в UI-потоке (таймер поллера): прямой доступ к текстбоксу.
+    # Выполняется СТРОГО в UI-потоке (таймер поллера): прямой доступ к логу.
     try {
         $q = $null
         try { $q = $global:BgLogQueue } catch {}
@@ -59,10 +144,15 @@ function Drain-BgLog {
             $item = $null
             try { if ($q.Count -eq 0) { break }; $item = $q.Dequeue() } catch { break }
             if ($null -eq $item) { break }
-            try { $box.AppendText("$item`n") } catch { break }
+            try {
+                if ($item -is [hashtable] -and $item.ContainsKey('T')) {
+                    Add-LogColoredText -Box $box -Text ([string]$item.T) -ColorName ([string]$item.C)
+                } else {
+                    Add-LogColoredText -Box $box -Text ([string]$item) -ColorName 'Default'
+                }
+            } catch { break }
             $n++
         }
-        if ($n -gt 0) { try { $box.ScrollToEnd() } catch {} }
     } catch {}
 }
 
@@ -71,6 +161,16 @@ function Drain-BgLog {
 $script:AsyncLogWriter = {
     function Write-Log {
         param([string]$msg, [string]$color = "Default")
+        # Автоцвет продублирован: в этот ранспейс Get-LogAutoColor не инжектится.
+        if ([string]::IsNullOrEmpty($color) -or $color -eq 'Default') {
+            if ($msg -match '═══') { $color = 'Blue' }
+            elseif ($msg -match '✗|\[X\]|✖|КРИТИЧНО|ОШИБКА|Ошибк|ERROR|не удалось|Не удалось|ПРЕРВАНО| НЕТ\b') { $color = 'Red' }
+            elseif ($msg -match '⚠|\[!\]|ВНИМАНИЕ|пропущ|Пропущ|отмен|Отмен') { $color = 'Orange' }
+            elseif ($msg -match '✓|\[OK\]|Готово|готово|Успешно|успешно|заверш|Заверш|скопирован|Скопирован') { $color = 'Green' }
+            elseif ($msg -match '──|\[\*\]|▶') { $color = 'Cyan' }
+            elseif ($msg -match '^\[=\]|уже настроено|Нет данных|нет данных|не найден|не найдена|пропускаю') { $color = 'Gray' }
+            else { $color = 'Default' }
+        }
         $time = (Get-Date).ToString("HH:mm:ss")
         $line = "[$time] $msg"
         try {
@@ -84,18 +184,23 @@ $script:AsyncLogWriter = {
             try { $q = $bgLogQueue } catch {}
             if ($q) {
                 if ($q.Count -gt 5000) { try { $q.Dequeue() | Out-Null } catch {} }
-                $q.Enqueue($line)
+                $q.Enqueue(@{ T = $line; C = $color })
             }
         } catch {}
-        $consoleColor = switch ($color) { "Green" {"Green"} "Red" {"Red"} "Yellow" {"Yellow"} default {"White"} }
-        Write-Host $line -ForegroundColor $consoleColor
+        $cc = switch ($color) {
+            "Green" {"Green"} "Red" {"Red"} "Yellow" {"Yellow"} "Orange" {"DarkYellow"}
+            "Blue" {"Cyan"} "Cyan" {"Cyan"} "Gray" {"Gray"} default {"White"}
+        }
+        Write-Host $line -ForegroundColor $cc
     }
 }
 
 function Get-ScriptTimeout {
     param([string]$FilePath)
-    if ($FilePath -like '*Winget-install*') { return 600 }
-    return 120
+    # PotatoPC: тяжелые качают из сети, средние трогают службы, реестр - быстрый
+    if ($FilePath -like '*winget*' -or $FilePath -like '*security_only*') { return 600 }
+    if ($FilePath -like '*remove_bloat*' -or $FilePath -like '*strong_net*' -or $FilePath -like '*light_defender*') { return 300 }
+    return 60
 }
 
 $global:BgResults = [hashtable]::Synchronized(@{})
