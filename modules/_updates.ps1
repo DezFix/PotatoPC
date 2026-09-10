@@ -63,17 +63,22 @@ function ConvertFrom-WingetUpgradeOutput {
         if (-not $headerFound) { continue }
         if ($line -match '(доступн|available|upgrade available|обновлен)') { continue }
         # По-токенно: работает и при схлопнутых пробелах (пайп), и при ровной таблице.
-        # Id = первый токен с точкой, не похожий на версию; имя = всё до него.
+        # Id = первый токен с точкой и буквой; имя = всё до него.
+        # Версии берём с конца (источник отбрасываем): ячейка версии может содержать пробел.
         $tokens = @($line -split '\s+' | Where-Object { $_ -ne '' })
+        if ($tokens.Count -ge 1 -and $tokens[-1] -match '^(winget|msstore)$') {
+            $tokens = @($tokens[0..($tokens.Count - 2)])
+        }
+        if ($tokens.Count -lt 4) { continue }
+        $newVersion = $tokens[-1].Trim()
+        $version    = $tokens[-2].Trim()
         $idIdx = -1
-        for ($i = 0; $i -lt $tokens.Count; $i++) {
+        for ($i = 0; $i -le ($tokens.Count - 3); $i++) {
             if ($tokens[$i] -match '\.' -and $tokens[$i] -match '[A-Za-z]' -and $tokens[$i] -notmatch '^\d[\d.]*$') { $idIdx = $i; break }
         }
-        if ($idIdx -le 0 -or ($idIdx + 2) -ge $tokens.Count) { continue }
+        if ($idIdx -le 0) { continue }
         $name       = ($tokens[0..($idIdx - 1)] -join ' ').Trim()
         $id         = $tokens[$idIdx].Trim()
-        $version    = $tokens[$idIdx + 1].Trim()
-        $newVersion = $tokens[$idIdx + 2].Trim()
         if ($version -match '^(winget|msstore|Unknown|Name|Имя|Версия)$') { continue }
         if ($newVersion -match '^(winget|msstore|Unknown)$') { continue }
         if ($version -notmatch '\d' -or $newVersion -notmatch '\d') { continue }
