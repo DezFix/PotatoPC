@@ -200,12 +200,17 @@ $installAppsBtn.Add_Click({
     Write-Log "══ Установка $($idList.Count) приложений ══"
     Invoke-Async -ScriptBlock {
         $wg = Get-WingetPath
-        $ok = 0; $fail = 0
+        $ok = 0; $fail = 0; $i = 0
+        Write-Log "Не закрывай окно: большие пакеты ставятся молча по несколько минут."
         foreach ($id in $idList) {
-            Write-Log "⏳ Установка: $id..."
+            $i++
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            Write-Log "⏳ Установка [$i/$($idList.Count)]: $id..."
             & $wg install --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
                 ForEach-Object { Write-Log "   $_" }
-            if ($LASTEXITCODE -eq 0) { Write-Log "✓ $id установлена" -Color "Green"; $ok++ }
+            $sw.Stop()
+            $dur = if ($sw.Elapsed.TotalSeconds -ge 60) { "{0} мин" -f [int]$sw.Elapsed.TotalMinutes } else { "{0} сек" -f [int]$sw.Elapsed.TotalSeconds }
+            if ($LASTEXITCODE -eq 0) { Write-Log "✓ $id установлена за $dur" -Color "Green"; $ok++ }
             else { Write-Log "✗ ${id}: ошибка (код $LASTEXITCODE)" -Color "Red"; $fail++ }
         }
         Write-Log "══ Установка завершена: ✓$ok$(if($fail -gt 0){ `" ✗$fail`" }) ══"

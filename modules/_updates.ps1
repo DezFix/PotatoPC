@@ -369,12 +369,17 @@ function Install-SelectedUpdates {
     Write-Log "══ Обновление $($idList.Count) пакетов ══"
     Invoke-Async -ScriptBlock {
         $wg = Get-WingetPath
-        $ok = 0; $fail = 0
+        $ok = 0; $fail = 0; $i = 0
+        Write-Log "Не закрывай окно: большие пакеты ставятся молча по несколько минут."
         foreach ($id in $idList) {
-            Write-Log "⬆ $id..."
+            $i++
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            Write-Log "⬆ [$i/$($idList.Count)] $id..."
             & $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
                 ForEach-Object { Write-Log "   $_" }
-            if ($LASTEXITCODE -eq 0) { Write-Log "   ✓ Готово" -Color "Green"; $ok++ }
+            $sw.Stop()
+            $dur = if ($sw.Elapsed.TotalSeconds -ge 60) { "{0} мин" -f [int]$sw.Elapsed.TotalMinutes } else { "{0} сек" -f [int]$sw.Elapsed.TotalSeconds }
+            if ($LASTEXITCODE -eq 0) { Write-Log "   ✓ Готово за $dur" -Color "Green"; $ok++ }
             else { Write-Log "   ✗ Ошибка (код $LASTEXITCODE)" -Color "Red"; $fail++ }
         }
         Write-Log "══ Обновление завершено: ✓$ok$(if($fail -gt 0){ `" ✗$fail`" }) ══"
