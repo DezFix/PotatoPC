@@ -61,13 +61,19 @@ function ConvertFrom-WingetUpgradeOutput {
     foreach ($line in $lines) {
         if ($line -match '^\s*-+\s*$') { $headerFound = $true; continue }
         if (-not $headerFound) { continue }
-        $parts = $line -split '\s{2,}' | Where-Object { $_.Trim() -ne '' }
-        if ($parts.Count -lt 4) { continue }
-        $name       = $parts[0].Trim()
-        $id         = $parts[1].Trim()
-        $version    = $parts[2].Trim()
-        $newVersion = $parts[3].Trim()
         if ($line -match '(доступн|available|upgrade available|обновлен)') { continue }
+        # По-токенно: работает и при схлопнутых пробелах (пайп), и при ровной таблице.
+        # Id = первый токен с точкой, не похожий на версию; имя = всё до него.
+        $tokens = @($line -split '\s+' | Where-Object { $_ -ne '' })
+        $idIdx = -1
+        for ($i = 0; $i -lt $tokens.Count; $i++) {
+            if ($tokens[$i] -match '\.' -and $tokens[$i] -match '[A-Za-z]' -and $tokens[$i] -notmatch '^\d[\d.]*$') { $idIdx = $i; break }
+        }
+        if ($idIdx -le 0 -or ($idIdx + 2) -ge $tokens.Count) { continue }
+        $name       = ($tokens[0..($idIdx - 1)] -join ' ').Trim()
+        $id         = $tokens[$idIdx].Trim()
+        $version    = $tokens[$idIdx + 1].Trim()
+        $newVersion = $tokens[$idIdx + 2].Trim()
         if ($version -match '^(winget|msstore|Unknown|Name|Имя|Версия)$') { continue }
         if ($newVersion -match '^(winget|msstore|Unknown)$') { continue }
         if ($version -notmatch '\d' -or $newVersion -notmatch '\d') { continue }
@@ -93,11 +99,15 @@ function ConvertFrom-WingetPinOutput {
     foreach ($line in $lines) {
         if ($line -match '^\s*-+\s*$') { $headerFound = $true; continue }
         if (-not $headerFound) { continue }
-        $parts = $line -split '\s{2,}' | Where-Object { $_.Trim() -ne '' }
-        if ($parts.Count -lt 2) { continue }
-        $id = $parts[1].Trim()
-        if ($id -match '\.' -and $id -notmatch '^(Unknown|winget|msstore|Name)$') {
-            $pins += @{ Id = $id; Name = $parts[0].Trim() }
+        $tokens = @($line -split '\s+' | Where-Object { $_ -ne '' })
+        $idIdx = -1
+        for ($i = 0; $i -lt $tokens.Count; $i++) {
+            if ($tokens[$i] -match '\.' -and $tokens[$i] -match '[A-Za-z]' -and $tokens[$i] -notmatch '^\d[\d.]*$') { $idIdx = $i; break }
+        }
+        if ($idIdx -le 0) { continue }
+        $id = $tokens[$idIdx].Trim()
+        if ($id -notmatch '^(Unknown|winget|msstore|Name)$') {
+            $pins += @{ Id = $id; Name = ($tokens[0..($idIdx - 1)] -join ' ').Trim() }
         }
     }
     return $pins
@@ -105,6 +115,7 @@ function ConvertFrom-WingetPinOutput {
 
 function Render-UpdatesPanel {
     param($Packages, $PinnedItems = @())
+    if ($null -eq $updatesPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     if ($Packages.Count -eq 0) {
         $emptyWrap = [System.Windows.Controls.StackPanel]::new()
         $emptyWrap.HorizontalAlignment = "Center"; $emptyWrap.Margin = "0,60,0,0"
@@ -322,7 +333,7 @@ function Build-UpdatesPanel {
             $raw = & $wg upgrade --accept-source-agreements 2>&1 | Out-String
             $packages = @(ConvertFrom-WingetUpgradeOutput -RawOutput $raw)
             try {
-                $pinRaw = & $wg pin list 2>$null | Out-String
+                $pinRaw = & $wg pin list 2>&1 | Out-String
                 $pinned = @(ConvertFrom-WingetPinOutput -RawOutput $pinRaw)
             } catch { $pinned = @() }
             $pinnedIds = @($pinned | ForEach-Object { $_.Id })
@@ -370,7 +381,10 @@ function Show-HiddenUpdatesDialog {
     $pins = @()
     try { $pins = @($script:UpdatesCache.PinnedItems) } catch {}
     if ($pins.Count -eq 0) {
-        [System.Windows.MessageBox]::Show("Скрытых обновлений нет.", "Скрытые", "OK", "Information") | Out-Null
+        $res = [System.Windows.MessageBox]::Show("Скрытых пока нет. Если только что скрыл — список ещё обновляется (10-30 сек).`n`nПроверить сейчас?", "Скрытые", "YesNo", "Question")
+        if ($res -eq "Yes") {
+            try { Build-UpdatesPanel -Force } catch {}
+        }
         return
     }
     $dlg = New-Object System.Windows.Window
