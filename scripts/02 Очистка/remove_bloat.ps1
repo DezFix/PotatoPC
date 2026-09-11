@@ -5,6 +5,7 @@
 # PRESET: potato, office
 # RECOMMENDED: true
 
+#Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
     $apps = @(

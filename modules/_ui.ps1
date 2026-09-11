@@ -60,6 +60,23 @@ function Initialize-Controls {
         StartupSearchBox    = "StartupSearchBox"
         StartupSearchHint   = "StartupSearchHint"
         StartupSearchClear  = "StartupSearchClear"
+        CleanPanel            = "CleanPanel"
+        CleanFilterRow        = "CleanFilterRow"
+        CleanScanBtn          = "CleanScanBtn"
+        SelectAllCleanBtn     = "SelectAllCleanBtn"
+        DeselectAllCleanBtn   = "DeselectAllCleanBtn"
+        CleanBtn              = "CleanBtn"
+        CleanStatusText       = "CleanStatusText"
+        CleanCountText        = "CleanCountText"
+        ProtectPanel          = "ProtectPanel"
+        ProtectStatusText     = "ProtectStatusText"
+        ScanBtn               = "ScanBtn"
+        DefenderScanBtn       = "DefenderScanBtn"
+        RefreshProtectBtn     = "RefreshProtectBtn"
+        ScanCountText         = "ScanCountText"
+        SelectAllScanBtn      = "SelectAllScanBtn"
+        DeselectAllScanBtn    = "DeselectAllScanBtn"
+        QuarantineBtn         = "QuarantineBtn"
         UsersPanel          = "UsersPanel"
         RefreshUsersBtn     = "RefreshUsersBtn"
         AddUserBtn          = "AddUserBtn"
@@ -76,6 +93,8 @@ function Initialize-Controls {
         NavUsersBtn         = "NavUsersBtn"
         NavAppsBtn          = "NavAppsBtn"
         NavUpdatesBtn       = "NavUpdatesBtn"
+        NavCleanBtn         = "NavCleanBtn"
+        NavProtectBtn       = "NavProtectBtn"
         NavDiagBtn          = "NavDiagBtn"
         NavSysBtn           = "NavSysBtn"
         HeaderTitleText     = "HeaderTitleText"
@@ -87,6 +106,8 @@ function Initialize-Controls {
         NavUsersIcon        = "NavUsersIcon"
         NavAppsIcon         = "NavAppsIcon"
         NavUpdatesIcon      = "NavUpdatesIcon"
+        NavCleanIcon        = "NavCleanIcon"
+        NavProtectIcon      = "NavProtectIcon"
         NavDiagIcon         = "NavDiagIcon"
         NavSysIcon          = "NavSysIcon"
         ModulesFolderIcon   = "ModulesFolderIcon"
@@ -199,6 +220,8 @@ $script:NavTitles = @(
     @{ Title = "Пользователи"; Sub = "Локальные учётные записи" },
     @{ Title = "Приложения";   Sub = "Установка через winget" },
     @{ Title = "Обновления";   Sub = "Обновление программ через winget" },
+    @{ Title = "Очистка";      Sub = "Мусор и кэши" },
+    @{ Title = "Защита";       Sub = "Проверка на вирусы" },
     @{ Title = "Тест системы"; Sub = "Диагностика в фоне" },
     @{ Title = "О системе";    Sub = "Железо, ОС, диски" }
 )
@@ -206,7 +229,7 @@ $script:NavTitles = @(
 function Set-ActiveNav {
     param([int]$Index)
     try {
-        $btns = @($NavModulesBtn, $NavStartupBtn, $NavUsersBtn, $NavAppsBtn, $NavUpdatesBtn, $NavDiagBtn, $NavSysBtn)
+        $btns = @($NavModulesBtn, $NavStartupBtn, $NavUsersBtn, $NavAppsBtn, $NavUpdatesBtn, $NavCleanBtn, $NavProtectBtn, $NavDiagBtn, $NavSysBtn)
         $activeBg = Get-ThemeBrush "#32323e"
         $activeFg = Get-ThemeBrush "#ffffff"
         $idleFg   = Get-ThemeBrush "#b8b8d0"

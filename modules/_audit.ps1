@@ -465,6 +465,11 @@ function Start-ExpressAudit {
                 Write-Audit ("  ✓ Активен, сигнатуры: {0} дн. назад{1}" -f $ds.SigAge, $sigNote) -Color 'Green'
                 if ($ds.SigAge -gt 7) { $script:warnCount++ }
             } else { Write-Audit ("  ⚠ Режим: " + $ds.Mode) -Color 'Yellow' -Sev 'warn' }
+            try {
+                $fwOff = @(Get-NetFirewallProfile -ErrorAction Stop | Where-Object { -not $_.Enabled })
+                if ($fwOff.Count -eq 0) { Write-Audit '  ✓ Брандмауэр включён везде' -Color 'Green' }
+                else { Write-Audit ("  ⚠ Брандмауэр выключен: " + (($fwOff | ForEach-Object { $_.Name }) -join ', ')) -Color 'Yellow' -Sev 'warn' }
+            } catch {}
 
             # --- Память и CPU ---
             Write-Audit '── Память и CPU ──'

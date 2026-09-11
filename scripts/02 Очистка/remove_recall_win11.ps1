@@ -5,6 +5,7 @@
 # PRESET: potato, office, game
 # RECOMMENDED: true
 
+#Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
     $build = [int](Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuildNumber

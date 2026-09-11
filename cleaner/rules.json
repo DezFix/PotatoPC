@@ -1,0 +1,99 @@
+{
+  "Groups": [
+    {
+      "Name": "Система",
+      "Icon": "apps/cat_utils",
+      "Items": [
+        { "Name": "Временные файлы", "Desc": "Мусор программ и системы. Безопасно.", "Paths": ["${LOCALAPPDATA}/Temp", "${WINDIR}/Temp"] },
+        { "Name": "Временные файлы служб", "Desc": "Temp системных учёток.", "NeedsAdmin": true, "Paths": ["${WINDIR}/ServiceProfiles/NetworkService/AppData/Local/Temp", "${WINDIR}/ServiceProfiles/LocalService/AppData/Local/Temp", "${WINDIR}/ServiceProfiles/LocalSystem/AppData/Local/Temp"] },
+        { "Name": "Логи Windows", "Desc": "CBS, DISM, установка, отладка.", "NeedsAdmin": true, "Paths": ["${WINDIR}/Logs", "${WINDIR}/Panther", "${WINDIR}/debug", "${WINDIR}/System32/LogFiles/setupcln", "${PROGRAMDATA}/USOShared/Logs"] },
+        { "Name": "Эскизы и значки", "Desc": "Пересоздадутся сами.", "Paths": ["${LOCALAPPDATA}/Microsoft/Windows/Explorer"] },
+        { "Name": "Отчёты об ошибках", "Desc": "Отправленные краш-репорты.", "Paths": ["${LOCALAPPDATA}/Microsoft/Windows/WER", "${PROGRAMDATA}/Microsoft/Windows/WER", "${LOCALAPPDATA}/CrashDumps"] },
+        { "Name": "Кэш интернета (система)", "Desc": "Кэш IE и компонентов.", "Paths": ["${LOCALAPPDATA}/Microsoft/Windows/INetCache"] },
+        { "Name": "Кэш обновлений", "Desc": "Скачанное. Если обновления висят — скачаются заново.", "NeedsAdmin": true, "Paths": ["${WINDIR}/SoftwareDistribution/Download"] },
+        { "Name": "RDP-кэш", "Desc": "Картинки удалённых столов.", "Paths": ["${LOCALAPPDATA}/Microsoft/Terminal Server Client/Cache"] },
+        { "Name": "Кэши оболочки", "Desc": "Служебные кэши проводника.", "Paths": ["${LOCALAPPDATA}/Microsoft/Windows/Caches"] },
+        { "Name": ".NET логи", "Desc": "Телеметрия рантайма.", "Paths": ["${LOCALAPPDATA}/Microsoft/CLR_v4.0/UsageLogs", "${LOCALAPPDATA}/Microsoft/CLR_v4.0_32/UsageLogs"] },
+        { "Name": "Дамп памяти", "Desc": "MEMORY.DMP после синего экрана и отчёт энергоэффективности. Часто гигабайты.", "Paths": ["${WINDIR}/MEMORY.DMP", "${WINDIR}/System32/energy-report.html"] },
+        { "Name": "Диагностика", "Desc": "Результаты траблшутеров.", "Paths": ["${LOCALAPPDATA}/ElevatedDiagnostics"] }
+      ]
+    },
+    {
+      "Name": "Браузеры",
+      "Icon": "apps/cat_internet",
+      "Items": [
+        { "Name": "Chrome — кэш", "Desc": "Картинки, код, шейдеры. Пароли целы.", "Paths": ["${LOCALAPPDATA}/Google/Chrome/User Data/Default/Cache/Cache_Data", "${LOCALAPPDATA}/Google/Chrome/User Data/Default/Code Cache", "${LOCALAPPDATA}/Google/Chrome/User Data/Default/GPUCache", "${LOCALAPPDATA}/Google/Chrome/User Data/Default/Service Worker/CacheStorage", "${LOCALAPPDATA}/Google/Chrome/User Data/Profile */Cache/Cache_Data", "${LOCALAPPDATA}/Google/Chrome/User Data/GrShaderCache", "${LOCALAPPDATA}/Google/Chrome/User Data/ShaderCache"] },
+        { "Name": "Edge — кэш", "Desc": "Картинки, код, шейдеры. Пароли целы.", "Paths": ["${LOCALAPPDATA}/Microsoft/Edge/User Data/Default/Cache/Cache_Data", "${LOCALAPPDATA}/Microsoft/Edge/User Data/Default/Code Cache", "${LOCALAPPDATA}/Microsoft/Edge/User Data/Default/GPUCache", "${LOCALAPPDATA}/Microsoft/Edge/User Data/Profile */Cache/Cache_Data", "${LOCALAPPDATA}/Microsoft/Edge/User Data/GrShaderCache", "${LOCALAPPDATA}/Microsoft/Edge/User Data/ShaderCache"] },
+        { "Name": "Brave — кэш", "Desc": "Картинки, код, шейдеры. Пароли целы.", "Paths": ["${LOCALAPPDATA}/BraveSoftware/Brave-Browser/User Data/Default/Cache/Cache_Data", "${LOCALAPPDATA}/BraveSoftware/Brave-Browser/User Data/Default/Code Cache", "${LOCALAPPDATA}/BraveSoftware/Brave-Browser/User Data/Default/GPUCache", "${LOCALAPPDATA}/BraveSoftware/Brave-Browser/User Data/GrShaderCache"] },
+        { "Name": "Opera — кэш", "Desc": "Картинки и код. Пароли целы.", "Paths": ["${APPDATA}/Opera Software/Opera Stable/Cache/Cache_Data", "${APPDATA}/Opera Software/Opera Stable/Code Cache", "${APPDATA}/Opera Software/Opera Stable/GPUCache"] },
+        { "Name": "Opera GX — кэш", "Desc": "Картинки и код. Пароли целы.", "Paths": ["${APPDATA}/Opera Software/Opera GX Stable/Cache/Cache_Data", "${APPDATA}/Opera Software/Opera GX Stable/Code Cache", "${APPDATA}/Opera Software/Opera GX Stable/GPUCache"] },
+        { "Name": "Vivaldi — кэш", "Desc": "Картинки, код, шейдеры.", "Paths": ["${LOCALAPPDATA}/Vivaldi/User Data/Default/Cache/Cache_Data", "${LOCALAPPDATA}/Vivaldi/User Data/Default/Code Cache", "${LOCALAPPDATA}/Vivaldi/User Data/Default/GPUCache"] },
+        { "Name": "Firefox — кэш", "Desc": "Кэш профилей. Пароли и закладки целы.", "Paths": ["${LOCALAPPDATA}/Mozilla/Firefox/Profiles/*/cache2", "${LOCALAPPDATA}/Mozilla/Firefox/Profiles/*/shader-cache"] },
+        { "Name": "LibreWolf — кэш", "Desc": "Кэш профилей.", "Paths": ["${LOCALAPPDATA}/LibreWolf/Profiles/*/cache2"] }
+      ]
+    },
+    {
+      "Name": "Игры",
+      "Icon": "apps/games",
+      "Items": [
+        { "Name": "Steam — логи и кэш", "Desc": "Логи, дампы, веб-кэш клиента. Игры целы.", "Paths": ["${PROGRAMFILES_X86}/Steam/logs", "${PROGRAMFILES_X86}/Steam/dumps", "${PROGRAMFILES_X86}/Steam/appcache/httpcache", "${PROGRAMFILES}/Steam/logs", "${PROGRAMFILES}/Steam/dumps"] },
+        { "Name": "Epic — логи и кэш", "Desc": "Логи и веб-кэш лаунчера.", "Paths": ["${LOCALAPPDATA}/EpicGamesLauncher/Saved/Logs", "${LOCALAPPDATA}/EpicGamesLauncher/Saved/webcache", "${LOCALAPPDATA}/EpicGamesLauncher/Saved/webcache_4430", "${LOCALAPPDATA}/EpicGamesLauncher/Intermediate"] },
+        { "Name": "GOG — кэш и логи", "Desc": "Веб-кэш и логи Galaxy.", "Paths": ["${LOCALAPPDATA}/GOG.com/Galaxy/webcache", "${PROGRAMDATA}/GOG.com/Galaxy/logs", "${PROGRAMDATA}/GOG.com/Galaxy/webcache"] },
+        { "Name": "Xbox — кэш", "Desc": "Кэш приложений Xbox.", "Paths": ["${LOCALAPPDATA}/Packages/Microsoft.GamingApp_8wekyb3d8bbwe/LocalCache", "${LOCALAPPDATA}/Packages/Microsoft.XboxApp_8wekyb3d8bbwe/LocalCache"] },
+        { "Name": "Minecraft — логи", "Desc": "Логи и краши. Миры целы.", "Paths": ["${APPDATA}/.minecraft/logs", "${APPDATA}/.minecraft/crash-reports"] },
+        { "Name": "Roblox — логи", "Desc": "Логи плеера.", "Paths": ["${LOCALAPPDATA}/Roblox/logs"] },
+        { "Name": "Ubisoft — кэш и логи", "Desc": "Веб-кэш и логи Connect.", "Paths": ["${LOCALAPPDATA}/Ubisoft Game Launcher/cache", "${LOCALAPPDATA}/Ubisoft Game Launcher/logs"] },
+        { "Name": "Rockstar — кэш и логи", "Desc": "Кэш и логи лаунчера.", "Paths": ["${LOCALAPPDATA}/Rockstar Games/Launcher/cache", "${LOCALAPPDATA}/Rockstar Games/Launcher/logs"] },
+        { "Name": "Battle.net — кэш и логи", "Desc": "Веб-кэш и логи.", "Paths": ["${LOCALAPPDATA}/Battle.net/Cache", "${LOCALAPPDATA}/Blizzard Entertainment/Battle.net/Logs", "${APPDATA}/Battle.net/Logs"] },
+        { "Name": "Riot — логи", "Desc": "Логи клиента старше недели.", "MinAgeDays": 7, "Paths": ["${LOCALAPPDATA}/Riot Games/Riot Client/Logs"] },
+        { "Name": "EA — логи", "Desc": "Логи EA App.", "Paths": ["${LOCALAPPDATA}/Electronic Arts/EA Desktop/Logs", "${LOCALAPPDATA}/Electronic Arts/EA Desktop/IGOCache"] },
+        { "Name": "Valorant и Fortnite — логи", "Desc": "Логи и краши матчей.", "Paths": ["${LOCALAPPDATA}/VALORANT/Saved/Logs", "${LOCALAPPDATA}/VALORANT/Saved/Crashes", "${LOCALAPPDATA}/FortniteGame/Saved/Logs", "${LOCALAPPDATA}/FortniteGame/Saved/Crashes"] },
+        { "Name": "itch.io — кэш", "Desc": "Кэш и логи клиента.", "Paths": ["${APPDATA}/itch/Cache/Cache_Data", "${APPDATA}/itch/logs"] },
+        { "Name": "Overwolf — кэш", "Desc": "Логи и кэш браузера оверлея.", "Paths": ["${LOCALAPPDATA}/Overwolf/Log", "${LOCALAPPDATA}/Overwolf/BrowserCache"] }
+      ]
+    },
+    {
+      "Name": "Программы",
+      "Icon": "apps/cat_utils",
+      "Items": [
+        { "Name": "Discord — кэш", "Desc": "Кэш картинок, кода и логи. Аккаунт цел.", "Paths": ["${APPDATA}/discord/Cache", "${APPDATA}/discord/Code Cache", "${APPDATA}/discord/GPUCache", "${APPDATA}/discord/logs"] },
+        { "Name": "Telegram — кэш", "Desc": "Только кэш картинок. Чаты целы.", "Paths": ["${APPDATA}/Telegram Desktop/tdata/user_data/cache", "${APPDATA}/Telegram Desktop/tdata/user_data/*/cache"] },
+        { "Name": "Spotify — веб-кэш", "Desc": "Кэш интерфейса. Треки целы.", "Paths": ["${LOCALAPPDATA}/Spotify/Browser"] },
+        { "Name": "Teams — кэш", "Desc": "Кэш и логи. Аккаунт цел.", "Paths": ["${APPDATA}/Microsoft/Teams/Cache", "${APPDATA}/Microsoft/Teams/Code Cache", "${APPDATA}/Microsoft/Teams/GPUCache", "${APPDATA}/Microsoft/Teams/logs"] },
+        { "Name": "Skype — кэш", "Desc": "Кэш клиента.", "Paths": ["${APPDATA}/Microsoft/Skype for Desktop/Cache", "${APPDATA}/Microsoft/Skype for Desktop/Code Cache", "${APPDATA}/Microsoft/Skype for Desktop/GPUCache"] },
+        { "Name": "Zoom — логи", "Desc": "Логи звонков старше недели.", "MinAgeDays": 7, "Paths": ["${APPDATA}/Zoom/logs"] },
+        { "Name": "OBS — логи", "Desc": "Логи записей старше недели.", "MinAgeDays": 7, "Paths": ["${APPDATA}/obs-studio/logs"] },
+        { "Name": "VS Code — кэш", "Desc": "Кэш, расширения и логи редактора. Настройки целы.", "Paths": ["${APPDATA}/Code/Cache", "${APPDATA}/Code/Code Cache", "${APPDATA}/Code/GPUCache", "${APPDATA}/Code/CachedData", "${APPDATA}/Code/CachedExtensions", "${APPDATA}/Code/logs"] },
+        { "Name": "Slack — кэш", "Desc": "Кэш картинок, кода и логи. Аккаунт цел.", "Paths": ["${APPDATA}/Slack/Cache/Cache_Data", "${APPDATA}/Slack/Code Cache", "${APPDATA}/Slack/GPUCache", "${APPDATA}/Slack/logs"] },
+        { "Name": "JetBrains — кэш", "Desc": "Кэши IDE по версиям (Idea, PyCharm и др.). Пересоберутся при запуске.", "ChildSubdir": "caches", "Paths": ["${LOCALAPPDATA}/JetBrains"] },
+        { "Name": "Signal — кэш", "Desc": "Кэш клиента. Чаты целы.", "Paths": ["${APPDATA}/Signal/Cache", "${APPDATA}/Signal/Code Cache", "${APPDATA}/Signal/GPUCache"] },
+        { "Name": "Obsidian — кэш", "Desc": "Кэш приложения. Заметки целы.", "Paths": ["${APPDATA}/obsidian/Cache", "${APPDATA}/obsidian/Code Cache", "${APPDATA}/obsidian/GPUCache"] },
+        { "Name": "Thunderbird — кэш", "Desc": "Кэш профилей. Письма целы.", "Paths": ["${APPDATA}/Thunderbird/Profiles/*/cache2"] },
+        { "Name": "npm — кэш", "Desc": "Кэш пакетов разработчика.", "Paths": ["${APPDATA}/npm-cache", "${LOCALAPPDATA}/npm-cache"] },
+        { "Name": "pip — кэш", "Desc": "Кэш пакетов Python.", "Paths": ["${LOCALAPPDATA}/pip/Cache"] },
+        { "Name": "NuGet — пакеты", "Desc": "Скачанное восстановятся при сборке.", "Paths": ["${USERPROFILE}/.nuget/packages"] }
+      ]
+    },
+    {
+      "Name": "Сеть",
+      "Icon": "devices/network",
+      "Items": [
+        { "Name": "Сброс DNS-кэша", "Desc": "Лечит «не открывается сайт». Действие.", "Action": "flushdns" },
+        { "Name": "Очистка ARP-кэша", "Desc": "Сбрасывает таблицу сети. Действие.", "Action": "arpclear" },
+        { "Name": "Логи файрвола", "Desc": "Журналы блокировок.", "NeedsAdmin": true, "Paths": ["${WINDIR}/System32/LogFiles/Firewall"] },
+        { "Name": "HTTP-ошибки", "Desc": "Логи HTTP.sys.", "NeedsAdmin": true, "Paths": ["${WINDIR}/System32/LogFiles/HTTPERR"] },
+        { "Name": "Temp сетевой службы", "Desc": "Временные файлы сети.", "NeedsAdmin": true, "Paths": ["${WINDIR}/ServiceProfiles/NetworkService/AppData/Local/Temp"] }
+      ]
+    },
+    {
+      "Name": "Шейдеры GPU",
+      "Icon": "devices/display",
+      "Items": [
+        { "Name": "NVIDIA — шейдеры", "Desc": "Пересоберутся в играх.", "Paths": ["${LOCALAPPDATA}/NVIDIA/GLCache", "${LOCALAPPDATA}/NVIDIA/DXCache", "${LOCALAPPDATA}/NVIDIA Corporation/NV_Cache", "${PROGRAMDATA}/NVIDIA Corporation/NV_Cache"] },
+        { "Name": "AMD — шейдеры", "Desc": "Пересоберутся в играх.", "Paths": ["${LOCALAPPDATA}/AMD/DxCache", "${LOCALAPPDATA}/AMD/GLCache", "${LOCALAPPDATA}/AMD/VkCache"] },
+        { "Name": "Intel — шейдеры", "Desc": "Пересоберутся сами.", "Paths": ["${LOCALAPPDATA}/Intel/ShaderCache"] },
+        { "Name": "DirectX и Unity", "Desc": "Общие кэши шейдеров.", "Paths": ["${LOCALAPPDATA}/D3DSCache", "${LOCALAPPDATA}/Unity/cache"] }
+      ]
+    }
+  ]
+}

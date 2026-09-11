@@ -174,8 +174,10 @@ try { if ($NavStartupBtn) { $NavStartupBtn.Add_Click({ Set-ActiveNav -Index 1 })
 try { if ($NavUsersBtn)   { $NavUsersBtn.Add_Click({ Set-ActiveNav -Index 2 }) } } catch {}
 try { if ($NavAppsBtn)    { $NavAppsBtn.Add_Click({ Set-ActiveNav -Index 3 }) } } catch {}
 try { if ($NavUpdatesBtn) { $NavUpdatesBtn.Add_Click({ Set-ActiveNav -Index 4 }) } } catch {}
-try { if ($NavDiagBtn)    { $NavDiagBtn.Add_Click({ Set-ActiveNav -Index 5 }) } } catch {}
-try { if ($NavSysBtn)     { $NavSysBtn.Add_Click({ Set-ActiveNav -Index 6 }) } } catch {}
+try { if ($NavCleanBtn) { $NavCleanBtn.Add_Click({ Set-ActiveNav -Index 5 }) } } catch {}
+try { if ($NavProtectBtn) { $NavProtectBtn.Add_Click({ Set-ActiveNav -Index 6 }) } } catch {}
+try { if ($NavDiagBtn)    { $NavDiagBtn.Add_Click({ Set-ActiveNav -Index 7 }) } } catch {}
+try { if ($NavSysBtn)     { $NavSysBtn.Add_Click({ Set-ActiveNav -Index 8 }) } } catch {}
 try { if ($MainTabControl) { $MainTabControl.Add_SelectionChanged({ try { Set-ActiveNav -Index $MainTabControl.SelectedIndex } catch {} }) } } catch {}
 $presetPotatoBtn.Add_Click({ Select-Preset "Potato-pack" })
 $presetOfficeBtn.Add_Click({ Select-Preset "Office-pack" })
@@ -242,6 +244,39 @@ $hiddenUpdatesBtn.Add_Click({
     Show-HiddenUpdatesDialog
 })
 
+# ═══ Кнопки очистки ═══
+$cleanScanBtn.Add_Click({ Start-CleanScan })
+$selectAllCleanBtn.Add_Click({ foreach($cb in $script:CleanCheckboxes.Values){$cb.Box.IsChecked=$true}; Update-CleanCount })
+$deselectAllCleanBtn.Add_Click({ foreach($cb in $script:CleanCheckboxes.Values){$cb.Box.IsChecked=$false}; Update-CleanCount })
+$cleanBtn.Add_Click({ Start-CleanSelected })
+
+# ═══ Кнопки защиты ═══
+$scanBtn.Add_Click({ Start-YaraScan })
+$selectAllScanBtn.Add_Click({ foreach($cb in $script:ScanCheckboxes.Values){$cb.Box.IsChecked=$true}; Update-ScanCount })
+$deselectAllScanBtn.Add_Click({ foreach($cb in $script:ScanCheckboxes.Values){$cb.Box.IsChecked=$false}; Update-ScanCount })
+$quarantineBtn.Add_Click({ Start-Quarantine })
+$defenderScanBtn.Add_Click({
+    Write-Log "Запускаю проверку Defender в фоне..."
+    Start-Background {
+        try {
+            $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+            if (-not (Test-Path -LiteralPath $mp)) { throw "MpCmdRun не найден" }
+            Start-Process $mp -ArgumentList '-Scan', '-ScanType', '1' -WindowStyle Hidden -ErrorAction Stop
+            Write-Log "Проверка Defender идёт в фоне. Результат: Безопасность Windows." -Color "Green"
+        } catch {
+            Write-Log ("Не вышло запустить: " + $_) -Color "Red"
+        }
+    }
+})
+$refreshProtectBtn.Add_Click({
+    Write-Log "Обновляю защиту..."
+    Start-Background {
+        try { Update-MpSignature -ErrorAction Stop; Write-Log "Базы Defender обновлены." -Color "Green" }
+        catch { Write-Log ("Базы не обновились: " + $_) -Color "Yellow" }
+        Set-BgResult -Key 'protectRefresh' -Value $true
+    }
+})
+
 # ═══ Очередь фон->UI: таймер забирает готовые результаты из шины ═══
 function Test-BgQueue {
     Drain-BgLog
@@ -261,6 +296,8 @@ function Test-BgQueue {
             Build-DiagPanel
             Build-StartupPanel
             Build-UsersPanel
+            Build-CleanPanel
+            Build-ProtectPanel
             Write-Log "✓ Готов к работе." -Color "Green"
             try {
                 if ($sideStatusText) {
@@ -310,6 +347,17 @@ function Test-BgQueue {
         Set-BgResult -Key 'appsRefresh' -Value $null
         try { Build-AppsPanel } catch {}
     }
+    if (Get-BgResult -Key 'protectRefresh') {
+        Set-BgResult -Key 'protectRefresh' -Value $null
+        try { Build-ProtectPanel } catch {}
+    }
+    $sh = Get-BgResult -Key 'scanHits'
+    if ($sh -and -not $sh.Consumed) {
+        $sh.Consumed = $true
+        try {
+            Render-ScanHits -Items @($sh.Items)
+        } catch {}
+    }
     $ai = Get-BgResult -Key 'appIcons'
     if ($ai -and -not $ai.Consumed) {
         $ai.Consumed = $true
@@ -351,6 +399,41 @@ function Test-BgQueue {
             if ($n -gt 0) { Write-Log "Установлено приложений из списка: $n" }
             try { Clear-Progress } catch {}
         } catch {}
+    }
+    $cs = Get-BgResult -Key 'cleanScan'
+    if ($cs -and -not $cs.Consumed) {
+        $cs.Consumed = $true
+        try {
+            $tot = 0L
+            foreach ($it in @($cs.Items)) {
+                if ($script:CleanCheckboxes.ContainsKey($it.Key)) {
+                    $e = $script:CleanCheckboxes[$it.Key]
+                    $e.MB = [long]$it.MB
+                    $e.SizeLbl.Text = Format-CleanSize $it.MB
+                    $tot += [long]$it.MB
+                }
+            }
+            if ($cleanStatusText) { $cleanStatusText.Text = "Найдено мусора: $(Format-CleanSize $tot)" }
+            try {
+                $gmb = @{}
+                foreach ($kv in $script:CleanCheckboxes.Values) {
+                    $g = [string]$kv.Gi
+                    if (-not $gmb.ContainsKey($g)) { $gmb[$g] = 0L }
+                    if ($kv.MB -gt 0) { $gmb[$g] += [long]$kv.MB }
+                }
+                foreach ($kv in $script:CleanFilterBtns.GetEnumerator()) {
+                    if ($kv.Key -ne '' -and $gmb.ContainsKey($kv.Key) -and [long]$gmb[$kv.Key] -gt 0) {
+                        $kv.Value.Content = (@($script:CleanFilterNames[$kv.Key])[0] + ' • ' + (Format-CleanSize $gmb[$kv.Key]))
+                    }
+                }
+            } catch {}
+            Update-CleanCount
+            try { Clear-Progress } catch {}
+        } catch {}
+    }
+    if (Get-BgResult -Key 'cleanRescan') {
+        Set-BgResult -Key 'cleanRescan' -Value $null
+        try { Start-CleanScan } catch {}
     }
     $ar = Get-BgResult -Key 'auditReport'
     if ($ar -and -not $ar.Consumed) {

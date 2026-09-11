@@ -573,7 +573,7 @@ public static class PSAsyncHelper {
 }
 
 $script:BgISS = $null
-$script:BgConfigNames = @('WorkFolder','ScriptsFolder','AppsJsonPath','AppsJsonUrl','RepoZipUrl','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion')
+$script:BgConfigNames = @('WorkFolder','ScriptsFolder','AppsJsonPath','AppsJsonUrl','RepoZipUrl','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion','CleanRulesPath')
 
 function Get-BgSessionState {
     # Снимок всех пользовательских функций один раз (после загрузки модулей).
@@ -689,6 +689,15 @@ function Invoke-Async {
         $ps.AddScript("function Set-Progress {`n$setPrgSrc`n}") | Out-Null
         $clrPrgSrc = ${function:Clear-Progress}.ToString()
         $ps.AddScript("function Clear-Progress {`n$clrPrgSrc`n}") | Out-Null
+    } catch {}
+    # Хелперы вкладки Защита для фоновых сканирований.
+    try {
+        foreach ($hfn in @('Ensure-YaraEngine', 'Combine-YaraRules')) {
+            try {
+                $hsrc = (Get-Command $hfn -CommandType Function -ErrorAction Stop).ScriptBlock.ToString()
+                $ps.AddScript("function $hfn {`n$hsrc`n}") | Out-Null
+            } catch {}
+        }
     } catch {}
     if ($LogBox) { try { $rs.SessionStateProxy.SetVariable("bpDispatcher", $LogBox.Dispatcher) } catch {} }
     $ps.AddScript($ScriptBlock) | Out-Null

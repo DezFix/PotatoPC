@@ -167,6 +167,12 @@
                         <Button x:Name="NavUpdatesBtn" Style="{StaticResource BtnNav}" ToolTip="Обновления через winget">
                             <StackPanel Orientation="Horizontal"><Image x:Name="NavUpdatesIcon" Width="15" Height="15" Margin="0,0,9,0" VerticalAlignment="Center"/><TextBlock Text="Обновления" VerticalAlignment="Center"/></StackPanel>
                         </Button>
+                        <Button x:Name="NavCleanBtn" Style="{StaticResource BtnNav}" ToolTip="Мусор и кэши">
+                            <StackPanel Orientation="Horizontal"><Image x:Name="NavCleanIcon" Width="15" Height="15" Margin="0,0,9,0" VerticalAlignment="Center"/><TextBlock Text="Очистка" VerticalAlignment="Center"/></StackPanel>
+                        </Button>
+                        <Button x:Name="NavProtectBtn" Style="{StaticResource BtnNav}" ToolTip="Проверка на вирусы">
+                            <StackPanel Orientation="Horizontal"><Image x:Name="NavProtectIcon" Width="15" Height="15" Margin="0,0,9,0" VerticalAlignment="Center"/><TextBlock Text="Защита" VerticalAlignment="Center"/></StackPanel>
+                        </Button>
                         <Button x:Name="NavDiagBtn" Style="{StaticResource BtnNav}" ToolTip="Диагностика системы">
                             <StackPanel Orientation="Horizontal"><Image x:Name="NavDiagIcon" Width="15" Height="15" Margin="0,0,9,0" VerticalAlignment="Center"/><TextBlock Text="Тест системы" VerticalAlignment="Center"/></StackPanel>
                         </Button>
@@ -473,6 +479,80 @@
                                     <StackPanel Orientation="Horizontal"><Image x:Name="InstallUpdatesIcon" Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="Обновить выбранные" VerticalAlignment="Center"/></StackPanel>
                                 </Button>
                             </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
+                <!-- ОЧИСТКА -->
+                <TabItem Header="">
+                    <Grid Background="#202020">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <Border Grid.Row="0" Background="#26262e" Padding="10,5">
+                            <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="CleanStatusText" Foreground="#a8a8d8" FontSize="11" VerticalAlignment="Center" Text="Нажми «Посчитать» — покажу, сколько мусора."/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button x:Name="CleanScanBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="26" FontSize="11" Padding="12,0" ToolTip="Замерить размеры">
+                                        <StackPanel Orientation="Horizontal"><TextBlock Text="🔍 Посчитать" VerticalAlignment="Center"/></StackPanel>
+                                    </Button>
+                                    <Button Content="✓ Все" x:Name="SelectAllCleanBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="26" Width="52" FontSize="11"/>
+                                    <Button Content="✗ Снять" x:Name="DeselectAllCleanBtn" Style="{StaticResource BtnSecondary}" Height="26" Width="58" FontSize="11"/>
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel x:Name="CleanFilterRow" Orientation="Horizontal" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
+                            <StackPanel x:Name="CleanPanel" Margin="10,6,10,6">
+                                <TextBlock Foreground="#8a8ab0" FontSize="12" TextAlignment="Center" Margin="0,50,0,0" Text="Список появится после замера"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                        <Border Grid.Row="2" Background="#232328" Padding="10,6" BorderBrush="#2e2e38" BorderThickness="0,1,0,0">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <TextBlock x:Name="CleanCountText" Foreground="#a8a8c8" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <Button x:Name="CleanBtn" Style="{StaticResource BtnPrimary}" Height="26" FontSize="12" Padding="14,5">
+                                    <StackPanel Orientation="Horizontal"><TextBlock Text="🧹 Почистить" VerticalAlignment="Center"/></StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
+                <!-- ЗАЩИТА -->
+                <TabItem Header="">
+                    <Grid Background="#202020">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <Border Grid.Row="0" Background="#26262e" Padding="10,5">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="ProtectStatusText" Foreground="#a8a8d8" FontSize="11" VerticalAlignment="Center" Text="Проверка ищет вирусы в горячих местах."/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button x:Name="ScanBtn" Style="{StaticResource BtnPrimary}" Margin="0,0,6,0" Height="26" FontSize="11" Padding="12,0" ToolTip="Проверить горячие места">
+                                        <StackPanel Orientation="Horizontal"><TextBlock Text="🔍 Проверить" VerticalAlignment="Center"/></StackPanel>
+                                    </Button>
+                                    <Button x:Name="DefenderScanBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,6,0" Height="26" FontSize="11" Padding="12,0" ToolTip="Быстрая проверка штатным антивирусом">
+                                        <StackPanel Orientation="Horizontal"><TextBlock Text="🛡 Defender" VerticalAlignment="Center"/></StackPanel>
+                                    </Button>
+                                    <Button x:Name="RefreshProtectBtn" Style="{StaticResource BtnSecondary}" Height="26" FontSize="11" Padding="12,0" ToolTip="Обновить базы и движок">
+                                        <StackPanel Orientation="Horizontal"><TextBlock Text="🔄 Обновить" VerticalAlignment="Center"/></StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
+                            <StackPanel x:Name="ProtectPanel" Margin="10,6,10,6"/>
+                        </ScrollViewer>
+                        <Border Grid.Row="2" Background="#232328" Padding="10,6" BorderBrush="#2e2e38" BorderThickness="0,1,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="ScanCountText" Foreground="#a8a8c8" FontSize="11" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Content="✓ Все" x:Name="SelectAllScanBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,5,0" Height="26" Width="52" FontSize="11"/>
+                                    <Button Content="✗ Снять" x:Name="DeselectAllScanBtn" Style="{StaticResource BtnSecondary}" Margin="0,0,8,0" Height="26" Width="58" FontSize="11"/>
+                                    <Button x:Name="QuarantineBtn" Style="{StaticResource BtnDanger}" Height="26" FontSize="11" Padding="12,0" ToolTip="Переместить выбранное в карантин">
+                                        <StackPanel Orientation="Horizontal"><TextBlock Text="🧹 В карантин" VerticalAlignment="Center"/></StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
                         </Border>
                     </Grid>
                 </TabItem>

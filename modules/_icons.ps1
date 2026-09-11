@@ -136,7 +136,7 @@ function Initialize-WindowIcons {
         @('LogoIcon', 'apps/logo'), @('NavModulesIcon', 'apps/nav_modules'),
         @('NavStartupIcon', 'actions/nav_startup'), @('NavUsersIcon', 'apps/nav_users'),
         @('NavAppsIcon', 'mimetypes/nav_apps'), @('NavUpdatesIcon', 'apps/nav_updates'),
-        @('NavDiagIcon', 'apps/nav_diag'), @('NavSysIcon', 'devices/nav_sys'),
+        @('NavCleanIcon', 'places/trash'), @('NavProtectIcon', 'status/privacy'), @('NavDiagIcon', 'apps/nav_diag'), @('NavSysIcon', 'devices/nav_sys'),
         @('ModulesFolderIcon', 'places/folder_open'), @('OpenFolderIcon', 'places/folder_open'),
         @('RefreshIcon', 'actions/refresh'), @('ScriptSearchIcon', 'actions/search'),
         @('StartupSearchIcon', 'actions/search'), @('AppSearchIcon', 'actions/search'),

@@ -121,7 +121,7 @@ $window.Add_Closing({ Save-UIState })
 
 $uiModules = @(
     "_scripts.ps1", "_apps.ps1", "_audit.ps1", "_sysdiag.ps1", "_updates.ps1",
-    "_startup.ps1", "_users.ps1", "_search.ps1", "_events.ps1"
+    "_startup.ps1", "_users.ps1", "_search.ps1", "_clean.ps1", "_protect.ps1", "_events.ps1"
 )
 foreach ($module in $uiModules) {
     $modulePath = Join-Path $script:ModuleDir $module
@@ -132,7 +132,7 @@ foreach ($module in $uiModules) {
 $requiredCommands = @(
     "Run-SelectedScripts", "Stop-SelectedScripts", "Reset-RunButton", "Select-RecommendedScripts", "Select-ScriptPreset",
     "Build-ScriptsPanel", "Build-AppsPanel", "Build-SysPanel", "Build-DiagPanel",
-    "Build-UpdatesPanel", "Build-StartupPanel", "Build-UsersPanel",
+    "Build-UpdatesPanel", "Build-StartupPanel", "Build-UsersPanel", "Build-CleanPanel", "Build-ProtectPanel",
     "New-Card", "New-CategoryHeader", "Set-LogExpanded", "Update-HeaderCount",
     "Get-IconImage", "Get-IconSource", "Initialize-WindowIcons", "New-SectionHeader",
     "Invoke-Async", "Invoke-OnUI", "Set-BgResult", "Get-BgResult",
