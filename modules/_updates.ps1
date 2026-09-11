@@ -225,9 +225,10 @@ function Render-UpdatesPanel {
             Invoke-Async -ScriptBlock {
                 try {
                 $wg=Get-WingetPath
-                & $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
-                    ForEach-Object { Write-Log ("   " + $_) }
+                $out1 = @(& $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
+                    ForEach-Object { Write-Log ("   " + $_); $_ })
                 if ($LASTEXITCODE -eq 0) { Write-Log ("Готово: " + $id) -Color "Green" }
+                elseif ($LASTEXITCODE -eq -1978335189 -or ($out1 -match 'No available upgrade found|No newer package versions')) { Write-Log "Уже актуально." -Color "Gray" }
                 else { Write-Log ("Ошибка $id (код $LASTEXITCODE)") -Color "Red" }
                 Set-BgResult -Key 'updatesRefresh' -Value $true
                 } finally { Clear-Progress }
@@ -378,7 +379,7 @@ function Install-SelectedUpdates {
     Write-Log "══ Обновление $($idList.Count) пакетов ══"
     Invoke-Async -ScriptBlock {
         $wg = Get-WingetPath
-        $ok = 0; $fail = 0; $i = 0
+        $ok = 0; $fail = 0; $skip = 0; $i = 0
         $total=@($idList).Count
         Write-Log "Не закрывай окно: большие пакеты ставятся молча по несколько минут."
         try {
@@ -387,14 +388,15 @@ function Install-SelectedUpdates {
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             Write-Log "⬆ [$i/$total] $id..."
             Set-Progress ([double]$i / [double]([Math]::Max(1, $total)))
-            & $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
-                ForEach-Object { Write-Log "   $_" }
+            $outLines = @(& $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
+                ForEach-Object { Write-Log "   $_"; $_ })
             $sw.Stop()
             $dur = if ($sw.Elapsed.TotalSeconds -ge 60) { "{0} мин" -f [int]$sw.Elapsed.TotalMinutes } else { "{0} сек" -f [int]$sw.Elapsed.TotalSeconds }
             if ($LASTEXITCODE -eq 0) { Write-Log "   ✓ Готово за $dur" -Color "Green"; $ok++ }
+            elseif ($LASTEXITCODE -eq -1978335189 -or ($outLines -match 'No available upgrade found|No newer package versions')) { Write-Log "   – уже актуально, пропускаю" -Color "Gray"; $skip++ }
             else { Write-Log "   ✗ Ошибка (код $LASTEXITCODE)" -Color "Red"; $fail++ }
         }
-        Write-Log "══ Обновление завершено: ✓$ok$(if($fail -gt 0){ `" ✗$fail`" }) ══"
+        Write-Log "══ Обновление завершено: ✓$ok$(if($skip -gt 0){ `" – пропущено: $skip`" })$(if($fail -gt 0){ `" ✗$fail`" }) ══"
         Set-BgResult -Key 'updatesRefresh' -Value $true
         } finally { Clear-Progress }
     } -Variables @{ idList = $idList }

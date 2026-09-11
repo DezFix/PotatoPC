@@ -369,6 +369,28 @@ function Test-BgQueue {
             try { Clear-Progress } catch {}
         } catch {}
     }
+    $br = Get-BgResult -Key 'benchReport'
+    if ($br -and -not $br.Consumed) {
+        $br.Consumed = $true
+        Set-BgResult -Key 'benchReport' -Value $null
+        try {
+            if ($br.Path) { $script:LastBenchReport = $br.Path }
+            if ($script:BenchStatusLbl) {
+                if ($br.Index -ge 0) {
+                    $script:BenchStatusLbl.Text = "готово: индекс $($br.Index), ошибок $($br.Err)"
+                    $c = if ($br.Err -gt 0) { "#e74c3c" } else { "#2ecc71" }
+                } else {
+                    $script:BenchStatusLbl.Text = "прерван"
+                    $c = "#e74c3c"
+                }
+                $script:BenchStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($c)
+            }
+            if ($script:BenchOpenBtn -and $script:LastBenchReport -and (Test-Path $script:LastBenchReport)) {
+                $script:BenchOpenBtn.IsEnabled = $true
+            }
+            try { Clear-Progress } catch {}
+        } catch {}
+    }
     if (Get-BgResult -Key 'rebuildScripts') {
         Set-BgResult -Key 'rebuildScripts' -Value $null
         $p = Get-BgResult -Key 'paths'

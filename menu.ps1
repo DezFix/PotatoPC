@@ -138,7 +138,7 @@ $requiredCommands = @(
     "Invoke-Async", "Invoke-OnUI", "Set-BgResult", "Get-BgResult",
     "Start-BgPoller", "Stop-BgPoller", "Test-BgQueue",
     "Start-Background", "Invoke-ScriptFileWithRetry", "Get-ScriptTimeout", "Get-WingetPath",
-    "Set-Progress", "Clear-Progress", "Update-ProgressUI"
+    "Set-Progress", "Clear-Progress", "Update-ProgressUI", "Get-LogAutoColor", "Get-LogHexColor"
 )
 $missingCommands = @(Test-RequiredCommands -Names $requiredCommands)
 if ($missingCommands.Count -gt 0) {

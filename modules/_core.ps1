@@ -5,15 +5,19 @@ if (-not $global:BgLogQueue) {
     $global:BgLogQueue = [System.Collections.Queue]::Synchronized((New-Object System.Collections.Queue))
 }
 
-$script:LogColors = @{
-    Green   = '#4ade80'
-    Red     = '#f87171'
-    Yellow  = '#fbbf24'
-    Orange  = '#fb9231'
-    Blue    = '#60a5fa'
-    Cyan    = '#22d3ee'
-    Gray    = '#9ca3af'
-    Default = '#d4d4e4'
+function Get-LogHexColor {
+    # Чистая функция без $script (безопасна для фоновых ранспейсов).
+    param([string]$ColorName)
+    switch ($ColorName) {
+        'Green'  { '#4ade80' }
+        'Red'    { '#f87171' }
+        'Yellow' { '#fbbf24' }
+        'Orange' { '#fb9231' }
+        'Blue'   { '#60a5fa' }
+        'Cyan'   { '#22d3ee' }
+        'Gray'   { '#9ca3af' }
+        default  { '#d4d4e4' }
+    }
 }
 
 function Get-LogAutoColor {
@@ -88,8 +92,7 @@ function Add-LogColoredText {
     # СТРОГО UI-поток: дописывает строку в RichTextBox заданным цветом.
     param($Box, [string]$Text, [string]$ColorName = 'Default')
     try {
-        $hex = $script:LogColors[$ColorName]
-        if (-not $hex) { $hex = $script:LogColors['Default'] }
+        $hex = Get-LogHexColor $ColorName
         $doc = $Box.Document
         $para = $null
         if ($doc.Blocks.Count -gt 0) { $para = $doc.Blocks.LastBlock }
@@ -160,9 +163,10 @@ function Write-LogLine {
 function Write-Log {
     param([string]$msg, [string]$color = "Default")
     if ([string]::IsNullOrWhiteSpace($msg)) { return }
+    $knownLogColors = @('Green', 'Red', 'Yellow', 'Orange', 'Blue', 'Cyan', 'Gray', 'Default')
     if ([string]::IsNullOrEmpty($color) -or $color -eq 'Default') {
         $color = Get-LogAutoColor $msg
-    } elseif (-not $script:LogColors.ContainsKey($color)) {
+    } elseif ($knownLogColors -notcontains $color) {
         $color = 'Default'
     }
     $time = (Get-Date).ToString("HH:mm:ss")

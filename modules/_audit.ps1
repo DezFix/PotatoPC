@@ -174,6 +174,175 @@ function Test-DiskSpeed {
     finally { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
 }
 
+function Get-CpuScore {
+    # Решето до 500К: 3-10 сек на нормальном ПК, до полминуты на слабом. Только CPU.
+    $N = 500000
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $isP = New-Object bool[] ($N + 1)
+    for ($i = 2; $i -le $N; $i++) { $isP[$i] = $true }
+    $root = [math]::Sqrt($N)
+    for ($i = 2; $i -le $root; $i++) {
+        if ($isP[$i]) { for ($j = $i * $i; $j -le $N; $j += $i) { $isP[$j] = $false } }
+    }
+    $sw.Stop()
+    $t = [math]::Max(0.01, $sw.Elapsed.TotalSeconds)
+    return @{ Score = [int]($N / $t); Sec = [math]::Round($t, 1) }
+}
+
+function Get-RamScore {
+    # Копирование 256 МБ: пропускная способность памяти, МБ/с.
+    $MB = 256
+    $b1 = New-Object byte[] (64MB)
+    $b2 = New-Object byte[] (64MB)
+    (New-Object Random).NextBytes($b1)
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    for ($i = 0; $i -lt ($MB / 64); $i++) { [System.Buffer]::BlockCopy($b1, 0, $b2, 0, $b1.Length) }
+    $sw.Stop()
+    return @{ MBs = [int]($MB / [math]::Max(0.01, $sw.Elapsed.TotalSeconds)) }
+}
+
+function Get-Gpu2DScore {
+    # 2000 заливок GDI: попугаи 2D-ускорения.
+    try { Add-Type -AssemblyName System.Drawing -ErrorAction Stop } catch { return $null }
+    $bmp = $null; $gr = $null; $br = $null
+    try {
+        $bmp = New-Object System.Drawing.Bitmap(800, 600)
+        $gr = [System.Drawing.Graphics]::FromImage($bmp)
+        $br = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Red)
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        for ($i = 0; $i -lt 2000; $i++) { $gr.FillRectangle($br, 0, 0, 200, 200) }
+        $sw.Stop()
+        return @{ Ops = [int](2000 / [math]::Max(0.01, $sw.Elapsed.TotalSeconds)) }
+    } catch { return $null }
+    finally { try { $gr.Dispose() } catch {}; try { $bmp.Dispose() } catch {}; try { $br.Dispose() } catch {} }
+}
+
+function Get-PotatoVerdict {
+    param([int]$Index)
+    if ($Index -lt 25) { return 'Картошка: только лёгкие задачи' }
+    if ($Index -lt 50) { return 'Офисный: интернет, документы, кино' }
+    if ($Index -lt 75) { return 'Игровой: тянет современные игры' }
+    return 'Зверь: хватит надолго'
+}
+
+# Полный замер в 1 клик: бенчмарки + быстрое здоровье, индекс, сравнение с прошлым.
+function Start-FullBenchmark {
+    Write-Log "══ Полный тест ПК запущен (3-6 мин) ══"
+    Set-Progress
+    Start-Background {
+        $rep = [System.Collections.Generic.List[string]]::new()
+        $warn = 0; $err = 0
+        function Write-Bench {
+            param([string]$Msg, [string]$Color = 'Default', [string]$Sev = 'info')
+            $rep.Add($Msg)
+            Write-Log $Msg -Color $Color
+            if ($Sev -eq 'warn') { $script:warnCount++ }
+            if ($Sev -eq 'err')  { $script:errCount++ }
+        }
+        $script:warnCount = 0; $script:errCount = 0
+        try {
+            # Прошлый замер — для дельты (замер до оптимизации vs после).
+            $prev = $null
+            try {
+                $old = @(Get-ChildItem (Join-Path $script:WorkFolder 'bench-*.json') -ErrorAction Stop |
+                    Sort-Object LastWriteTime -Descending | Select-Object -First 1)
+                if ($old.Count -gt 0) {
+                    $prev = Get-Content $old[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+                }
+            } catch {}
+            $rep.Add("PotatoPC замер: $(Get-Date -Format 'yyyy-MM-dd HH:mm') [$env:COMPUTERNAME]")
+            try { $rep.Add("ОС: $((Get-SystemInfo).OS) | CPU: $((Get-SystemInfo).CPU) | RAM: $((Get-SystemInfo).RAM)") } catch {}
+
+            # --- Бенчмарки ---
+            Write-Bench '── Скорость ──'
+            Write-Bench '[*] CPU...'
+            $cpu = Get-CpuScore
+            Write-Bench ("  CPU: {0} попугаев" -f $cpu.Score) -Color 'Green'
+            Write-Bench '[*] Память...'
+            $ram = Get-RamScore
+            Write-Bench ("  RAM: {0} МБ/с" -f $ram.MBs) -Color 'Green'
+            Write-Bench '[*] Диск...'
+            $sp = Test-DiskSpeed -MB 64
+            if ($sp) { Write-Bench ("  Диск: запись {0}, чтение {1} МБ/с" -f $sp.WriteMBs, $sp.ReadMBs) -Color 'Green' }
+            else { Write-Bench '  ⚠ Диск не замерился' -Color 'Yellow' -Sev 'warn' }
+            Write-Bench '[*] Видео 2D...'
+            $td = Get-Gpu2DScore
+            if ($td) { Write-Bench ("  2D: {0} оп/сек" -f $td.Ops) -Color 'Green' }
+            $cn = [math]::Min(100, $cpu.Score / 20000)
+            $rn = [math]::Min(100, $ram.MBs / 80)
+            $dn = 0
+            if ($sp) { $dn = [math]::Min(100, (($sp.ReadMBs + $sp.WriteMBs) / 2) / 25) }
+            $idx = [int](($cn + $rn + $dn) / 3)
+            Write-Bench ("  Индекс: {0}/100 — {1}" -f $idx, (Get-PotatoVerdict -Index $idx)) -Color 'Green'
+
+            # --- Быстрое здоровье (без долгих SFC/DISM — они отдельно) ---
+            Write-Bench '── Здоровье ──'
+            foreach ($d in (Get-DiskSpaceStatus)) {
+                if ($d.FreePct -lt 10)      { Write-Bench ("  ✗ {0}: свободно {1}% — место кончается" -f $d.DeviceID, $d.FreePct) -Color 'Red' -Sev 'err' }
+                elseif ($d.FreePct -lt 15)  { Write-Bench ("  ⚠ {0}: свободно {1}%" -f $d.DeviceID, $d.FreePct) -Color 'Yellow' -Sev 'warn' }
+            }
+            foreach ($s in (Get-SmartAll)) {
+                if ($s.Health -ne 'Healthy') { Write-Bench ("  ✗ Диск {0}: {1}" -f $s.Disk, $s.Health) -Color 'Red' -Sev 'err' }
+                elseif ($s.RErr -gt 0 -or $s.WErr -gt 0) { Write-Bench ("  ⚠ Диск {0}: ошибки R/W" -f $s.Disk) -Color 'Yellow' -Sev 'warn' }
+            }
+            $ee = @(Get-RecentEventErrors -Hours 24 -Max 100)
+            $crit = @($ee | Where-Object { $_.LevelDisplayName -match 'Критич|Critical' }).Count
+            if ($crit -gt 0) { Write-Bench ("  ✗ Критических ошибок за 24ч: $crit" ) -Color 'Red' -Sev 'err' }
+            elseif ($ee.Count -gt 20) { Write-Bench ("  ⚠ Ошибок за 24ч: " + $ee.Count) -Color 'Yellow' -Sev 'warn' }
+            else { Write-Bench ("  ✓ Журналы чистые ({0})" -f $ee.Count) -Color 'Green' }
+            $dumps = @(Get-MiniDumps -Max 5)
+            if ($dumps.Count -gt 0) { Write-Bench ("  ✗ BSOD-дампов: " + $dumps.Count) -Color 'Red' -Sev 'err' }
+            $fs = @(Get-FailedAutoServices)
+            if ($fs.Count -gt 0) { Write-Bench ("  ⚠ Не запущено служб: " + $fs.Count) -Color 'Yellow' -Sev 'warn' }
+            $dp = @(Get-DriverProblems)
+            if ($dp.Count -gt 0) { Write-Bench ("  ✗ Устройств с ошибками: " + $dp.Count) -Color 'Red' -Sev 'err' }
+            $pr = @(Test-PendingReboot)
+            if ($pr.Count -gt 0) { Write-Bench ("  ⚠ Нужна перезагрузка: " + ($pr -join ', ')) -Color 'Yellow' -Sev 'warn' }
+            foreach ($n in (Test-QuickNetwork)) {
+                if (-not $n.Ok) { Write-Bench ("  ✗ Сеть {0}: нет" -f $n.Name) -Color 'Red' -Sev 'err' }
+            }
+            foreach ($b in (Get-BatteryWear)) {
+                if ($null -ne $b.WearPct -and $b.WearPct -ge 40) { Write-Bench ("  ⚠ Батарея изношена: {0}%" -f $b.WearPct) -Color 'Yellow' -Sev 'warn' }
+            }
+
+            # --- Дельта с прошлым замером ---
+            if ($prev -and $prev.Index) {
+                $d = $idx - [int]$prev.Index
+                $arrow = if ($d -gt 0) { "▲ +$d" } elseif ($d -lt 0) { "▼ $d" } else { "— без изменений" }
+                $dc = if ($d -gt 0) { 'Green' } elseif ($d -lt 0) { 'Red' } else { 'Default' }
+                Write-Bench ("  Прошлый замер: {0}/100 ({1})" -f $prev.Index, $prev.Time) -Color 'Default'
+                Write-Bench ("  Разница: $arrow") -Color $dc
+            } else {
+                Write-Bench '  Первый замер сохранён — следующий покажет разницу.' -Color 'Default'
+            }
+
+            # --- Сохранение ---
+            $stamp = Get-Date -Format 'yyyyMMdd-HHmm'
+            $txtPath = Join-Path $script:WorkFolder ("bench-" + $stamp + ".txt")
+            $jsPath = Join-Path $script:WorkFolder ("bench-" + $stamp + ".json")
+            try { $rep | Out-File -FilePath $txtPath -Encoding UTF8 -Force } catch { $txtPath = '' }
+            try {
+                @{ Time = (Get-Date -Format 'yyyy-MM-dd HH:mm'); Index = $idx;
+                   Cpu = $cpu.Score; Ram = $ram.MBs;
+                   DiskR = $(if ($sp) { $sp.ReadMBs } else { 0 }); DiskW = $(if ($sp) { $sp.WriteMBs } else { 0 });
+                   Err = $script:errCount; Warn = $script:warnCount } |
+                    ConvertTo-Json -Compress | Out-File -FilePath $jsPath -Encoding UTF8 -Force
+                Get-ChildItem (Join-Path $script:WorkFolder 'bench-*.json') -ErrorAction SilentlyContinue |
+                    Sort-Object LastWriteTime -Descending | Select-Object -Skip 20 |
+                    Remove-Item -Force -ErrorAction SilentlyContinue
+            } catch {}
+            Write-Log '══════════════════════════════════════'
+            Write-Log ("Замер готов: индекс $idx/100, ошибок $($script:errCount), предупреждений $($script:warnCount)") -Color 'Green'
+            if ($txtPath) { Write-Log ("Отчёт: " + $txtPath) -Color 'Green' }
+            Write-Log '══════════════════════════════════════'
+            Set-BgResult -Key 'benchReport' -Value @{ Path = $txtPath; Index = $idx; Err = $script:errCount; Warn = $script:warnCount }
+        } catch {
+            Write-Log ("Замер прерван: " + $_) -Color 'Red'
+            Set-BgResult -Key 'benchReport' -Value @{ Path = ''; Index = -1; Err = 1; Warn = 0 }
+        }
+    }
+}
+
 # Экспресс-аудит целиком: выполняется в фоне, пишет в лог и сохраняет отчёт.
 function Start-ExpressAudit {
     Write-Log "══ Экспресс-аудит запущен (только чтение, 5-15 мин) ══"

@@ -184,6 +184,68 @@ function Build-DiagPanel {
     if ($null -eq $diagPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     $diagPanel.Children.Clear()
 
+    # ── Полный тест ПК в 1 клик: индекс + здоровье + сравнение ──
+    $diagPanel.Children.Add((New-CategoryHeader -Title "Полный тест")) | Out-Null
+    $bcard = New-Card -Large
+    $bcard.BorderBrush = Get-ThemeBrush "#6c63ff"; $bcard.BorderThickness = $script:Theme.BorderAccentR
+    Add-CardFx -Card $bcard
+    $bg2 = [System.Windows.Controls.Grid]::new()
+    $bc1=[System.Windows.Controls.ColumnDefinition]::new(); $bc1.Width=[System.Windows.GridLength]::new(44)
+    $bc2=[System.Windows.Controls.ColumnDefinition]::new(); $bc2.Width=[System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star)
+    $bc3=[System.Windows.Controls.ColumnDefinition]::new(); $bc3.Width=[System.Windows.GridLength]::Auto
+    $bg2.ColumnDefinitions.Add($bc1); $bg2.ColumnDefinitions.Add($bc2); $bg2.ColumnDefinitions.Add($bc3)
+    $bico = Get-IconImage -Name "devices/computer" -Size 26
+    if ($bico) { $bico.HorizontalAlignment = "Center"; [System.Windows.Controls.Grid]::SetColumn($bico,0); $bg2.Children.Add($bico) | Out-Null }
+    $btxt=[System.Windows.Controls.StackPanel]::new(); $btxt.VerticalAlignment="Center"; $btxt.Margin=[System.Windows.Thickness]::new(12,0,12,0)
+    $brow=[System.Windows.Controls.StackPanel]::new(); $brow.Orientation="Horizontal"; $brow.VerticalAlignment="Center"
+    $bttl=[System.Windows.Controls.TextBlock]::new(); $bttl.Text="Замерить ПК"; $bttl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#e0e0f4"); $bttl.FontSize=13; $bttl.FontWeight="SemiBold"
+    $brow.Children.Add($bttl) | Out-Null
+    $script:BenchStatusLbl=[System.Windows.Controls.TextBlock]::new(); $script:BenchStatusLbl.FontSize=11; $script:BenchStatusLbl.VerticalAlignment="Center"; $script:BenchStatusLbl.Margin=[System.Windows.Thickness]::new(10,0,0,0)
+    $script:BenchStatusLbl.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0"); $script:BenchStatusLbl.Text=""
+    $brow.Children.Add($script:BenchStatusLbl) | Out-Null
+    $bdsc=[System.Windows.Controls.TextBlock]::new()
+    $bdsc.Text="Скорость, диски, ошибки, сеть. 3-6 минут — можно отойти. Повтор покажет разницу до и после оптимизации."
+    $bdsc.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#b8b8cc"); $bdsc.FontSize=11; $bdsc.Margin=[System.Windows.Thickness]::new(0,3,0,0); $bdsc.TextWrapping="Wrap"
+    $btxt.Children.Add($brow) | Out-Null; $btxt.Children.Add($bdsc) | Out-Null
+    [System.Windows.Controls.Grid]::SetColumn($btxt,1); $bg2.Children.Add($btxt) | Out-Null
+    $bbtns=[System.Windows.Controls.StackPanel]::new(); $bbtns.Orientation="Horizontal"; $bbtns.VerticalAlignment="Center"
+    $brun=[System.Windows.Controls.Button]::new(); $brun.Content="Замерить"
+    $brun.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff"); $brun.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#ffffff")
+    $brun.BorderThickness=[System.Windows.Thickness]::new(0); $brun.Cursor=[System.Windows.Input.Cursors]::Hand; $brun.FontSize=12; $brun.FontWeight="SemiBold"; $brun.Padding=[System.Windows.Thickness]::new(14,8,14,8)
+    $brun.Add_MouseEnter({ $this.Opacity=0.85 }); $brun.Add_MouseLeave({ $this.Opacity=1.0 })
+    $script:BenchOpenBtn=[System.Windows.Controls.Button]::new(); $script:BenchOpenBtn.Content="Открыть отчёт"
+    $script:BenchOpenBtn.Background=[Windows.Media.BrushConverter]::new().ConvertFrom("#2d2d35"); $script:BenchOpenBtn.Foreground=[Windows.Media.BrushConverter]::new().ConvertFrom("#d4d4e0")
+    $script:BenchOpenBtn.BorderThickness=[System.Windows.Thickness]::new(0); $script:BenchOpenBtn.Cursor=[System.Windows.Input.Cursors]::Hand; $script:BenchOpenBtn.FontSize=12; $script:BenchOpenBtn.Margin=[System.Windows.Thickness]::new(8,0,0,0); $script:BenchOpenBtn.Padding=[System.Windows.Thickness]::new(14,8,14,8)
+    $script:BenchOpenBtn.IsEnabled = $false
+    if ($script:LastBenchReport -and (Test-Path $script:LastBenchReport)) {
+        $script:BenchOpenBtn.IsEnabled = $true
+        $script:BenchStatusLbl.Text = "есть отчёт"
+        $script:BenchStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+    }
+    $script:BenchOpenBtn.Add_Click({
+        try {
+            if ($script:LastBenchReport -and (Test-Path $script:LastBenchReport)) { Start-Process explorer.exe -ArgumentList "/select,`"$script:LastBenchReport`"" }
+            else { Write-Log "Отчёта пока нет — запусти замер" -Color "Yellow" }
+        } catch { Write-Log "Не удалось открыть отчёт: $_" -Color "Red" }
+    })
+    $brun.Add_Click({
+        $brun.IsEnabled = $false; $brun.Content = "Замеряю..."
+        $script:BenchStatusLbl.Text = "выполняется..."
+        $script:BenchStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+        try { Start-FullBenchmark } catch { Write-Log "Не удалось запустить замер: $_" -Color "Red" }
+        $t = New-Object System.Windows.Threading.DispatcherTimer
+        $t.Interval = [TimeSpan]::FromMilliseconds(500)
+        $t.Add_Tick({
+            $t.Stop()
+            try { $brun.IsEnabled = $true; $brun.Content = "Замерить" } catch {}
+        }.GetNewClosure())
+        $t.Start()
+    }.GetNewClosure())
+    $bbtns.Children.Add($brun) | Out-Null; $bbtns.Children.Add($script:BenchOpenBtn) | Out-Null
+    [System.Windows.Controls.Grid]::SetColumn($bbtns,2); $bg2.Children.Add($bbtns) | Out-Null
+    $bcard.Child = $bg2
+    $diagPanel.Children.Add($bcard) | Out-Null
+
     # ── Экспресс-аудит: всё за один проход + отчёт в файл ──
     $diagPanel.Children.Add((New-CategoryHeader -Title "Экспресс-аудит инженера")) | Out-Null
     $acard = New-Card -Large
@@ -273,6 +335,14 @@ function Build-DiagPanel {
            Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Скорость диска'; Write-Log "Замеряю диск C:..."; $sp=Test-DiskSpeed -MB 64; if (-not $sp) { Write-Log "Не удалось замерить" -Color "Yellow"; Write-Log ('═' * 44); return }; Write-Log ("Диск C: запись {0} МБ/с, чтение {1} МБ/с" -f $sp.WriteMBs,$sp.ReadMBs) -Color "Green"; if ($sp.WriteMBs -ge 300) { Write-Log "  Уровень SSD — отлично" -Color "Green" } elseif ($sp.WriteMBs -ge 80) { Write-Log "  Обычная скорость" } else { Write-Log "  Медленно — проверь здоровье диска (SMART)" -Color "Yellow" }; Write-Log ('═' * 44) } } }
         @{ Group="Быстрые проверки (без изменений)"; Title="Сеть: шлюз / DNS / интернет"; Desc="По одному ping: шлюз, 1.1.1.1, 8.8.8.8."; IconSlot="devices/network"; Color="#4a90d9"
            Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Сеть'; foreach ($n in (Test-QuickNetwork)) { if ($n.Ok) { Write-Log ("Сеть {0}: {1} OK" -f $n.Name,$n.Note) -Color "Green" } else { Write-Log ("Сеть {0}: {1} НЕТ" -f $n.Name,$n.Note) -Color "Red" } }; Write-Log ('═' * 44) } } }
+        @{ Group="Бенчмарки (попугаи)"; Title="Процессор"; Desc="Решето до 500 тысяч. Пару секунд."; IconSlot="devices/hw_cpu"; Color="#4a90d9"
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Бенч CPU'; $r=Get-CpuScore; Write-Log ("CPU: {0} попугаев за {1} сек" -f $r.Score,$r.Sec) -Color "Green"; if ($r.Score -lt 200000) { Write-Log "  Печатная машинка" -Color "Yellow" } elseif ($r.Score -lt 600000) { Write-Log "  Офисный уровень" } elseif ($r.Score -lt 1200000) { Write-Log "  Бодрый" -Color "Green" } else { Write-Log "  Зверь" -Color "Green" }; Write-Log ('═' * 44) } } }
+        @{ Group="Бенчмарки (попугаи)"; Title="Память"; Desc="Копирование 256 МБ. Пару секунд."; IconSlot="devices/hw_memory"; Color="#7c63ff"
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Бенч RAM'; $r=Get-RamScore; Write-Log ("Память: {0} МБ/с" -f $r.MBs) -Color "Green"; if ($r.MBs -lt 1500) { Write-Log "  Медленно" -Color "Yellow" } elseif ($r.MBs -lt 4000) { Write-Log "  Норма" } else { Write-Log "  Быстро" -Color "Green" }; Write-Log ('═' * 44) } } }
+        @{ Group="Бенчмарки (попугаи)"; Title="Видео 2D"; Desc="2000 заливок. Быстро."; IconSlot="devices/display"; Color="#2da86a"
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Бенч 2D'; $r=Get-Gpu2DScore; if (-not $r) { Write-Log "Не удалось замерить" -Color "Yellow"; Write-Log ('═' * 44); return }; Write-Log ("2D: {0} операций/сек" -f $r.Ops) -Color "Green"; if ($r.Ops -lt 5000) { Write-Log "  Слабо" -Color "Yellow" } elseif ($r.Ops -lt 15000) { Write-Log "  Норма" } else { Write-Log "  Быстро" -Color "Green" }; Write-Log ('═' * 44) } } }
+        @{ Group="Бенчмарки (попугаи)"; Title="Весь замер (индекс)"; Desc="CPU + память + диск. Минута-две."; IconSlot="apps/monitor"; Color="#6c63ff"
+           Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Potato-индекс'; Write-Log "Меряю CPU..."; $cpu=Get-CpuScore; Write-Log ("  CPU: {0}" -f $cpu.Score); Write-Log "Меряю память..."; $ram=Get-RamScore; Write-Log ("  RAM: {0} МБ/с" -f $ram.MBs); Write-Log "Меряю диск..."; $sp=Test-DiskSpeed -MB 64; if ($sp) { Write-Log ("  Диск: запись {0}, чтение {1} МБ/с" -f $sp.WriteMBs,$sp.ReadMBs) }; $cn=[math]::Min(100,$cpu.Score/20000); $rn=[math]::Min(100,$ram.MBs/80); $dn=0; if ($sp) { $dn=[math]::Min(100,(($sp.ReadMBs+$sp.WriteMBs)/2)/25) }; $idx=[int](($cn+$rn+$dn)/3); Write-Log ("Индекс: {0}/100 — {1}" -f $idx,(Get-PotatoVerdict -Index $idx)) -Color "Green"; Write-Log ('═' * 44) } } }
         @{ Group="Журналы и сбои"; Title="Ошибки журналов (24 ч)"; Desc="System + Application, уровни Critical/Error, топ источников."; IconSlot="actions/doc_new"; Color="#d4601a"
            Action={ Start-Background { Write-Log ('═' * 44); Write-Log '▶ Ошибки журналов'; $ee=@(Get-RecentEventErrors -Hours 24 -Max 100); Write-Log ("Ошибок System+Application за 24ч: " + $ee.Count); $ee | Group-Object Source | Sort-Object Count -Descending | Select-Object -First 8 | ForEach-Object { Write-Log ("  {0}: {1}" -f $_.Name,$_.Count) }; Write-Log ('═' * 44) } } }
         @{ Group="Журналы и сбои"; Title="Minidumps (BSOD)"; Desc="Последние 5 дампов из C:\\Windows\\Minidump."; IconSlot="status/err"; Color="#e74c3c"
