@@ -134,6 +134,7 @@ function Update-DashStats {
         $script:V6DashStart = Get-Date
         Start-Background {
             try {
+                Write-Log "дашборд: считаю..."
                 $d = @{ When = (Get-Date) }
                 try {
                     $si = Get-SystemInfo
