@@ -54,18 +54,42 @@ function Resolve-JunkPaths {
     return $out
 }
 
+function Test-JunkProtected {
+    # Своё не трогаем: рабочая папка PotatoPC (скрипты, логи, движок YARA).
+    # Иначе чистка TEMP убивает скрипты следующих шагов пачки (код -196608).
+    param([string]$Path)
+    try {
+        if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+        $full = [System.IO.Path]::GetFullPath($Path).TrimEnd('\','/')
+        $cands = @()
+        if ($env:TEMP) { $cands += (Join-Path $env:TEMP 'PotatoPC') }
+        if ($env:TMP -and ($env:TMP -ne $env:TEMP)) { $cands += (Join-Path $env:TMP 'PotatoPC') }
+        try { if ($script:WorkFolder) { $cands += [string]$script:WorkFolder } } catch {}
+        try { if ($PSScriptRoot) { $cands += [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')) } catch {}
+        foreach ($c in ($cands | Where-Object { $_ } | Select-Object -Unique)) {
+            try {
+                $cc = [System.IO.Path]::GetFullPath($c).TrimEnd('\','/')
+                if ($full -eq $cc -or $full.StartsWith($cc + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }
+            } catch {}
+        }
+    } catch {}
+    return $false
+}
+
 function Measure-Junk {
     param([string[]]$Resolved, [int]$MinAgeDays = 0)
     $cutoff = $null
     if ($MinAgeDays -gt 0) { $cutoff = (Get-Date).AddDays(-$MinAgeDays) }
     $sum = 0L
     foreach ($r in $Resolved) {
+        if (Test-JunkProtected -Path $r) { continue }
         try {
             if (Test-Path -LiteralPath $r -PathType Leaf) {
                 $it = Get-Item -LiteralPath $r -Force -ErrorAction SilentlyContinue
                 if ($it -and ($null -eq $cutoff -or $it.LastWriteTime -lt $cutoff)) { $sum += $it.Length }
             } else {
-                $files = @(Get-ChildItem -LiteralPath $r -Recurse -File -Force -ErrorAction SilentlyContinue)
+                $files = @(Get-ChildItem -LiteralPath $r -Recurse -File -Force -ErrorAction SilentlyContinue |
+                    Where-Object { -not (Test-JunkProtected -Path $_.FullName) })
                 if ($cutoff) { $files = @($files | Where-Object { $_.LastWriteTime -lt $cutoff }) }
                 $s = ($files | Measure-Object Length -Sum).Sum
                 if ($s) { $sum += [long]$s }
@@ -81,6 +105,7 @@ function Clear-Junk {
     if ($MinAgeDays -gt 0) { $cutoff = (Get-Date).AddDays(-$MinAgeDays) }
     $err = 0
     foreach ($r in $Resolved) {
+        if (Test-JunkProtected -Path $r) { continue }
         try {
             if (Test-Path -LiteralPath $r -PathType Leaf) {
                 if ($cutoff) {
@@ -89,11 +114,12 @@ function Clear-Junk {
                 Remove-Item -LiteralPath $r -Force -ErrorAction Stop
             } elseif ($cutoff) {
                 foreach ($f in @(Get-ChildItem -LiteralPath $r -Recurse -File -Force -ErrorAction SilentlyContinue |
-                        Where-Object { $_.LastWriteTime -lt $cutoff })) {
+                        Where-Object { (-not (Test-JunkProtected -Path $_.FullName)) -and $_.LastWriteTime -lt $cutoff })) {
                     try { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop }
                     catch { $err++ }
                 }
                 foreach ($d in @(Get-ChildItem -LiteralPath $r -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+                        Where-Object { -not (Test-JunkProtected -Path $_.FullName) } |
                         Sort-Object { $_.FullName.Length } -Descending)) {
                     try {
                         if ((Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction Stop | Measure-Object).Count -eq 0) {
@@ -103,6 +129,7 @@ function Clear-Junk {
                 }
             } else {
                 Get-ChildItem -LiteralPath $r -Force -ErrorAction SilentlyContinue |
+                    Where-Object { -not (Test-JunkProtected -Path $_.FullName) } |
                     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
             }
         } catch { $err++ }

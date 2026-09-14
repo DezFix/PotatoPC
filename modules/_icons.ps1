@@ -148,6 +148,7 @@ function Initialize-WindowIcons {
         @('InstallAppsIcon', 'mimetypes/nav_apps'), @('InstallUpdatesIcon', 'actions/go_up'),
         @('UsersHeaderIcon', 'apps/nav_users'), @('DiagHeaderIcon', 'status/info'),
         @('CopyLogIcon', 'actions/copy'), @('ClearLogIcon', 'places/trash'),
+        @('SaveLogIcon', 'actions/save'),
         @('ToggleLogIcon', 'actions/go_down'),
         @('RefreshStartupIcon', 'actions/refresh'), @('AddUserIcon', 'apps/nav_users'),
         @('RefreshUsersIcon', 'actions/refresh')

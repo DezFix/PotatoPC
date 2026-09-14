@@ -157,11 +157,11 @@
                 <Button x:Name="NavDashBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavDashIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Дашборд" VerticalAlignment="Center"/></StackPanel></Button>
                 <Button x:Name="NavModulesBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavModulesIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Модули" VerticalAlignment="Center"/></StackPanel></Button>
                 <Button x:Name="NavAppsBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavAppsIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Приложения" VerticalAlignment="Center"/></StackPanel></Button>
+                <Button x:Name="NavUpdatesBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavUpdatesIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Обновления" VerticalAlignment="Center"/></StackPanel></Button>
                 <TextBlock Text="СИСТЕМА" Foreground="#55556E" FontSize="9.5" FontWeight="Bold" Margin="6,12,0,6"/>
                 <Button x:Name="NavStartupBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavStartupIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Автозагрузка" VerticalAlignment="Center"/></StackPanel></Button>
                 <Button x:Name="NavUsersBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavUsersIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Пользователи" VerticalAlignment="Center"/></StackPanel></Button>
                 <Button x:Name="NavCleanBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavCleanIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Очистка" VerticalAlignment="Center"/></StackPanel></Button>
-                <Button x:Name="NavUpdatesBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavUpdatesIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Обновления" VerticalAlignment="Center"/></StackPanel></Button>
                 <Button x:Name="NavProtectBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavProtectIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Защита" VerticalAlignment="Center"/></StackPanel></Button>
                 <TextBlock Text="ПРОЧЕЕ" Foreground="#55556E" FontSize="9.5" FontWeight="Bold" Margin="6,12,0,6"/>
                 <Button x:Name="NavDiagBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavDiagIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Тест системы" VerticalAlignment="Center"/></StackPanel></Button>
@@ -462,10 +462,6 @@
                   <TextBlock Text="ВЫБОР" Style="{StaticResource GroupLabel}"/>
                   <Button x:Name="SelectAllScanBtn" Style="{StaticResource Small}" Margin="0,0,5,0" Content="Все"/>
                   <Button x:Name="DeselectAllScanBtn" Style="{StaticResource Small}" Margin="0,0,0,0" Content="Снять"/>
-                  <Border Width="1" Background="#2A2A38" Margin="10,2"/>
-                  <TextBlock Text="DEFENDER" Style="{StaticResource GroupLabel}"/>
-                  <Button x:Name="DefenderScanBtn" Style="{StaticResource Small}" Margin="0,0,5,0" Content="Проверка"/>
-                  <Button x:Name="RefreshProtectBtn" Style="{StaticResource Small}" Content="Обновить базы"/>
                 </StackPanel>
               </Border>
               <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Background="#101014">
@@ -537,6 +533,7 @@
                   <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button x:Name="CopyLogBtn" Style="{StaticResource Small}" Margin="0,0,5,0" ToolTip="Скопировать весь лог"><StackPanel Orientation="Horizontal"><Image x:Name="CopyLogIcon" Width="11" Height="11" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="Копировать" VerticalAlignment="Center"/></StackPanel></Button>
                     <Button x:Name="ClearLogBtn" Style="{StaticResource Small}" Margin="0,0,5,0" ToolTip="Очистить окно лога"><StackPanel Orientation="Horizontal"><Image x:Name="ClearLogIcon" Width="11" Height="11" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="Очистить" VerticalAlignment="Center"/></StackPanel></Button>
+                    <Button x:Name="SaveLogBtn" Style="{StaticResource Small}" Margin="0,0,5,0" ToolTip="Сохранить лог в txt на рабочий стол"><StackPanel Orientation="Horizontal"><Image x:Name="SaveLogIcon" Width="11" Height="11" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="Сохранить" VerticalAlignment="Center"/></StackPanel></Button>
                     <Button x:Name="ToggleLogBtn" Style="{StaticResource Small}" ToolTip="Свернуть/развернуть консоль"><StackPanel Orientation="Horizontal"><Image x:Name="ToggleLogIcon" Width="11" Height="11" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock x:Name="ToggleLogText" Text="Свернуть" VerticalAlignment="Center"/></StackPanel></Button>
                   </StackPanel>
                 </Grid>

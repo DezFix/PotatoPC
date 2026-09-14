@@ -1,0 +1,30 @@
+# Манифест базы YARA: правила качаются с GitHub только при проверке (Защита),
+# в архив репозитория не входят и время обновления не занимают.
+# Источник: https://raw.githubusercontent.com/DezFix/PotatoPC/main/protect/rules/<имя>
+MALW_Arkei.yar
+MALW_AZORULT.yar
+MALW_CAP_HookExKeylogger.yar
+MALW_Eicar.yar
+MALW_Fareit.yar
+MALW_hancitor.yar
+MALW_Install11.yar
+MALW_kirbi_mimikatz.yar
+MALW_Monero_Miner_installer.yar
+MALW_MSILStealer.yar
+MALW_Pony.yar
+MALW_Stealer.yar
+MALW_Tinba.yar
+MALW_Upatre.yar
+MALW_viotto_keylogger.yar
+MALW_XMRIG_Miner.yar
+MALW_Zeus.yar
+RANSOM_Cerber.yar
+RANSOM_Locky.yar
+RANSOM_Stampado.yar
+RANSOM_TeslaCrypt.yar
+RAT_Asyncrat.yar
+RAT_DarkComet.yar
+RAT_Nanocore.yar
+RAT_Njrat.yar
+RAT_Orcus.yar
+RAT_PoisonIvy.yar

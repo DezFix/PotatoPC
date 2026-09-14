@@ -51,6 +51,10 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
         [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, (Split-Path $zipPath -Parent))
     }
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+    try {
+        Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter '*.ps1' -Recurse -Force -ErrorAction SilentlyContinue |
+            Unblock-File -ErrorAction SilentlyContinue
+    } catch {}
     $repoFolder = Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory |
                   Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $repoFolder) { throw "Failed to download repository" }
@@ -130,6 +134,9 @@ foreach ($module in $uiModules) {
     if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
     . $modulePath
 }
+# All modules loaded - background may run, first snapshot will be complete.
+$script:V6ModulesReady = $true
+try { Update-DashStats } catch { }
 
 $requiredCommands = @(
     "Run-SelectedScripts", "Stop-SelectedScripts", "Reset-RunButton", "Select-RecommendedScripts", "Select-ScriptPreset",

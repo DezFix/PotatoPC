@@ -66,6 +66,16 @@ $copyLogBtn.Add_Click({
         Write-Log "Не удалось скопировать лог: $_" -Color "Yellow"
     }
 })
+$saveLogBtn.Add_Click({
+    try {
+        $txt = Get-LogPlainText -Box $LogBox
+        $dst = Join-Path ([Environment]::GetFolderPath("Desktop")) ("PotatoPC-log-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".txt")
+        [System.IO.File]::WriteAllText($dst, [string]$txt, (New-Object System.Text.UTF8Encoding $true))
+        Write-Log ("Лог сохранён: " + $dst) -Color "Green"
+    } catch {
+        Write-Log ("Не вышло сохранить лог: " + $_) -Color "Yellow"
+    }
+})
 $restorePointBtn.Add_Click({ Create-RestorePoint })
 $refreshStartupBtn.Add_Click({ Build-StartupPanel })
 $refreshUsersBtn.Add_Click({ Build-UsersPanel })
@@ -255,7 +265,8 @@ $scanBtn.Add_Click({ Start-YaraScan })
 $selectAllScanBtn.Add_Click({ foreach($cb in $script:ScanCheckboxes.Values){$cb.Box.IsChecked=$true}; Update-ScanCount })
 $deselectAllScanBtn.Add_Click({ foreach($cb in $script:ScanCheckboxes.Values){$cb.Box.IsChecked=$false}; Update-ScanCount })
 $quarantineBtn.Add_Click({ Start-Quarantine })
-$defenderScanBtn.Add_Click({
+# Кнопок Defender в шапке нет (только YARA) — привязки терпят их отсутствие.
+try { if ($defenderScanBtn) { $defenderScanBtn.Add_Click({
     Write-Log "Запускаю проверку Defender в фоне..."
     Start-Background {
         try {
@@ -267,15 +278,15 @@ $defenderScanBtn.Add_Click({
             Write-Log ("Не вышло запустить: " + $_) -Color "Red"
         }
     }
-})
-$refreshProtectBtn.Add_Click({
+}) } } catch {}
+try { if ($refreshProtectBtn) { $refreshProtectBtn.Add_Click({
     Write-Log "Обновляю защиту..."
     Start-Background {
         try { Update-MpSignature -ErrorAction Stop; Write-Log "Базы Defender обновлены." -Color "Green" }
         catch { Write-Log ("Базы не обновились: " + $_) -Color "Yellow" }
         Set-BgResult -Key 'protectRefresh' -Value $true
     }
-})
+}) } } catch {}
 
 # ═══ Очередь фон->UI: таймер забирает готовые результаты из шины ═══
 function Test-BgQueue {

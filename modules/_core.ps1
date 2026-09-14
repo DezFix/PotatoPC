@@ -325,6 +325,10 @@ function Invoke-ScriptFileWithRetry {
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         if ($Control -and $Control.Abort) { throw "STOPPED_BY_USER: $(Split-Path $FilePath -Leaf)" }
         Write-Log "[$attempt/$MaxAttempts] Запуск: $(Split-Path $FilePath -Leaf)"
+        try {
+            $fiChk = Get-Item -LiteralPath $FilePath -ErrorAction Stop
+            Write-Log ("Файл: " + $fiChk.FullName + " (" + $fiChk.Length + " байт)")
+        } catch { Write-Log ("Нет файла скрипта: " + $FilePath) -Color "Red"; return $false }
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
         if (-not (Test-Path $psi.FileName)) { $psi.FileName = "powershell" }
@@ -357,7 +361,12 @@ function Invoke-ScriptFileWithRetry {
             if ($stdout) { $stdout -split "`r?`n" | Where-Object { $_.Trim() -ne "" } | ForEach-Object { Write-Log "   $_" } }
             if ($stderr) { $stderr -split "`r?`n" | Where-Object { $_.Trim() -ne "" } | ForEach-Object { Write-Log "   $_" -Color Yellow } }
             if ($proc.ExitCode -ne 0) {
-                Write-Log "Скрипт $(Split-Path $FilePath -Leaf) завершился с кодом $($proc.ExitCode)" -Color Yellow
+                if ($proc.ExitCode -eq -196608) {
+                    Write-Log "Скрипт $(Split-Path $FilePath -Leaf) ПРОПАЛ с диска к моменту запуска (код -196608 = нет .ps1 файла)." -Color Red
+                    Write-Log "Обычно виноват антивирус (глянь карантин Defender) или чистка TEMP. Жми «Обновить» в шапке Модулей." -Color Yellow
+                } else {
+                    Write-Log "Скрипт $(Split-Path $FilePath -Leaf) завершился с кодом $($proc.ExitCode)" -Color Yellow
+                }
                 return $false
             }
             return $true
@@ -404,6 +413,10 @@ function Download-Repo {
         Invoke-WebRequest -Uri $script:RepoZipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
         Expand-RepoArchive -ZipPath $zipPath -Destination $script:WorkFolder
         Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+        try {
+            Get-ChildItem -Path $script:WorkFolder -Filter '*.ps1' -Recurse -Force -ErrorAction SilentlyContinue |
+                Unblock-File -ErrorAction SilentlyContinue
+        } catch {}
         $repoFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory |
                       Sort-Object LastWriteTime -Descending | Select-Object -First 1
         if ($repoFolder) {
@@ -693,7 +706,7 @@ function Invoke-Async {
     } catch {}
     # Хелперы вкладки Защита для фоновых сканирований.
     try {
-        foreach ($hfn in @('Ensure-YaraEngine', 'Combine-YaraRules', 'Invoke-YaraEntry')) {
+        foreach ($hfn in @('Ensure-YaraEngine', 'Combine-YaraRules', 'Invoke-YaraEntry', 'Ensure-YaraRules')) {
             try {
                 $hsrc = (Get-Command $hfn -CommandType Function -ErrorAction Stop).ScriptBlock.ToString()
                 $ps.AddScript("function $hfn {`n$hsrc`n}") | Out-Null
