@@ -693,7 +693,7 @@ function Invoke-Async {
     } catch {}
     # Хелперы вкладки Защита для фоновых сканирований.
     try {
-        foreach ($hfn in @('Ensure-YaraEngine', 'Combine-YaraRules')) {
+        foreach ($hfn in @('Ensure-YaraEngine', 'Combine-YaraRules', 'Invoke-YaraEntry')) {
             try {
                 $hsrc = (Get-Command $hfn -CommandType Function -ErrorAction Stop).ScriptBlock.ToString()
                 $ps.AddScript("function $hfn {`n$hsrc`n}") | Out-Null

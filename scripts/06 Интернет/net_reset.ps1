@@ -1,4 +1,4 @@
-# NAME: Сброс сети: winsock + IP + DNS (лечит интернет)
+﻿# NAME: Сброс сети: winsock + IP + DNS (лечит интернет)
 # DESC: Команды netsh winsock reset + netsh int ip reset + чистка DNS-кэша. Помогает когда сайты не открываются. Нужна перезагрузка!
 # TAGS: 2
 # ICON: 🔄

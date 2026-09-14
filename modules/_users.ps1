@@ -276,10 +276,11 @@ function Show-UserSettingsDialog {
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Настройка: USERNAME" Width="720" SizeToContent="Height" MaxHeight="780"
-        WindowStartupLocation="CenterScreen" Background="#202020" ResizeMode="NoResize">
+        WindowStartupLocation="CenterOwner" WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="NoResize">
     <Window.Resources>
         <Style x:Key="DlgBtn" TargetType="Button">
-            <Setter Property="Background" Value="#6c63ff"/>
+            <Setter Property="Background" Value="#14B8A6"/>
             <Setter Property="Foreground" Value="#ffffff"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -289,7 +290,7 @@ function Show-UserSettingsDialog {
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -297,36 +298,45 @@ function Show-UserSettingsDialog {
             </Setter>
         </Style>
         <Style x:Key="DlgBtnSecondary" TargetType="Button" BasedOn="{StaticResource DlgBtn}">
-            <Setter Property="Background" Value="#2d2d35"/>
+            <Setter Property="Background" Value="#22222E"/>
             <Setter Property="Foreground" Value="#d4d4e0"/>
         </Style>
         <Style x:Key="DlgTextInput" TargetType="TextBox">
-            <Setter Property="Background" Value="#1a1a20"/>
+            <Setter Property="Background" Value="#101014"/>
             <Setter Property="Foreground" Value="#e0e0ff"/>
-            <Setter Property="BorderBrush" Value="#33333f"/>
+            <Setter Property="BorderBrush" Value="#2A2A38"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="CaretBrush" Value="#6c63ff"/>
+            <Setter Property="CaretBrush" Value="#2DD4BF"/>
         </Style>
         <Style x:Key="DlgTextBox" TargetType="PasswordBox">
-            <Setter Property="Background" Value="#1a1a20"/>
+            <Setter Property="Background" Value="#101014"/>
             <Setter Property="Foreground" Value="#e0e0ff"/>
-            <Setter Property="BorderBrush" Value="#33333f"/>
+            <Setter Property="BorderBrush" Value="#2A2A38"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="CaretBrush" Value="#6c63ff"/>
+            <Setter Property="CaretBrush" Value="#2DD4BF"/>
         </Style>
     </Window.Resources>
-    <StackPanel Margin="22">
-        <TextBlock Text="Настройки пользователя" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,2"/>
-        <TextBlock Text="USERNAME" Foreground="#6c63ff" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,14"/>
+    <Border CornerRadius="16" Background="#101014" BorderBrush="#2C2C3A" BorderThickness="1">
+    <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="40"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <Border Grid.Row="0" x:Name="DlgTitleBar" Background="Transparent" CornerRadius="16,16,0,0">
+        <Grid Margin="20,0,8,0">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <TextBlock Text="Настройки пользователя" Foreground="White" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
+          <Button Grid.Column="1" x:Name="DlgCloseBtn" Content="✕" Width="36" Height="26" Background="Transparent" Foreground="#8E8EA3" BorderThickness="0" Cursor="Hand" FontSize="12"/>
+        </Grid>
+      </Border>
+    <StackPanel Grid.Row="1" Margin="22,0,22,22">
+        <TextBlock Text="USERNAME" Foreground="#14B8A6" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,14"/>
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Margin="0,0,6,0">
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock Text="Новый пароль" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <PasswordBox x:Name="NewPasswordBox" Style="{StaticResource DlgTextBox}" Margin="0,0,0,8"/>
@@ -335,7 +345,7 @@ function Show-UserSettingsDialog {
                 <Button Content="Изменить пароль" x:Name="ChangePasswordBtn" Style="{StaticResource DlgBtn}" Margin="0,10,0,0" HorizontalAlignment="Left"/>
             </StackPanel>
         </Border>
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock Text="Сгенерировать пароль" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <TextBox x:Name="GenPassView2" Style="{StaticResource DlgTextInput}" IsReadOnly="True" Margin="0,0,0,8"/>
@@ -346,7 +356,7 @@ function Show-UserSettingsDialog {
                 </StackPanel>
             </StackPanel>
         </Border>
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -365,7 +375,7 @@ function Show-UserSettingsDialog {
         </Border>
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="6,0,0,0">
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock Text="Роль учётной записи" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <StackPanel Orientation="Horizontal">
@@ -374,7 +384,7 @@ function Show-UserSettingsDialog {
                 </StackPanel>
             </StackPanel>
         </Border>
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -387,7 +397,7 @@ function Show-UserSettingsDialog {
                 <CheckBox x:Name="RdpChk" Grid.Column="1" VerticalAlignment="Center"/>
             </Grid>
         </Border>
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,16">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -405,6 +415,8 @@ function Show-UserSettingsDialog {
             <Button Content="Сохранить изменения" x:Name="SaveChangesBtn" Style="{StaticResource DlgBtn}"/>
         </StackPanel>
     </StackPanel>
+    </Grid>
+    </Border>
 </Window>
 '@
     $dialogXaml = $dialogXaml.Replace('USERNAME', [System.Security.SecurityElement]::Escape($UserName))
@@ -580,6 +592,12 @@ function Show-UserSettingsDialog {
         if (-not $hasError) { Build-UsersPanel }
     })
     $closeDialogBtn.Add_Click({ $dlg.Close() })
+    $dlgCloseBtn = $dlg.FindName("DlgCloseBtn")
+    if ($dlgCloseBtn) { $dlgCloseBtn.Add_Click({ $dlg.Close() }) }
+    $dlgTitleBar = $dlg.FindName("DlgTitleBar")
+    if ($dlgTitleBar) { $dlgTitleBar.Add_MouseLeftButtonDown({ param($s,$e) try { $dlg.DragMove() } catch {} }) }
+    try { $dlg.Owner = $window } catch {}
+    $dlg.Add_KeyDown({ param($s,$e) if ($e.Key -eq 'Escape') { try { $dlg.Close() } catch {} } })
     $dlg.ShowDialog() | Out-Null
 }
 
@@ -588,10 +606,11 @@ function Show-CreateUserDialog {
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Новый пользователь" Width="720" SizeToContent="Height" MaxHeight="780"
-        WindowStartupLocation="CenterScreen" Background="#202020" ResizeMode="NoResize">
+        WindowStartupLocation="CenterOwner" WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="NoResize">
     <Window.Resources>
         <Style x:Key="DlgBtn" TargetType="Button">
-            <Setter Property="Background" Value="#6c63ff"/>
+            <Setter Property="Background" Value="#14B8A6"/>
             <Setter Property="Foreground" Value="#ffffff"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -601,7 +620,7 @@ function Show-CreateUserDialog {
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -609,35 +628,44 @@ function Show-CreateUserDialog {
             </Setter>
         </Style>
         <Style x:Key="DlgBtnSecondary" TargetType="Button" BasedOn="{StaticResource DlgBtn}">
-            <Setter Property="Background" Value="#2d2d35"/>
+            <Setter Property="Background" Value="#22222E"/>
             <Setter Property="Foreground" Value="#d4d4e0"/>
         </Style>
         <Style x:Key="DlgTextBox" TargetType="TextBox">
-            <Setter Property="Background" Value="#1a1a20"/>
+            <Setter Property="Background" Value="#101014"/>
             <Setter Property="Foreground" Value="#e0e0ff"/>
-            <Setter Property="BorderBrush" Value="#33333f"/>
+            <Setter Property="BorderBrush" Value="#2A2A38"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="CaretBrush" Value="#6c63ff"/>
+            <Setter Property="CaretBrush" Value="#2DD4BF"/>
         </Style>
         <Style x:Key="DlgPasswordBox" TargetType="PasswordBox">
-            <Setter Property="Background" Value="#1a1a20"/>
+            <Setter Property="Background" Value="#101014"/>
             <Setter Property="Foreground" Value="#e0e0ff"/>
-            <Setter Property="BorderBrush" Value="#33333f"/>
+            <Setter Property="BorderBrush" Value="#2A2A38"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="CaretBrush" Value="#6c63ff"/>
+            <Setter Property="CaretBrush" Value="#2DD4BF"/>
         </Style>
     </Window.Resources>
-    <StackPanel Margin="22">
-        <TextBlock Text="Новый пользователь" Foreground="White" FontSize="15" FontWeight="Bold" Margin="0,0,0,14"/>
+    <Border CornerRadius="16" Background="#101014" BorderBrush="#2C2C3A" BorderThickness="1">
+    <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="40"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <Border Grid.Row="0" x:Name="DlgTitleBar" Background="Transparent" CornerRadius="16,16,0,0">
+        <Grid Margin="20,0,8,0">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <TextBlock Text="Новый пользователь" Foreground="White" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
+          <Button Grid.Column="1" x:Name="DlgCloseBtn" Content="✕" Width="36" Height="26" Background="Transparent" Foreground="#8E8EA3" BorderThickness="0" Cursor="Hand" FontSize="12"/>
+        </Grid>
+      </Border>
+    <StackPanel Grid.Row="1" Margin="22,0,22,22">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Margin="0,0,6,0">
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock Text="Имя пользователя" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <TextBox x:Name="NewUserNameBox" Style="{StaticResource DlgTextBox}"/>
@@ -645,7 +673,7 @@ function Show-CreateUserDialog {
                 <TextBox x:Name="NewUserDescBox" Style="{StaticResource DlgTextBox}"/>
             </StackPanel>
         </Border>
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock Text="Пароль" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <PasswordBox x:Name="NewUserPasswordBox" Style="{StaticResource DlgPasswordBox}" Margin="0,0,0,8"/>
@@ -653,7 +681,7 @@ function Show-CreateUserDialog {
                 <PasswordBox x:Name="NewUserConfirmBox" Style="{StaticResource DlgPasswordBox}"/>
             </StackPanel>
         </Border>
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock Text="Сгенерировать пароль" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <TextBox x:Name="GenPassView" Style="{StaticResource DlgTextBox}" IsReadOnly="True" Margin="0,0,0,8"/>
@@ -666,7 +694,7 @@ function Show-CreateUserDialog {
         </Border>
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="6,0,0,0">
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
             <StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -682,7 +710,7 @@ function Show-CreateUserDialog {
                 <TextBox x:Name="NewUserExpireBox" Style="{StaticResource DlgTextBox}" Margin="0,8,0,0" IsEnabled="False" Text=""/>
             </StackPanel>
         </Border>
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,16">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,16">
             <StackPanel>
                 <TextBlock Text="Роль учётной записи" Foreground="#c4c4ee" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <StackPanel Orientation="Horizontal">
@@ -691,7 +719,7 @@ function Show-CreateUserDialog {
                 </StackPanel>
             </StackPanel>
         </Border>
-        <Border Background="#26262e" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+        <Border Background="#1B1B25" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -712,6 +740,8 @@ function Show-CreateUserDialog {
             <Button Content="Создать пользователя" x:Name="ConfirmCreateUserBtn" Style="{StaticResource DlgBtn}"/>
         </StackPanel>
     </StackPanel>
+    </Grid>
+    </Border>
 </Window>
 '@
     $dReader = [System.Xml.XmlNodeReader]::new(([xml]$dialogXaml))
@@ -774,6 +804,12 @@ function Show-CreateUserDialog {
     })
     try { Enable-DarkTitleBar -Window $dlg } catch {}
     $cancelCreateUserBtn.Add_Click({ $dlg.Close() })
+    $dlgCloseBtn = $dlg.FindName("DlgCloseBtn")
+    if ($dlgCloseBtn) { $dlgCloseBtn.Add_Click({ $dlg.Close() }) }
+    $dlgTitleBar = $dlg.FindName("DlgTitleBar")
+    if ($dlgTitleBar) { $dlgTitleBar.Add_MouseLeftButtonDown({ param($s,$e) try { $dlg.DragMove() } catch {} }) }
+    try { $dlg.Owner = $window } catch {}
+    $dlg.Add_KeyDown({ param($s,$e) if ($e.Key -eq 'Escape') { try { $dlg.Close() } catch {} } })
     $confirmCreateUserBtn.Add_Click({
         $name = $newUserNameBox.Text.Trim()
         $desc = $newUserDescBox.Text.Trim()

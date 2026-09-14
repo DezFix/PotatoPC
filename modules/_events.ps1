@@ -498,7 +498,7 @@ $window.Add_Loaded({
         }
     } catch {}
     $scriptsFolderText.Text = $script:ScriptsFolder
-    Write-Log "PotatoPC Optimizer v5.0 (Sidebar 2026, локально, без пуша) запущен"
+    Write-Log "PotatoPC Optimizer v6.0 запущен"
     Write-Log "Система: $((Get-SystemInfo).OS)"
     Write-Log "Windows $($script:WindowsMajorVersion) обнаружена"
     Write-Log "Рабочая папка: $($script:WorkFolder)"

@@ -1,8 +1,9 @@
-<#
+﻿<#
 .SYNOPSIS
-    PotatoPC Optimizer - Entry Point
+    PotatoPC Optimizer v6 — Entry Point
 .DESCRIPTION
-    Run: irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
+    Локально: powershell -STA -NoProfile -ExecutionPolicy Bypass -File menu.ps1
+    Из сети:  irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
 #>
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -23,8 +24,6 @@ if (-not $isAdmin) {
 
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue
 
-# Preload system modules on the main thread: background runspaces no longer
-# fight over autoloading ("module could not be loaded" on Join-Path etc.)
 foreach ($m in @('Microsoft.PowerShell.Management','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Archive','CimCmdlets','ScheduledTasks','Microsoft.PowerShell.LocalAccounts','PrintManagement')) {
     try { Import-Module $m -ErrorAction SilentlyContinue } catch {}
 }
@@ -37,12 +36,10 @@ Add-Type -AssemblyName System.Windows.Forms
 if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
     $script:ModuleDir = Join-Path (Split-Path $PSCommandPath -Parent) "modules"
 } else {
-    # fallback constants until _config.ps1 loads (irm|iex without local file)
     $zipUrl  = "https://github.com/DezFix/PotatoPC/archive/refs/heads/main.zip"
     $zipPath = Join-Path $env:TEMP "PotatoPC\repo.zip"
     New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) -Force | Out-Null
     Write-Host "Downloading PotatoPC Optimizer..." -ForegroundColor Cyan
-    # remove stale extracted repos so we never load cached buggy modules
     Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
         try { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
     }
@@ -66,13 +63,15 @@ foreach ($module in $loadOrder) {
     if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
     . $modulePath
 }
-
 $reader = [System.Xml.XmlNodeReader]::new($xaml)
 $window = [Windows.Markup.XamlReader]::Load($reader)
 
 Initialize-Controls $window
 
-# --- Restore saved UI state ---
+# v6-привязки: хром, страницы, поиск, дашборд (старые модули не тронуты)
+. (Join-Path $script:ModuleDir "_ui_v6.ps1")
+
+# --- Restore saved UI state (v6: вкладки 0-8 + дашборд 9; консоль всегда стартует свёрнутой) ---
 $script:LogHeight = 150
 $script:LogState  = $false
 $ui = Get-UIState
@@ -91,11 +90,14 @@ if ($ui) {
             if ($ui.State -ne "Maximized") { $window.Left = $l; $window.Top = $tp }
         }
         if ($ui.State -eq "Maximized") { $window.WindowState = "Maximized" }
-        if ($null -ne $ui.Tab -and $ui.Tab -ge 0 -and $ui.Tab -lt $MainTabControl.Items.Count) {
-            $MainTabControl.SelectedIndex = [int]$ui.Tab
+        if ($null -ne $ui.Tab -and $ui.Tab -ge 0 -and $ui.Tab -le 9) {
+            try { Set-ActiveNav -Index ([int]$ui.Tab) } catch {}
+        } else {
+            try { Set-ActiveNav -Index 9 } catch {}
         }
-        $script:LogState = [bool]$ui.LogExpanded
     } catch {}
+} else {
+    try { Set-ActiveNav -Index 9 } catch {}
 }
 Set-LogExpanded -Expand $script:LogState -Instant
 $logSplitter.Add_DragDelta({ if ($logRow.Height.Value -gt 32) { $script:LogHeight = $logRow.Height.Value } })
@@ -138,7 +140,8 @@ $requiredCommands = @(
     "Invoke-Async", "Invoke-OnUI", "Set-BgResult", "Get-BgResult",
     "Start-BgPoller", "Stop-BgPoller", "Test-BgQueue",
     "Start-Background", "Invoke-ScriptFileWithRetry", "Get-ScriptTimeout", "Get-WingetPath",
-    "Set-Progress", "Clear-Progress", "Update-ProgressUI", "Get-LogAutoColor", "Get-LogHexColor"
+    "Set-Progress", "Clear-Progress", "Update-ProgressUI", "Get-LogAutoColor", "Get-LogHexColor",
+    "Sync-V6Page", "Update-DashStats", "Update-DashHealth"
 )
 $missingCommands = @(Test-RequiredCommands -Names $requiredCommands)
 if ($missingCommands.Count -gt 0) {

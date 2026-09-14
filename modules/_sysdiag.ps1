@@ -147,21 +147,38 @@ function Build-SysPanel {
                     $fName    = ConvertTo-XmlText -Text ([string]$physDisk.FriendlyName)
                     $mediaTxt = ConvertTo-XmlText -Text ([string]$physDisk.MediaType)
                     [xml]$sx=@"
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Title="SMART" Width="460" Height="420" WindowStartupLocation="CenterScreen" Background="#202020" ResizeMode="NoResize">
-  <StackPanel Margin="20">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="SMART" Width="460" Height="470" WindowStartupLocation="CenterOwner" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize">
+  <Border CornerRadius="16" Background="#101014" BorderBrush="#2C2C3A" BorderThickness="1">
+  <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="40"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <Border Grid.Row="0" x:Name="DlgTitleBar" Background="Transparent" CornerRadius="16,16,0,0">
+      <Grid Margin="20,0,8,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="SMART" Foreground="White" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
+        <Button Grid.Column="1" x:Name="DlgCloseBtn" Content="✕" Width="36" Height="26" Background="Transparent" Foreground="#8E8EA3" BorderThickness="0" Cursor="Hand" FontSize="12"/>
+      </Grid>
+    </Border>
+  <StackPanel Grid.Row="1" Margin="20,0,20,20">
     <TextBlock Text="$fName" Foreground="White" FontSize="14" FontWeight="Bold" Margin="0,0,0,4"/>
-    <TextBlock Text="$mediaTxt  -  $([math]::Round($physDisk.Size/1GB)) ГБ" Foreground="#6a6a85" FontSize="11" Margin="0,0,0,14"/>
-    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Состояние" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$healthRu" Foreground="$healthColor" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Температура" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$tempVal" Foreground="$tempCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Часов наработки" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$powerVal" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки чтения" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$readVal" Foreground="$readCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки записи" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$writeVal" Foreground="$writeCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <Border Background="#26262e" CornerRadius="8" Padding="14,9" Margin="0,0,0,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Износ" Foreground="#8a8aa5" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$wearVal" Foreground="#d0d0f0" FontSize="12" FontWeight="Bold"/></Grid></Border>
-    <TextBlock Text="Данные через Windows Storage API. Для детального анализа используйте CrystalDiskInfo." Foreground="#8a8aa5" FontSize="10" TextWrapping="Wrap"/>
+    <TextBlock Text="$mediaTxt  -  $([math]::Round($physDisk.Size/1GB)) ГБ" Foreground="#8E8EA3" FontSize="11" Margin="0,0,0,14"/>
+    <Border Background="#1B1B25" BorderBrush="#2A2A38" BorderThickness="1" CornerRadius="10" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Состояние" Foreground="#8E8EA3" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$healthRu" Foreground="$healthColor" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#1B1B25" BorderBrush="#2A2A38" BorderThickness="1" CornerRadius="10" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Температура" Foreground="#8E8EA3" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$tempVal" Foreground="$tempCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#1B1B25" BorderBrush="#2A2A38" BorderThickness="1" CornerRadius="10" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Часов наработки" Foreground="#8E8EA3" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$powerVal" Foreground="#EDEDF5" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#1B1B25" BorderBrush="#2A2A38" BorderThickness="1" CornerRadius="10" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки чтения" Foreground="#8E8EA3" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$readVal" Foreground="$readCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#1B1B25" BorderBrush="#2A2A38" BorderThickness="1" CornerRadius="10" Padding="14,9" Margin="0,0,0,5"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Ошибки записи" Foreground="#8E8EA3" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$writeVal" Foreground="$writeCol" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <Border Background="#1B1B25" BorderBrush="#2A2A38" BorderThickness="1" CornerRadius="10" Padding="14,9" Margin="0,0,0,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Износ" Foreground="#8E8EA3" FontSize="12" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="$wearVal" Foreground="#EDEDF5" FontSize="12" FontWeight="Bold"/></Grid></Border>
+    <TextBlock Text="Данные через Windows Storage API. Для детального анализа используйте CrystalDiskInfo." Foreground="#8E8EA3" FontSize="10" TextWrapping="Wrap"/>
   </StackPanel>
+  </Grid>
+  </Border>
 </Window>
 "@
-                    $sr=[System.Xml.XmlNodeReader]::new($sx); $sw=[Windows.Markup.XamlReader]::Load($sr); $sw.ShowDialog()|Out-Null
+                    $sr=[System.Xml.XmlNodeReader]::new($sx); $sw=[Windows.Markup.XamlReader]::Load($sr)
+                    $cb=$sw.FindName("DlgCloseBtn"); if ($cb) { $cb.Add_Click({ $sw.Close() }) }
+                    $tb=$sw.FindName("DlgTitleBar"); if ($tb) { $tb.Add_MouseLeftButtonDown({ param($s,$e) try { $sw.DragMove() } catch {} }) }
+                    try { $sw.Owner = $window } catch {}
+                    $sw.Add_KeyDown({ param($s,$e) if ($e.Key -eq 'Escape') { try { $sw.Close() } catch {} } })
+                    $sw.ShowDialog()|Out-Null
                 } catch { [System.Windows.MessageBox]::Show("Не удалось получить SMART данные:`n$_","SMART","OK","Warning") }
             })
             $smBtn.Add_MouseEnter({ $this.Opacity=0.8 }); $smBtn.Add_MouseLeave({ $this.Opacity=1.0 })

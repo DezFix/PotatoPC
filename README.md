@@ -22,13 +22,20 @@ Invoke-WebRequest https://raw.githubusercontent.com/DezFix/PotatoPC/main/Install
 .\Install-PotatoPC.ps1 -ExpectedHash '<SHA256>'
 ```
 Несовпадение хэша = архив удаляется, запуск блокируется. Актуальный
-`SHA256 menu.ps1` (очистка + защита, 2026-09-11):
-`DF965E008D8647B54C83C4501E60B79C90CCE9CEEB43DECF2DE6683604CC5A6B`
+`SHA256 menu.ps1` (v6 по умолчанию, 2026-09-14):
+`E339D5E8C1C4E9CAB831DF8A4C94AD5278819BEE9FC2CB508429BB097D657399`
 
 Замечание про SmartScreen/Defender: ругаться будет на любой запуск
 скрипта, скачанного из интернета — это нормально. Исходники открыты: скачай,
 прочитай, потом запускай. После сверки хэша bootstrap сам снимает
 блокировку (`Unblock-File`) с проверенного архива.
+
+### 3. Интерфейс v6 (по умолчанию)
+```powershell
+powershell -STA -NoProfile -ExecutionPolicy Bypass -File menu.ps1
+```
+Дашборд, закреплённые панели действий, кастомный хром.
+Черновик дизайна: `mockup/v6-preview.ps1` (только картинка, не запускать).
 
 Описание шапки сприптов 
 ```powershell

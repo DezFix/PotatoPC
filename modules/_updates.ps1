@@ -414,12 +414,55 @@ function Show-HiddenUpdatesDialog {
     }
     $dlg = New-Object System.Windows.Window
     $dlg.Title = "Скрытые обновления"
-    $dlg.Width = 480; $dlg.Height = 420
-    $dlg.WindowStartupLocation = "CenterScreen"
-    $dlg.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#202020")
+    $dlg.Width = 480; $dlg.Height = 460
+    $dlg.WindowStartupLocation = "CenterOwner"
+    $dlg.WindowStyle = "None"
+    $dlg.AllowsTransparency = $true
+    $dlg.Background = [System.Windows.Media.Brushes]::Transparent
+    $dlg.ResizeMode = "NoResize"
     try { $dlg.Owner = $window } catch {}
+    $frame = New-Object System.Windows.Controls.Border
+    $frame.CornerRadius = [System.Windows.CornerRadius]::new(16)
+    $frame.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#101014")
+    $frame.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#2C2C3A")
+    $frame.BorderThickness = [System.Windows.Thickness]::new(1)
+    $frameGrid = New-Object System.Windows.Controls.Grid
+    $fr1 = New-Object System.Windows.Controls.RowDefinition; $fr1.Height = [System.Windows.GridLength]::new(40)
+    $fr2 = New-Object System.Windows.Controls.RowDefinition; $fr2.Height = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+    $frameGrid.RowDefinitions.Add($fr1); $frameGrid.RowDefinitions.Add($fr2)
+    $titleBar = New-Object System.Windows.Controls.Border
+    $titleBar.Background = [System.Windows.Media.Brushes]::Transparent
+    $titleBar.CornerRadius = [System.Windows.CornerRadius]::new(16,16,0,0)
+    $titleGrid = New-Object System.Windows.Controls.Grid
+    $tc1 = New-Object System.Windows.Controls.ColumnDefinition; $tc1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+    $tc2 = New-Object System.Windows.Controls.ColumnDefinition; $tc2.Width = [System.Windows.GridLength]::Auto
+    $titleGrid.ColumnDefinitions.Add($tc1); $titleGrid.ColumnDefinitions.Add($tc2)
+    $titleGrid.Margin = [System.Windows.Thickness]::new(20,0,8,0)
+    $titleText = New-Object System.Windows.Controls.TextBlock
+    $titleText.Text = "Скрытые обновления"; $titleText.Foreground = [Windows.Media.Brushes]::White
+    $titleText.FontSize = 13; $titleText.FontWeight = "Bold"; $titleText.VerticalAlignment = "Center"
+    [System.Windows.Controls.Grid]::SetColumn($titleText, 0)
+    $titleGrid.Children.Add($titleText) | Out-Null
+    $titleClose = New-Object System.Windows.Controls.Button
+    $titleClose.Content = "✕"; $titleClose.Width = 36; $titleClose.Height = 26
+    $titleClose.Background = [System.Windows.Media.Brushes]::Transparent
+    $titleClose.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#8E8EA3")
+    $titleClose.BorderThickness = [System.Windows.Thickness]::new(0)
+    $titleClose.Cursor = [System.Windows.Input.Cursors]::Hand; $titleClose.FontSize = 12
+    [System.Windows.Controls.Grid]::SetColumn($titleClose, 1)
+    $titleGrid.Children.Add($titleClose) | Out-Null
+    $titleBar.Child = $titleGrid
+    [System.Windows.Controls.Grid]::SetRow($titleBar, 0)
+    $frameGrid.Children.Add($titleBar) | Out-Null
+    $dlgLocal = $dlg
+    $titleClose.Add_Click({ $dlgLocal.Close() })
+    $titleBar.Add_MouseLeftButtonDown({ try { $dlgLocal.DragMove() } catch {} })
+    $dlg.Add_KeyDown({ param($s,$e) if ($e.Key -eq 'Escape') { try { $dlgLocal.Close() } catch {} } })
     $root = New-Object System.Windows.Controls.StackPanel
-    $root.Margin = [System.Windows.Thickness]::new(16)
+    $root.Margin = [System.Windows.Thickness]::new(16,0,16,16)
+    [System.Windows.Controls.Grid]::SetRow($root, 1)
+    $frameGrid.Children.Add($root) | Out-Null
+    $dlg.Content = $frame
     $cap = New-Object System.Windows.Controls.TextBlock
     $cap.Text = "Не предлагаются ($($pins.Count)). Верни любое кнопкой — список обновится сам."
     $cap.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d8")
@@ -432,8 +475,8 @@ function Show-HiddenUpdatesDialog {
     $root.Children.Add($sv) | Out-Null
     foreach ($h in $pins) {
         $row = New-Object System.Windows.Controls.Border
-        $row.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#26262e")
-        $row.CornerRadius = [System.Windows.CornerRadius]::new(8)
+        $row.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#1B1B25")
+        $row.CornerRadius = [System.Windows.CornerRadius]::new(10)
         $row.Margin = [System.Windows.Thickness]::new(0,0,0,6)
         $row.Padding = [System.Windows.Thickness]::new(12,8,12,8)
         $g = New-Object System.Windows.Controls.Grid
@@ -450,7 +493,7 @@ function Show-HiddenUpdatesDialog {
         $g.Children.Add($nm) | Out-Null
         $ub = New-Object System.Windows.Controls.Button
         $ub.Content = "Вернуть"
-        $ub.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d2d35")
+        $ub.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#22222E")
         $ub.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d4d4e0")
         $ub.BorderThickness = [System.Windows.Thickness]::new(0)
         $ub.Cursor = [System.Windows.Input.Cursors]::Hand
@@ -479,6 +522,5 @@ function Show-HiddenUpdatesDialog {
         $row.Child = $g
         $list.Children.Add($row) | Out-Null
     }
-    $dlg.Content = $root
     $dlg.ShowDialog() | Out-Null
 }

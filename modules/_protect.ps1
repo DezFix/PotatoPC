@@ -77,6 +77,40 @@ function Combine-YaraRules {
     } catch { return '' }
 }
 
+function Invoke-YaraEntry {
+    # Фон, самодостаточная: один вызов yara64 с таймаутом и проверкой Abort.
+    # Возвращает @{ TimedOut=[bool]; ExitCode=[int]; Lines=[string[]] }.
+    # При Abort бросает "STOPPED_BY_USER". Никакого Write-Log внутри — логирует вызывающий.
+    param([string]$Exe, [string]$Rules, [string]$Target, [hashtable]$Control, [int]$TimeoutSec = 180)
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $Exe
+    $psi.Arguments = ('-w -r "{0}" "{1}"' -f $Rules, $Target)
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    $p = $null
+    try { $p = [System.Diagnostics.Process]::Start($psi) }
+    catch { throw ("Не запустился сканер: " + $_) }
+    try {
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        while (-not $p.HasExited) {
+            if ($Control -and $Control.Abort) { try { $p.Kill() } catch {}; throw "STOPPED_BY_USER" }
+            if ($sw.Elapsed.TotalSeconds -gt $TimeoutSec) {
+                try { $p.Kill() } catch {}
+                return @{ TimedOut = $true; ExitCode = -1; Lines = @() }
+            }
+            Start-Sleep -Milliseconds 400
+        }
+        $out = ""
+        try { $out = $p.StandardOutput.ReadToEnd() } catch {}
+        $code = 0
+        try { $code = $p.ExitCode } catch {}
+        $lines = @($out -split "`r?`n" | Where-Object { $_ -match '\S' })
+        return @{ TimedOut = $false; ExitCode = $code; Lines = $lines }
+    } finally { try { $p.Dispose() } catch {} }
+}
+
 function Update-ScanCount {
     $sel = @($script:ScanCheckboxes.Values | Where-Object { $_.Box.IsChecked }).Count
     $total = $script:ScanCheckboxes.Count
@@ -234,8 +268,12 @@ function Start-YaraScan {
                         $eti++
                         Set-Progress (([double]($n - 1) + [double]$eti / [double]$etotal) / [double]([Math]::Max(1, $total)))
                         try {
-                            $out = @(& $exe -w -r $cf $e.FullName 2>&1 | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | Out-String -Stream | Where-Object { $_ -match '\S' })
-                            foreach ($ln in $out) {
+                            $res = Invoke-YaraEntry -Exe $exe -Rules $cf -Target $e.FullName -Control $Control -TimeoutSec 180
+                            if ($res.TimedOut) { Write-Log ("  Долго — пропускаю: " + $e.Name) -Color "Yellow"; continue }
+                            if ($res.ExitCode -ne 0 -and @($res.Lines).Count -eq 0) {
+                                Write-Log ("  Сканер вернул код " + $res.ExitCode + ": " + $e.Name) -Color "Yellow"; continue
+                            }
+                            foreach ($ln in @($res.Lines)) {
                                 if ($ln -match '^([A-Za-z_][A-Za-z0-9_]*)\s+(.+)$') {
                                     $rn = $Matches[1].Trim()
                                     $fp = $Matches[2].Trim()
@@ -246,6 +284,7 @@ function Start-YaraScan {
                                 }
                             }
                         } catch {
+                            if ("$_" -like "*STOPPED_BY_USER*") { throw }
                             Write-Log ("  Не вышло проверить: " + $_) -Color "Yellow"
                         }
                     }
