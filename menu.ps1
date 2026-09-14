@@ -1,9 +1,9 @@
-﻿<#
+<#
 .SYNOPSIS
-    PotatoPC Optimizer v6 — Entry Point
+    PotatoPC Optimizer v6 - Entry Point
 .DESCRIPTION
-    Локально: powershell -STA -NoProfile -ExecutionPolicy Bypass -File menu.ps1
-    Из сети:  irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
+    Local:  powershell -STA -NoProfile -ExecutionPolicy Bypass -File menu.ps1
+    Remote: irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
 #>
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -68,10 +68,10 @@ $window = [Windows.Markup.XamlReader]::Load($reader)
 
 Initialize-Controls $window
 
-# v6-привязки: хром, страницы, поиск, дашборд (старые модули не тронуты)
+# v6 bindings: chrome, pages, search, dashboard (shared modules untouched)
 . (Join-Path $script:ModuleDir "_ui_v6.ps1")
 
-# --- Restore saved UI state (v6: вкладки 0-8 + дашборд 9; консоль всегда стартует свёрнутой) ---
+# --- Restore saved UI state (tabs 0-8 + dashboard 9; console always starts collapsed) ---
 $script:LogHeight = 150
 $script:LogState  = $false
 $ui = Get-UIState
