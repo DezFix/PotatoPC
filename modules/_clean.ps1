@@ -291,7 +291,7 @@ function Build-CleanPanel {
             $fbAll.Padding = [System.Windows.Thickness]::new(12,0,12,0)
             $fbAll.Cursor = [System.Windows.Input.Cursors]::Hand
             $fbAll.Tag = ''
-            $fbAll.Add_Click({ Apply-CleanFilter '' }.GetNewClosure())
+            $fbAll.Add_Click({ Apply-CleanFilter '' })
             $cleanFilterRow.Children.Add($fbAll) | Out-Null
             $script:CleanFilterBtns[''] = $fbAll
             foreach ($gk in ($script:CleanFilterNames.Keys | Sort-Object)) {
@@ -302,7 +302,7 @@ function Build-CleanPanel {
                 $fb.Padding = [System.Windows.Thickness]::new(12,0,12,0)
                 $fb.Cursor = [System.Windows.Input.Cursors]::Hand
                 $fb.Tag = [string]$gk
-                $fb.Add_Click({ Apply-CleanFilter ([string]$this.Tag) }.GetNewClosure())
+                $fb.Add_Click({ Apply-CleanFilter ([string]$this.Tag) })
                 $cleanFilterRow.Children.Add($fb) | Out-Null
                 $script:CleanFilterBtns[[string]$gk] = $fb
             }

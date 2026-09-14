@@ -149,7 +149,7 @@ function Update-DashStats {
                     $totalGB = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
                     $freeGB  = [math]::Round($os.FreePhysicalMemory / 1KB / 1024, 1)
                     $d.Mem = ("{0} / {1} ГБ" -f [math]::Round($totalGB - $freeGB, 1), $totalGB)
-                } catch {}
+                } catch { Write-Log ("дашборд: память не посчиталась: " + $_.Exception.Message) -Color "Yellow" }
                 $score = 100; $notes = @()
                 try {
                     $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" -ErrorAction Stop
@@ -159,19 +159,22 @@ function Update-DashStats {
                         elseif ($freePct -lt 20) { $score -= 10; $notes += "−10: диск C: $freePct% свободно" }
                         else { $notes += "диск C: $freePct% свободно" }
                     }
-                } catch {}
+                } catch { Write-Log ("дашборд: диск C: не прочитался: " + $_.Exception.Message) -Color "Yellow" }
                 try {
                     $pr = @(Test-PendingReboot)
                     if ($pr.Count -gt 0) { $score -= 5; $notes += "−5: нужна перезагрузка" }
                 } catch {}
                 try {
                     $df = Get-DefenderStatus
-                    if ($df -and $df.AMRunningMode -ne 'Normal') { $score -= 20; $notes += "−20: Defender не в норме" }
-                    elseif ($df -and [int]$df.AntivirusSignatureAge -gt 7) { $score -= 10; $notes += "−10: базы Defender старые" }
-                    else { $notes += "Defender в норме" }
-                } catch {}
+                    if ($df -and $df.Ok) {
+                        if ([string]$df.Mode -ne 'Normal') { $score -= 20; $notes += "−20: Defender не в норме" }
+                        elseif ([int]$df.SigAge -gt 7) { $score -= 10; $notes += "−10: базы Defender старые" }
+                        else { $notes += "Defender в норме" }
+                    } else { $notes += "Defender: нет данных" }
+                } catch { $notes += "Defender: нет данных" }
                 if ($score -lt 0) { $score = 0 }
                 $d.Score = $score; $d.Notes = $notes
+                Write-Log ("дашборд: готово, здоровье " + $score + "/100")
                 Set-BgResult -Key 'dashStats' -Value $d
             } catch {}
         }

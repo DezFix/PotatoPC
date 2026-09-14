@@ -498,14 +498,15 @@ function Show-HiddenUpdatesDialog {
         $ub.BorderThickness = [System.Windows.Thickness]::new(0)
         $ub.Cursor = [System.Windows.Input.Cursors]::Hand
         $ub.FontSize = 11; $ub.Padding = [System.Windows.Thickness]::new(10,5,10,5)
-        $ub.Margin = [System.Windows.Thickness]::new(10,0,0,0); $ub.Tag = [string]$h.Id
+        $ub.Margin = [System.Windows.Thickness]::new(10,0,0,0); $ub.Tag = @{ Id = [string]$h.Id; Row = $row; List = $list; Dlg = $dlg }
         $ubRow = $row; $ubList = $list; $ubDlg = $dlg
         $ub.Add_Click({
-            $unId = $this.Tag
+            # Без GetNewClosure: замыкание не видит функции (Write-Log/Invoke-Async). Всё — в Tag.
+            $t = $this.Tag
             $this.IsEnabled = $false
-            Write-Log ("Возвращаю обновление: " + $unId)
-            try { $ubList.Children.Remove($ubRow) } catch {}
-            if ($ubList.Children.Count -eq 0) { try { $ubDlg.Close() } catch {} }
+            Write-Log ("Возвращаю обновление: " + $t.Id)
+            try { $t.List.Children.Remove($t.Row) } catch {}
+            if ($t.List.Children.Count -eq 0) { try { $t.Dlg.Close() } catch {} }
             Set-Progress
             Invoke-Async -ScriptBlock {
                 try {
@@ -515,8 +516,8 @@ function Show-HiddenUpdatesDialog {
                 else { Write-Log ("Не вышло вернуть $id (код $LASTEXITCODE)") -Color "Yellow" }
                 Set-BgResult -Key 'updatesRefresh' -Value $true
                 } finally { Clear-Progress }
-            } -Variables @{ id = $unId }
-        }.GetNewClosure())
+            } -Variables @{ id = $t.Id }
+        })
         [System.Windows.Controls.Grid]::SetColumn($ub, 1)
         $g.Children.Add($ub) | Out-Null
         $row.Child = $g

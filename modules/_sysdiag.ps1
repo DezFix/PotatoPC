@@ -245,19 +245,23 @@ function Build-DiagPanel {
             else { Write-Log "Отчёта пока нет — запусти замер" -Color "Yellow" }
         } catch { Write-Log "Не удалось открыть отчёт: $_" -Color "Red" }
     })
+    $brun.Tag = @{ Btn = $brun; Lbl = $script:BenchStatusLbl }
     $brun.Add_Click({
-        $brun.IsEnabled = $false; $brun.Content = "Замеряю..."
-        $script:BenchStatusLbl.Text = "выполняется..."
-        $script:BenchStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+        # Без GetNewClosure: замыкание не видит функции и $script: (падало на BenchStatusLbl).
+        # Всё нужное едет в Tag, $this — сама кнопка.
+        $tg = $this.Tag
+        $tg.Btn.IsEnabled = $false; $tg.Btn.Content = "Замеряю..."
+        $tg.Lbl.Text = "выполняется..."
+        $tg.Lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
         try { Start-FullBenchmark } catch { Write-Log "Не удалось запустить замер: $_" -Color "Red" }
-        $t = New-Object System.Windows.Threading.DispatcherTimer
-        $t.Interval = [TimeSpan]::FromMilliseconds(500)
-        $t.Add_Tick({
-            $t.Stop()
-            try { $brun.IsEnabled = $true; $brun.Content = "Замерить" } catch {}
+        $tm = New-Object System.Windows.Threading.DispatcherTimer
+        $tm.Interval = [TimeSpan]::FromMilliseconds(500)
+        $tm.Add_Tick({
+            $tm.Stop()
+            try { $tg.Btn.IsEnabled = $true; $tg.Btn.Content = "Замерить" } catch {}
         }.GetNewClosure())
-        $t.Start()
-    }.GetNewClosure())
+        $tm.Start()
+    })
     $bbtns.Children.Add($brun) | Out-Null; $bbtns.Children.Add($script:BenchOpenBtn) | Out-Null
     [System.Windows.Controls.Grid]::SetColumn($bbtns,2); $bg2.Children.Add($bbtns) | Out-Null
     $bcard.Child = $bg2
@@ -307,19 +311,22 @@ function Build-DiagPanel {
             else { Write-Log "Отчёта пока нет — запустите аудит" -Color "Yellow" }
         } catch { Write-Log "Не удалось открыть отчёт: $_" -Color "Red" }
     })
+    $arun.Tag = @{ Btn = $arun; Lbl = $script:AuditStatusLbl }
     $arun.Add_Click({
-        $arun.IsEnabled = $false; $arun.Content = "Выполняется..."
-        $script:AuditStatusLbl.Text = "выполняется..."
-        $script:AuditStatusLbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+        # Без GetNewClosure: замыкание не видит функции и $script:. Всё нужное — в Tag.
+        $tg = $this.Tag
+        $tg.Btn.IsEnabled = $false; $tg.Btn.Content = "Выполняется..."
+        $tg.Lbl.Text = "выполняется..."
+        $tg.Lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
         try { Start-ExpressAudit } catch { Write-Log "Не удалось запустить аудит: $_" -Color "Red" }
-        $t = New-Object System.Windows.Threading.DispatcherTimer
-        $t.Interval = [TimeSpan]::FromMilliseconds(500)
-        $t.Add_Tick({
-            $t.Stop()
-            try { $arun.IsEnabled = $true; $arun.Content = "Проверить всё" } catch {}
+        $tm = New-Object System.Windows.Threading.DispatcherTimer
+        $tm.Interval = [TimeSpan]::FromMilliseconds(500)
+        $tm.Add_Tick({
+            $tm.Stop()
+            try { $tg.Btn.IsEnabled = $true; $tg.Btn.Content = "Проверить всё" } catch {}
         }.GetNewClosure())
-        $t.Start()
-    }.GetNewClosure())
+        $tm.Start()
+    })
     $abtns.Children.Add($arun) | Out-Null; $abtns.Children.Add($script:AuditOpenBtn) | Out-Null
     [System.Windows.Controls.Grid]::SetColumn($abtns,2); $ag.Children.Add($abtns) | Out-Null
     $acard.Child = $ag
