@@ -104,7 +104,7 @@ if ($ui) {
     try { Set-ActiveNav -Index 9 } catch {}
 }
 Set-LogExpanded -Expand $script:LogState -Instant
-$logSplitter.Add_DragDelta({ if ($logRow.Height.Value -gt 32) { $script:LogHeight = $logRow.Height.Value } })
+try { if ($logSplitter) { $logSplitter.Add_DragDelta({ if ($logRow.Height.Value -gt 32) { $script:LogHeight = $logRow.Height.Value } }) } } catch {}
 
 # --- Window entrance animation ---
 $window.Opacity = 0
@@ -139,7 +139,7 @@ $script:V6ModulesReady = $true
 try { Update-DashStats } catch { }
 
 $requiredCommands = @(
-    "Run-SelectedScripts", "Stop-SelectedScripts", "Reset-RunButton", "Select-RecommendedScripts", "Select-ScriptPreset",
+    "Run-SelectedScripts", "Stop-SelectedScripts", "Reset-RunButton", "Select-ScriptPreset",
     "Build-ScriptsPanel", "Build-AppsPanel", "Build-SysPanel", "Build-DiagPanel",
     "Build-UpdatesPanel", "Build-StartupPanel", "Build-UsersPanel", "Build-CleanPanel", "Build-ProtectPanel",
     "New-Card", "New-CategoryHeader", "Set-LogExpanded", "Update-HeaderCount",

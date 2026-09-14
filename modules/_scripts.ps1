@@ -52,12 +52,14 @@ function Load-Scripts {
     foreach ($file in $files) {
         $parentName = $file.Directory.Name
         $category = if ($parentName -ne (Split-Path $script:ScriptsFolder -Leaf)) { $parentName } else { "Другое" }
+        $num = 0
+        if ($file.BaseName -match '^(\d{2})_') { $num = [int]$Matches[1] }
         $meta = @{
-            Name        = $file.BaseName
+            Name        = ($file.BaseName -replace '^\d{2}_', '')
+            Num         = $num
             Desc        = ""
             Category    = $category
             Icon        = "📄"
-            Recommended = $false
             Presets     = @()
             Tag         = 0
             Win11Only   = $false
@@ -67,13 +69,9 @@ function Load-Scripts {
             if ($line -match '^#\s*NAME:\s*(.+)')        { $meta.Name        = $Matches[1].Trim() }
             if ($line -match '^#\s*DESC:\s*(.+)')        { $meta.Desc        = $Matches[1].Trim() }
             if ($line -match '^#\s*ICON:\s*(.+)')        { $meta.Icon        = $Matches[1].Trim() }
-            if ($line -match '^#\s*RECOMMENDED:\s*true') { $meta.Recommended = $true }
             if ($line -match '^#\s*PRESET:\s*(.+)')      { $meta.Presets     = @($Matches[1].Split(',') | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ -ne '' }) }
             if ($line -match '^#\s*TAGS:\s*(\d)')        { $meta.Tag         = [int]$Matches[1].Trim() }
             if ($line -match '^#\s*TAGS:.*win11')        { $meta.Win11Only   = $true }
-        }
-        if ($meta.Recommended -and $meta.Tag -eq 3) {
-            Write-Log "ВНИМАНИЕ: $($meta.Name) помечен RECOMMENDED при TAGS 3 - проверь" -Color Yellow
         }
         $result += $meta
     }
@@ -111,25 +109,6 @@ function New-PresetBadge {
         $t = [System.Windows.Controls.TextBlock]::new()
         $t.Text = $st.T; $t.FontSize = 10; $t.FontWeight = "SemiBold"
         $t.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($st.Fg)
-        $b.Child = $t
-        return $b
-    } catch { return $null }
-}
-
-function New-RecommendedBadge {
-    try {
-        $b = [System.Windows.Controls.Border]::new()
-        $b.CornerRadius = [System.Windows.CornerRadius]::new(4)
-        $b.Padding = [System.Windows.Thickness]::new(5,1,5,1)
-        $b.Margin  = [System.Windows.Thickness]::new(7,0,0,0)
-        $b.VerticalAlignment = "Center"
-        $b.BorderThickness = [System.Windows.Thickness]::new(1)
-        $b.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#2A2300")
-        $b.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#d4a017")
-        $t = [System.Windows.Controls.TextBlock]::new()
-        $t.Text = "★"; $t.FontSize = 10; $t.FontWeight = "Bold"
-        $t.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d4a017")
-        $t.ToolTip = "Рекомендовано: входит в «Исправить всё»"
         $b.Child = $t
         return $b
     } catch { return $null }
@@ -197,7 +176,9 @@ function Build-ScriptsPanel {
             $nameRow = [System.Windows.Controls.StackPanel]::new()
             $nameRow.Orientation = "Horizontal"; $nameRow.VerticalAlignment = "Center"
             $nameText = [System.Windows.Controls.TextBlock]::new()
-            $nameText.Text = $script_item.Name; $nameText.FontSize = 12; $nameText.FontWeight = "Medium"
+            # Номер скрипта из имени файла (NN_name.ps1): "02 04" = раздел 02, скрипт 04.
+            $nameText.Text = if ($script_item.Num -gt 0) { ("{0:D2} · {1}" -f $script_item.Num, $script_item.Name) } else { $script_item.Name }
+            $nameText.FontSize = 12; $nameText.FontWeight = "Medium"
             $nameText.VerticalAlignment = "Center"
             $nameColor = if ($isWin11Incompatible) { "#505060" } else { "#e0e0f4" }
             $nameText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($nameColor)
@@ -235,10 +216,6 @@ function Build-ScriptsPanel {
                 foreach ($pp in @($script_item.Presets)) {
                     $pb = New-PresetBadge -Preset $pp
                     if ($pb) { $nameRow.Children.Add($pb) | Out-Null }
-                }
-                if ($script_item.Recommended) {
-                    $rb = New-RecommendedBadge
-                    if ($rb) { $nameRow.Children.Add($rb) | Out-Null }
                 }
             }
             $textStack.Children.Add($nameRow) | Out-Null
@@ -286,7 +263,7 @@ function Build-ScriptsPanel {
                             else { Write-Log "✗ Завершился с ошибкой (см. лог)" -Color Yellow }
                         } catch {
                             Write-Log "✗ КРИТИЧНО: $_" -Color Red
-                            Write-Log "Останавливаю. Проблемный скрипт: $scriptPath" -Color Red
+                            Write-Log "Скипаю. Проблемный скрипт: $scriptPath" -Color Red
                         }
                     } -Variables @{ scriptPath = $scriptPath }
                 })
@@ -361,7 +338,7 @@ function Run-SelectedScripts {
     Write-Log "▶ Запуск $count скриптов..."
     Write-Log "══════════════════════════════════════"
     $script:BatchHandle = Invoke-Async -ScriptBlock {
-        $ok=0; $fail=0; $aborted=$false; $abortedScript=$null; $stoppedByUser=$false
+        $ok=0; $fail=0; $skipped=@(); $stoppedByUser=$false
         $total=@($pathsList).Count; $idx=0
         try {
         foreach ($scriptPath in $pathsList) {
@@ -372,46 +349,33 @@ function Run-SelectedScripts {
                 if ($res) { Write-Log "   ✓ Готово" -Color "Green"; $ok++ }
                 else { Write-Log "   ✗ Ошибка (код выхода)" -Color Yellow; $fail++ }
             } catch {
-                $fail++; $aborted=$true; $abortedScript=$scriptPath
                 if ("$_" -like "*STOPPED_BY_USER*") {
-                    $stoppedByUser=$true
+                    $stoppedByUser=$true; $fail++
                     Write-Log "⏹ Остановлено пользователем: $(Split-Path $scriptPath -Leaf)" -Color Yellow
-                } else {
-                    Write-Log "   ✗ КРИТИЧНО: $_" -Color Red
-                    Write-Log "Останавливаю всю очередь. Проблемный скрипт: $scriptPath" -Color Red
+                    break
                 }
-                break
+                # Зависший/упавший 3 раза плагин — скипаем и идём дальше, очередь не останавливаем.
+                $fail++
+                $skipped += (Split-Path $scriptPath -Leaf)
+                Write-Log "   ⚠ Скипаю (3 неудачные попытки): $_" -Color Yellow
+                Write-Log "   Иду к следующему скрипту..." -Color Yellow
             }
         }
         Write-Log "══════════════════════════════════════"
-        if ($aborted) {
-            if ($stoppedByUser) {
-                Write-Log "⏹ Выполнение остановлено пользователем. Выполнено: ✓$ok ✗$fail" -Color Yellow
-            } else {
-                Write-Log "ПРЕРВАНО: $abortedScript завис 3 раза. Выполнено: ✓$ok ✗$fail" -Color Red
-                Write-Log "ОШИБКА: $abortedScript" -Color Red
-            }
+        if ($stoppedByUser) {
+            Write-Log "⏹ Выполнение остановлено пользователем. Выполнено: ✓$ok ✗$fail" -Color Yellow
         } else {
-            Write-Log "Завершено: ✓$ok$(if($fail -gt 0){ `" ✗$fail ошибок`" })" -Color Green
+            $tail = ""
+            if ($fail -gt 0) { $tail += " ✗$fail ошибок" }
+            if ($skipped.Count -gt 0) { $tail += " ⏭скип: " + ($skipped -join ", ") }
+            Write-Log "Завершено: ✓$ok$tail" -Color Green
         }
         Write-Log "══════════════════════════════════════"
-        if (-not $aborted -and $reboot) { Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force }
+        if (-not $stoppedByUser -and $skipped.Count -eq 0 -and $reboot) { Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force }
         } finally { Clear-Progress }
     } -Variables @{ pathsList=$pathsList; reboot=$reboot; batchControl=$script:BatchControl } -OnComplete {
         Invoke-OnUI { Reset-RunButton }
     }
-}
-
-function Select-RecommendedScripts {
-    $scripts = Load-Scripts; $n = 0
-    foreach ($s in $scripts) {
-        if ($s.Win11Only -and $script:WindowsMajorVersion -lt 11) { continue }
-        if ($s.Recommended -and $script:ScriptCheckboxes.ContainsKey($s.Path)) {
-            $script:ScriptCheckboxes[$s.Path].IsChecked = $true; $n++
-        }
-    }
-    Write-Log "✓ Выбрано $n рекомендованных скриптов" -Color "Green"
-    Update-SelectedCount
 }
 
 $script:PresetTitles = @{ potato = "Potato (слабый ПК)"; office = "Офис"; game = "Игры" }

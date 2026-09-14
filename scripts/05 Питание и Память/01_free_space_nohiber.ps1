@@ -3,7 +3,6 @@
 # TAGS: 2
 # ICON: 💽
 # PRESET: potato
-# RECOMMENDED: true
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

@@ -3,7 +3,6 @@
 # TAGS: 1
 # ICON: 🧹
 # PRESET: potato, office, game
-# RECOMMENDED: true
 
 $ErrorActionPreference = "Stop"
 
@@ -65,7 +64,7 @@ function Test-JunkProtected {
         if ($env:TEMP) { $cands += (Join-Path $env:TEMP 'PotatoPC') }
         if ($env:TMP -and ($env:TMP -ne $env:TEMP)) { $cands += (Join-Path $env:TMP 'PotatoPC') }
         try { if ($script:WorkFolder) { $cands += [string]$script:WorkFolder } } catch {}
-        try { if ($PSScriptRoot) { $cands += [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')) } catch {}
+        try { if ($PSScriptRoot) { $cands += [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')) } } catch {}
         foreach ($c in ($cands | Where-Object { $_ } | Select-Object -Unique)) {
             try {
                 $cc = [System.IO.Path]::GetFullPath($c).TrimEnd('\','/')

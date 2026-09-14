@@ -2,16 +2,23 @@
 # Требует: $scriptSearchBox, $scriptSearchHint, $scriptSearchClear, $scriptsPanel,
 #           $appSearchBox, $appSearchHint, $appSearchClear, $appsPanel,
 #           $startupSearchBox, $startupSearchHint, $startupSearchClear, Apply-StartupFilter
+# Все привязки null-safe: отсутствующие контролы подменены пустышкой
+# (Protect-Controls в _events.ps1), старый XAML файл не роняет.
 
-$scriptSearchBox.Add_TextChanged({
+if ($scriptSearchBox) { $scriptSearchBox.Add_TextChanged({
     $q=$scriptSearchBox.Text.Trim().ToLower()
-    $scriptSearchHint.Visibility  = if($q -eq ""){"Visible"}else{"Collapsed"}
-    $scriptSearchClear.Visibility = if($q -eq ""){"Collapsed"}else{"Visible"}
+    try { $scriptSearchHint.Visibility  = if($q -eq ""){"Visible"}else{"Collapsed"} } catch {}
+    try { $scriptSearchClear.Visibility = if($q -eq ""){"Collapsed"}else{"Visible"} } catch {}
+    # Два прохода за один: фильтруем карточки и прячем заголовки разделов без совпадений
+    # (например, при поиске раздел "02 Очистка" без хитов скрывается целиком).
+    $lastHeader = $null
+    $visibleInSection = 0
     foreach ($child in $scriptsPanel.Children) {
         if ($child -is [System.Windows.Controls.Border]) {
-            $child.Visibility="Visible"
             $grid=$child.Child
             if ($grid -is [System.Windows.Controls.Grid] -and $grid.ColumnDefinitions.Count -ge 3) {
+                # Карточка скрипта
+                $child.Visibility="Visible"
                 $nameVal=""; $descVal=""
                 foreach ($el in $grid.Children) {
                     if ($el -is [System.Windows.Controls.StackPanel]) {
@@ -23,16 +30,24 @@ $scriptSearchBox.Add_TextChanged({
                     }
                 }
                 if ($q -ne "" -and ($nameVal -notlike "*$q*") -and ($descVal -notlike "*$q*")) { $child.Visibility="Collapsed" }
+                else { $visibleInSection++ }
+            } else {
+                # Заголовок раздела: подводим итог предыдущего
+                if ($lastHeader -ne $null -and $q -ne "" -and $visibleInSection -eq 0) { $lastHeader.Visibility = "Collapsed" }
+                $lastHeader = $child
+                $child.Visibility = "Visible"
+                $visibleInSection = 0
             }
         }
     }
-})
-$scriptSearchClear.Add_Click({ $scriptSearchBox.Text="" })
+    if ($lastHeader -ne $null -and $q -ne "" -and $visibleInSection -eq 0) { $lastHeader.Visibility = "Collapsed" }
+})}
+if ($scriptSearchClear) { $scriptSearchClear.Add_Click({ $scriptSearchBox.Text="" }) }
 
-$appSearchBox.Add_TextChanged({
+if ($appSearchBox) { $appSearchBox.Add_TextChanged({
     $q=$appSearchBox.Text.Trim().ToLower()
-    $appSearchHint.Visibility  = if($q -eq ""){"Visible"}else{"Collapsed"}
-    $appSearchClear.Visibility = if($q -eq ""){"Collapsed"}else{"Visible"}
+    try { $appSearchHint.Visibility  = if($q -eq ""){"Visible"}else{"Collapsed"} } catch {}
+    try { $appSearchClear.Visibility = if($q -eq ""){"Collapsed"}else{"Visible"} } catch {}
     foreach ($child in $appsPanel.Children) {
         if ($child -is [System.Windows.Controls.Border]) {
             $inner=$child.Child
@@ -46,13 +61,13 @@ $appSearchBox.Add_TextChanged({
             } else { $child.Visibility="Visible" }
         }
     }
-})
-$appSearchClear.Add_Click({ $appSearchBox.Text="" })
+})}
+if ($appSearchClear) { $appSearchClear.Add_Click({ $appSearchBox.Text="" }) }
 
-$startupSearchBox.Add_TextChanged({
+if ($startupSearchBox) { $startupSearchBox.Add_TextChanged({
     $q = $startupSearchBox.Text.Trim()
-    $startupSearchHint.Visibility  = if ($q -eq "") { "Visible" } else { "Collapsed" }
-    $startupSearchClear.Visibility = if ($q -eq "") { "Collapsed" } else { "Visible" }
+    try { $startupSearchHint.Visibility  = if ($q -eq "") { "Visible" } else { "Collapsed" } } catch {}
+    try { $startupSearchClear.Visibility = if ($q -eq "") { "Collapsed" } else { "Visible" } } catch {}
     Apply-StartupFilter
-})
-$startupSearchClear.Add_Click({ $startupSearchBox.Text = "" })
+})}
+if ($startupSearchClear) { $startupSearchClear.Add_Click({ $startupSearchBox.Text = "" }) }

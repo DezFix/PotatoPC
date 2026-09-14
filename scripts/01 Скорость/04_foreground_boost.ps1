@@ -3,7 +3,6 @@
 # TAGS: 1
 # ICON: ⚡
 # PRESET: potato, office, game
-# RECOMMENDED: true
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

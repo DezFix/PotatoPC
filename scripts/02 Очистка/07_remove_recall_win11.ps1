@@ -3,7 +3,6 @@
 # TAGS: 1,win11
 # ICON: 🪟
 # PRESET: potato, office, game
-# RECOMMENDED: true
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

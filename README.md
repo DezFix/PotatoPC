@@ -23,7 +23,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/DezFix/PotatoPC/main/Install
 ```
 Несовпадение хэша = архив удаляется, запуск блокируется. Актуальный
 `SHA256 menu.ps1` (v6 по умолчанию, 2026-09-14):
-`7322BC0C6DDD336E3C6F0D7CD3AB0CDB4F4F05A5CAB7EFEB2D7F9F19A206B78B`
+`A83A7FF907A80362362567A1885AF9FA5C1DF5A99A93762D9BA919472FD8F6AB`
 
 Замечание про SmartScreen/Defender: ругаться будет на любой запуск
 скрипта, скачанного из интернета — это нормально. Исходники открыты: скачай,
@@ -43,9 +43,13 @@ powershell -STA -NoProfile -ExecutionPolicy Bypass -File menu.ps1
 # DESC: Описание 
 # TAGS: 1,2,3,win11 (1-безопасно 2-осторожно 3-опасно win11-то что работает только на windows11)
 # ICON: Емодзи брать на сайте https://emojidb.org/
-# RECOMMENDED: true (те скрипты что я рекомендую)
 # PRESET: potato,office,game (в какие пресеты входит: potato-слабый ПК, office-работа, game-игры)
 ```
+
+Нумерация скриптов: файлы лежат как `scripts/02 Очистка/04_remove_bloat.ps1`,
+номер раздела + номер файла (`02 04`) виден и в интерфейсе. Порядок в разделе —
+по номеру файла. Поиск скрывает разделы без совпадений; зависший скрипт
+(3 попытки по 120 секунд) скипается, очередь идёт дальше.
 
 ## Атрибуция
 - Иконки интерфейса — [Papirus Icon Theme](https://github.com/PapirusDevelopmentTeam/papirus-icon-theme) (GNU GPL 3.0).

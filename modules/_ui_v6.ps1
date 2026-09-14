@@ -11,7 +11,7 @@ try {
 } catch {}
 
 # ── Новые контролы в globals (рядом с картой Initialize-Controls) ──
-foreach ($n in @('NavDashBtn','GlobalSearch','UpdateBtn','P_Potato','P_Office','P_Game','FixAllBtn',
+foreach ($n in @('NavDashBtn','GlobalSearch','GlobalSearchClear','P_Potato','P_Office','P_Game','FixAllBtn',
                 'DashCpuText','DashMemText','DashDiskText','DashUpText','HealthText','HealthSub','HealthBar',
                 'TitleBar','MinBtn','MaxBtn','CloseBtn')) {
     try {
@@ -23,7 +23,7 @@ foreach ($n in @('NavDashBtn','GlobalSearch','UpdateBtn','P_Potato','P_Office','
 # ── Иконки новым Image (файлы проверены в assets/icons) ──
 try {
     $v6icons = @{
-        NavDashIcon='apps/monitor'; TopSearchIcon='actions/search'; TopUpdateIcon='actions/refresh';
+        NavDashIcon='apps/monitor'; TopSearchIcon='actions/search';
         DashCpuIcon='devices/hw_cpu'; DashMemIcon='devices/hw_memory'; DashDrvIcon='devices/drive';
         DashUpIcon='actions/power'; DashPPotatoIcon='apps/logo'; DashPOfficeIcon='apps/office';
         DashPGameIcon='apps/games'; DashGoPotatoIcon='actions/play'; DashGoOfficeIcon='actions/play';
@@ -99,6 +99,7 @@ try {
         $GlobalSearch.Add_TextChanged({
             try {
                 $q = $GlobalSearch.Text
+                try { if ($GlobalSearchClear) { $GlobalSearchClear.Visibility = if ([string]::IsNullOrEmpty($q)) { "Collapsed" } else { "Visible" } } } catch {}
                 $idx = -1
                 try { $idx = $MainTabControl.SelectedIndex } catch {}
                 if ($idx -eq 0 -and $ScriptSearchBox -and $ScriptSearchBox.Text -ne $q) { $ScriptSearchBox.Text = $q }
@@ -107,17 +108,8 @@ try {
             } catch {}
         })
     }
-} catch {}
-
-# ── Верхняя кнопка «Обновить» = тот же рефреш скриптов ──
-try {
-    if ($UpdateBtn) {
-        $UpdateBtn.Add_Click({
-            try {
-                $ea = New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Button]::ClickEvent)
-                $RefreshBtn.RaiseEvent($ea)
-            } catch {}
-        })
+    if ($GlobalSearchClear) {
+        $GlobalSearchClear.Add_Click({ try { $GlobalSearch.Text = "" } catch {} })
     }
 } catch {}
 
@@ -234,7 +226,7 @@ try {
     } else { try { $script:V6DashTimer.Start() } catch {} }
 } catch {}
 
-# ── Дашборд: пресеты ведут в Модули, «Исправить всё» = рекомендуемые + запуск ──
+# ── Дашборд: пресеты ведут в Модули, «Исправить всё» = пресет Potato + запуск ──
 try {
     if ($P_Potato) { $P_Potato.Add_Click({ try { Select-ScriptPreset "potato"; Write-Log "Далее: глянь список и жми «▶ Запустить выбранные»" -Color "Cyan"; Set-ActiveNav -Index 0 } catch {} }) }
     if ($P_Office) { $P_Office.Add_Click({ try { Select-ScriptPreset "office"; Write-Log "Далее: глянь список и жми «▶ Запустить выбранные»" -Color "Cyan"; Set-ActiveNav -Index 0 } catch {} }) }
@@ -244,9 +236,9 @@ try {
     if ($FixAllBtn) {
         $FixAllBtn.Add_Click({
             try {
-                if (-not (Get-Command Select-RecommendedScripts -ErrorAction SilentlyContinue)) { return }
+                if (-not (Get-Command Select-ScriptPreset -ErrorAction SilentlyContinue)) { return }
                 if ($script:BatchRunning) { Stop-SelectedScripts; return }
-                Select-RecommendedScripts
+                Select-ScriptPreset "potato"
                 Set-ActiveNav -Index 0
                 Run-SelectedScripts
             } catch {}

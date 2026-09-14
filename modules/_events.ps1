@@ -1,4 +1,45 @@
-﻿# ═══ Сворачивание/разворачивание лога ═══
+﻿# ═══ Null-safe привязки ═══
+# Если XAML и модули разошлись (старый кэш в $env:TEMP\PotatoPC), отсутствующий
+# контрол = $null, и прямой $btn.Add_Click() роняет ВЕСЬ файл целиком
+# (было: $saveLogBtn). Подменяем отсутствующие контролы пустышкой с теми же
+# методами — привязки молча пропускаются, остальное работает.
+function New-NullControl {
+    $o = New-Object PSObject
+    foreach ($m in @('Add_Click','Add_TextChanged','Add_SelectionChanged','Add_Checked','Add_Unchecked','Add_Loaded','Add_Closing','Add_DragDelta','RaiseEvent','Focus')) {
+        $o | Add-Member ScriptMethod $m { } -Force
+    }
+    return $o
+}
+function Protect-Controls {
+    param([string[]]$Names)
+    $missing = @()
+    foreach ($n in $Names) {
+        try {
+            $v = Get-Variable -Name $n -Scope Global -ValueOnly -ErrorAction Stop
+            if ($null -eq $v) { Set-Variable -Name $n -Value (New-NullControl) -Scope Global; $missing += $n }
+        } catch { try { Set-Variable -Name $n -Value (New-NullControl) -Scope Global; $missing += $n } catch {} }
+    }
+    if ($missing.Count -gt 0) {
+        try { Write-Log ("⚠ Нет контролов в XAML (пропускаю привязки): " + ($missing -join ", ")) -Color "Yellow" } catch {}
+    }
+}
+Protect-Controls @(
+    'toggleLogBtn','runScriptsBtn','selectAllBtn','deselectAllBtn',
+    'scriptPresetPotatoBtn','scriptPresetOfficeBtn','scriptPresetGameBtn',
+    'refreshBtn','openFolderBtn','clearLogBtn','copyLogBtn','saveLogBtn',
+    'restorePointBtn','refreshStartupBtn','refreshUsersBtn','addUserBtn',
+    'disableStartupBtn','enableStartupBtn','selectAllStartupBtn','deselectAllStartupBtn',
+    'startupFilterAllBtn','startupFilterAppBtn','startupFilterTaskBtn',
+    'toolsBtn','adminBtn','presetPotatoBtn','presetOfficeBtn','presetGamesBtn',
+    'installAppsBtn','selectAllAppsBtn','deselectAllAppsBtn',
+    'checkUpdatesBtn','selectAllUpdatesBtn','deselectAllUpdatesBtn','installUpdatesBtn','updateAllBtn','hiddenUpdatesBtn',
+    'cleanScanBtn','selectAllCleanBtn','deselectAllCleanBtn','cleanBtn',
+    'scanBtn','selectAllScanBtn','deselectAllScanBtn','quarantineBtn',
+    'scriptSearchBox','scriptSearchClear','appSearchBox','appSearchClear','startupSearchBox','startupSearchClear',
+    'globalSearchClear'
+)
+
+# ═══ Сворачивание/разворачивание лога ═══
 $toggleLogBtn.Add_Click({ Set-LogExpanded -Expand (-not $script:LogState) })
 
 # поиск вынесен в _search.ps1

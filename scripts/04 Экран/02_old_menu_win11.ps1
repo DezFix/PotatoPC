@@ -3,7 +3,6 @@
 # TAGS: 1,win11
 # ICON: 🖱️
 # PRESET: potato, office
-# RECOMMENDED: true
 
 $ErrorActionPreference = "Stop"
 try {

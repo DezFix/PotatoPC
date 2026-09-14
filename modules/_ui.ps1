@@ -148,7 +148,6 @@ function Initialize-Controls {
 function New-Card {
     param(
         [switch]$Dimmed,
-        [switch]$Recommended,
         [switch]$Incompatible,
         [System.Windows.Thickness]$Padding,
         [switch]$Large
@@ -162,10 +161,6 @@ function New-Card {
         $card.BorderBrush    = Get-ThemeBrush "#2a1a2a"
         $card.BorderThickness= $script:Theme.BorderAccentR
         $card.Opacity        = 0.55
-    } elseif ($Recommended) {
-        $card.Background     = $script:Theme.CardBg
-        $card.BorderBrush    = Get-ThemeBrush "#d4a017"
-        $card.BorderThickness= $script:Theme.BorderAccentR
     } elseif ($Dimmed) {
         $card.Background     = $script:Theme.CardBgDim
         $card.BorderBrush    = $script:Theme.CardBorderDim

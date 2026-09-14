@@ -242,11 +242,10 @@ $script:AsyncLogWriter = {
 
 function Get-ScriptTimeout {
     param([string]$FilePath)
-    # PotatoPC: тяжелые качают из сети, средние трогают службы, реестр - быстрый
+    # Зависший плагин: 3 попытки по 120с, дальше скип (см. Run-SelectedScripts).
+    # Исключение — WinSxS/DISM: честные 10-30 мин работы, не вешать на него 120с.
     if ($FilePath -like '*winsxs*') { return 1800 }
-    if ($FilePath -like '*winget*' -or $FilePath -like '*security_only*') { return 600 }
-    if ($FilePath -like '*remove_bloat*' -or $FilePath -like '*strong_net*' -or $FilePath -like '*light_defender*') { return 300 }
-    return 60
+    return 120
 }
 
 $global:BgResults = [hashtable]::Synchronized(@{})
@@ -350,7 +349,7 @@ function Invoke-ScriptFileWithRetry {
                 try { $null = $proc.WaitForExit(5000) } catch {}
                 if ($Control -and $Control.Abort) { throw "STOPPED_BY_USER: $(Split-Path $FilePath -Leaf)" }
                 if ($attempt -eq $MaxAttempts) {
-                    throw "Скрипт `"$FilePath`" завис 3 раза подряд (таймаут ${TimeoutSec}c)"
+                    throw "Скрипт `"$FilePath`" завис $MaxAttempts раза подряд (таймаут ${TimeoutSec}c)"
                 }
                 Write-Log "Перезапуск $(Split-Path $FilePath -Leaf) (попытка $($attempt+1)/$MaxAttempts)" -Color Yellow
                 continue
@@ -371,9 +370,9 @@ function Invoke-ScriptFileWithRetry {
             }
             return $true
         } catch {
-            if ($_.Exception.Message -like "*завис 3 раза*") { throw }
+            if ($_.Exception.Message -like "*завис $MaxAttempts раза*") { throw }
             Write-Log "Ошибка запуска $(Split-Path $FilePath -Leaf): $_" -Color Red
-            if ($attempt -eq $MaxAttempts) { throw "Скрипт `"$FilePath`" упал 3 раза: $_" }
+            if ($attempt -eq $MaxAttempts) { throw "Скрипт `"$FilePath`" упал $MaxAttempts раза: $_" }
         } finally {
             if ($Control) { try { $Control.ChildPid = 0 } catch {} }
             if ($proc) { try { $proc.Dispose() } catch {} }

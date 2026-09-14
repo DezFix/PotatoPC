@@ -3,7 +3,6 @@
 # TAGS: 1
 # ICON: 📦
 # PRESET: potato, office
-# RECOMMENDED: true
 
 $ErrorActionPreference = "Stop"
 try {
