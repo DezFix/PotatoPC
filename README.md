@@ -23,7 +23,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/DezFix/PotatoPC/main/Install
 ```
 Несовпадение хэша = архив удаляется, запуск блокируется. Актуальный
 `SHA256 menu.ps1` (v6 по умолчанию, 2026-09-14):
-`A83A7FF907A80362362567A1885AF9FA5C1DF5A99A93762D9BA919472FD8F6AB`
+`31AE77E3CE16C9AEE374DAB8A8ED4E55A070038D76440948045EE76A95F8EEA9`
 
 Замечание про SmartScreen/Defender: ругаться будет на любой запуск
 скрипта, скачанного из интернета — это нормально. Исходники открыты: скачай,

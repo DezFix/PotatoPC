@@ -36,29 +36,39 @@ Add-Type -AssemblyName System.Windows.Forms
 if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
     $script:ModuleDir = Join-Path (Split-Path $PSCommandPath -Parent) "modules"
 } else {
+    # Link launch: fetch a fresh ZIP. Any network/extract trouble ends here
+    # with a readable message + pause instead of a silent flash-and-gone.
     $zipUrl  = "https://github.com/DezFix/PotatoPC/archive/refs/heads/main.zip"
     $zipPath = Join-Path $env:TEMP "PotatoPC\repo.zip"
-    New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) -Force | Out-Null
-    Write-Host "Downloading PotatoPC Optimizer..." -ForegroundColor Cyan
-    Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-        try { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
-    }
-    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60
     try {
-        Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force -ErrorAction Stop
+        New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) -Force | Out-Null
+        Write-Host "Downloading PotatoPC Optimizer..." -ForegroundColor Cyan
+        Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            try { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+        }
+        Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+        try {
+            Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force -ErrorAction Stop
+        } catch {
+            Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, (Split-Path $zipPath -Parent))
+        }
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+        try {
+            Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter '*.ps1' -Recurse -Force -ErrorAction SilentlyContinue |
+                Unblock-File -ErrorAction SilentlyContinue
+        } catch {}
+        $repoFolder = Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory |
+                      Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if (-not $repoFolder) { throw "Failed to download repository" }
+        $script:ModuleDir = Join-Path $repoFolder.FullName "modules"
     } catch {
-        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
-        [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, (Split-Path $zipPath -Parent))
+        Write-Host ""
+        Write-Host ("FAILED to download PotatoPC: " + $_.Exception.Message) -ForegroundColor Red
+        Write-Host "Check internet / VPN / antivirus and run the link again." -ForegroundColor Yellow
+        try { Read-Host "Enter - exit" | Out-Null } catch {}
+        exit 1
     }
-    Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
-    try {
-        Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter '*.ps1' -Recurse -Force -ErrorAction SilentlyContinue |
-            Unblock-File -ErrorAction SilentlyContinue
-    } catch {}
-    $repoFolder = Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory |
-                  Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if (-not $repoFolder) { throw "Failed to download repository" }
-    $script:ModuleDir = Join-Path $repoFolder.FullName "modules"
 }
 
 $loadOrder = @("_config.ps1", "_core.ps1", "_theme.ps1", "_icons.ps1", "_ui.ps1", "_xaml.ps1")
@@ -71,6 +81,24 @@ $reader = [System.Xml.XmlNodeReader]::new($xaml)
 $window = [Windows.Markup.XamlReader]::Load($reader)
 
 Initialize-Controls $window
+
+# Last-chance UI-thread handler: an unhandled error goes to the log and expands
+# the console, but does NOT close the window (used to kill the whole app).
+try {
+    $window.Dispatcher.add_UnhandledException({
+        param($s, $e)
+        try {
+            $msg = "UI ERROR (caught, window stays): " + $e.Exception.Message
+            try { Write-Log $msg -Color "Red" } catch {}
+            try {
+                $lp = $null; try { $lp = $script:LogPath } catch {}
+                if ($lp) { ("[" + (Get-Date).ToString("HH:mm:ss") + "] " + $msg + "`r`n") | Out-File -FilePath $lp -Append -Encoding UTF8 -ErrorAction SilentlyContinue }
+            } catch {}
+            try { if (-not $script:LogState) { Set-LogExpanded -Expand $true } } catch {}
+            $e.Handled = $true
+        } catch { try { $e.Handled = $true } catch {} }
+    })
+} catch {}
 
 # v6 bindings: chrome, pages, search, dashboard (shared modules untouched)
 . (Join-Path $script:ModuleDir "_ui_v6.ps1")
