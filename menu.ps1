@@ -40,35 +40,49 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
     # with a readable message + pause instead of a silent flash-and-gone.
     $zipUrl  = "https://github.com/DezFix/PotatoPC/archive/refs/heads/main.zip"
     $zipPath = Join-Path $env:TEMP "PotatoPC\repo.zip"
-    try {
-        New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) -Force | Out-Null
-        Write-Host "Downloading PotatoPC Optimizer..." -ForegroundColor Cyan
-        Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-            try { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
-        }
-        Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+    $needBase = @("_config.ps1","_core.ps1","_theme.ps1","_icons.ps1","_ui.ps1","_xaml.ps1")
+    $repoFolder = $null
+    $dlError = $null
+    for ($dlAttempt = 1; $dlAttempt -le 2 -and -not $repoFolder; $dlAttempt++) {
         try {
-            Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force -ErrorAction Stop
+            New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) -Force | Out-Null
+            if ($dlAttempt -eq 1) { Write-Host "Downloading PotatoPC Optimizer..." -ForegroundColor Cyan }
+            else { Write-Host "Re-downloading PotatoPC Optimizer (attempt 2)..." -ForegroundColor Yellow }
+            Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+                try { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+            }
+            Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+            try {
+                Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force -ErrorAction Stop
+            } catch {
+                Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+                [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, (Split-Path $zipPath -Parent))
+            }
+            Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+            try {
+                Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter '*.ps1' -Recurse -Force -ErrorAction SilentlyContinue |
+                    Unblock-File -ErrorAction SilentlyContinue
+            } catch {}
+            $cand = Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory |
+                    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if (-not $cand) { throw "Failed to download repository" }
+            $miss = @($needBase | Where-Object { -not (Test-Path (Join-Path (Join-Path $cand.FullName "modules") $_)) })
+            if ($miss.Count -gt 0) { throw ("Archive incomplete, missing: " + ($miss -join ", ")) }
+            $repoFolder = $cand
         } catch {
-            Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
-            [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, (Split-Path $zipPath -Parent))
+            $dlError = $_
+            $repoFolder = $null
+            if ($dlAttempt -eq 1) { try { Start-Sleep 2 } catch {} }
         }
-        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
-        try {
-            Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter '*.ps1' -Recurse -Force -ErrorAction SilentlyContinue |
-                Unblock-File -ErrorAction SilentlyContinue
-        } catch {}
-        $repoFolder = Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory |
-                      Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if (-not $repoFolder) { throw "Failed to download repository" }
-        $script:ModuleDir = Join-Path $repoFolder.FullName "modules"
-    } catch {
+    }
+    if (-not $repoFolder) {
         Write-Host ""
-        Write-Host ("FAILED to download PotatoPC: " + $_.Exception.Message) -ForegroundColor Red
+        Write-Host ("FAILED to download PotatoPC: " + $dlError.Exception.Message) -ForegroundColor Red
         Write-Host "Check internet / VPN / antivirus and run the link again." -ForegroundColor Yellow
         try { Read-Host "Enter - exit" | Out-Null } catch {}
         exit 1
     }
+    $script:ModuleDir = Join-Path $repoFolder.FullName "modules"
 }
 
 $loadOrder = @("_config.ps1", "_core.ps1", "_theme.ps1", "_icons.ps1", "_ui.ps1", "_xaml.ps1")

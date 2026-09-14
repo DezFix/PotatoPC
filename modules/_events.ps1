@@ -344,22 +344,32 @@ function Test-BgQueue {
     } catch {}
     if (-not $script:PanelsBuilt) {
         if (Get-BgResult -Key 'init') {
-            $script:PanelsBuilt = $true
+            # Панели строятся изолированно: упавшая панель пишет ошибку в лог,
+            # но НЕ роняет остальные (было: часть вкладок пустые навсегда,
+            # а флаг готовности уже выставлен и повтора не было).
             $p = Get-BgResult -Key 'paths'
             if ($p) {
                 if ($p.ScriptsFolder) { $script:ScriptsFolder = $p.ScriptsFolder }
                 if ($p.AppsJsonPath)  { $script:AppsJsonPath = $p.AppsJsonPath }
             }
-            $scriptsFolderText.Text = $script:ScriptsFolder
-            Build-ScriptsPanel
-            Build-AppsPanel
-            Build-SysPanel
-            Build-DiagPanel
-            Build-StartupPanel
-            Build-UsersPanel
-            Build-CleanPanel
-            Build-ProtectPanel
-            Write-Log "✓ Готов к работе." -Color "Green"
+            try { if ($scriptsFolderText) { $scriptsFolderText.Text = $script:ScriptsFolder } } catch {}
+            $built = @(); $failed = @()
+            foreach ($pb in @(
+                @{ N = 'Модули';        F = { Build-ScriptsPanel } },
+                @{ N = 'Приложения';    F = { Build-AppsPanel } },
+                @{ N = 'О системе';     F = { Build-SysPanel } },
+                @{ N = 'Тесты';         F = { Build-DiagPanel } },
+                @{ N = 'Автозагрузка';  F = { Build-StartupPanel } },
+                @{ N = 'Пользователи';  F = { Build-UsersPanel } },
+                @{ N = 'Очистка';       F = { Build-CleanPanel } },
+                @{ N = 'Защита';        F = { Build-ProtectPanel } }
+            )) {
+                try { & $pb.F; $built += $pb.N }
+                catch { $failed += $pb.N; try { Write-Log ("✗ Вкладка '" + $pb.N + "' не построилась: " + $_.Exception.Message) -Color "Red" } catch {} }
+            }
+            $script:PanelsBuilt = $true
+            if ($failed.Count -eq 0) { Write-Log "✓ Готов к работе." -Color "Green" }
+            else { Write-Log ("✓ Частично готов: " + ($built -join ", ") + ". Не вышло: " + ($failed -join ", ") + " — жми «Обновить» или перезапусти.") -Color "Yellow" }
             try {
                 if ($sideStatusText) {
                     $sideStatusText.Text = "Скриптов: $($script:ScriptCheckboxes.Count) • Программ: $($script:AppCheckboxes.Count)"
@@ -542,10 +552,10 @@ function Test-BgQueue {
             if ($p.ScriptsFolder) { $script:ScriptsFolder = $p.ScriptsFolder }
             if ($p.AppsJsonPath)  { $script:AppsJsonPath = $p.AppsJsonPath }
         }
-        $scriptsFolderText.Text = $script:ScriptsFolder
-        Build-ScriptsPanel
-        Build-AppsPanel
-        $refreshBtn.IsEnabled = $true
+        try { if ($scriptsFolderText) { $scriptsFolderText.Text = $script:ScriptsFolder } } catch {}
+        try { Build-ScriptsPanel } catch { try { Write-Log ("✗ Модули не перестроились: " + $_.Exception.Message) -Color "Red" } catch {} }
+        try { Build-AppsPanel } catch { try { Write-Log ("✗ Приложения не перестроились: " + $_.Exception.Message) -Color "Red" } catch {} }
+        try { if ($refreshBtn) { $refreshBtn.IsEnabled = $true } } catch {}
         Write-Log "✓ Список скриптов обновлён"
     }
 }
