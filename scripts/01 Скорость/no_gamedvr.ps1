@@ -1,9 +1,10 @@
-﻿# NAME: Не записывать игры
-# DESC: Выключает фоновую запись. Больше FPS
+﻿# NAME: Выкл. фоновую запись игр (Game DVR)
+# DESC: Отключает GameDVR/AppCapture в реестре: +FPS, меньше лагов. Запись через Win+G перестанет работать
 # TAGS: 1
 # ICON: ⏺️
 # PRESET: potato, game
 
+#Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
     $g = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR"

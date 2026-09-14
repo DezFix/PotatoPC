@@ -1,10 +1,11 @@
-﻿# NAME: Без виджетов
-# DESC: Убирает ленту новостей. Меньше памяти в фоне
-# TAGS: 1,win11
+﻿# NAME: Убрать Виджеты и ленту новостей с панели
+# DESC: Выключает TaskbarDa + политику AllowNewsAndInterests. Меньше памяти в фоне, работает на Win10 и 11
+# TAGS: 1
 # ICON: 📰
 # PRESET: potato, office, game
 # RECOMMENDED: true
 
+#Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
     $a = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"

@@ -1,5 +1,5 @@
-﻿# NAME: Автоочистка диска
-# DESC: Windows сама подметает мусор раз в месяц
+﻿# NAME: Контроль памяти: авточистка диска Windows
+# DESC: Включает Storage Sense (StoragePolicy 01=1): Windows сама чистит Temp и Корзину ~раз в месяц
 # TAGS: 1
 # ICON: 🧽
 # PRESET: potato, office

@@ -1,5 +1,5 @@
-﻿# NAME: Вернуть сеть
-# DESC: Открывает NetBIOS и поиск имен. SMBv1 останется закрыт
+﻿# NAME: Откат сети: DNS на авто, вернуть NetBIOS и поиск имён
+# DESC: Возвращает DNS на авто (DHCP), NetbiosOptions=0 и снимает политики DNS. SMBv1 специально НЕ включает — это дыра
 # TAGS: 1
 # ICON: ↩️
 
@@ -19,6 +19,12 @@ try {
         try { Set-ItemProperty -Path $i.PSPath -Name "NetbiosOptions" -Value 0 -Type DWord -Force; $n++ } catch {}
     }
     Del-Prop "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad" "WpadOverride"
+    try {
+        Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' } | ForEach-Object {
+            try { Set-DnsClientServerAddress -InterfaceIndex $_.ifIndex -ResetServerAddresses -ErrorAction Stop } catch {}
+        }
+        Write-Output "[*] DNS возвращён на авто (DHCP)."
+    } catch {}
     Write-Output ("[OK] Сеть как была (" + $n + " инт.). SMBv1 специально НЕ включаю - это дыра.")
     exit 0
 } catch {

@@ -1,5 +1,5 @@
-﻿# NAME: Без рекламы
-# DESC: Убирает рекламу и советы. Проводник открывается быстрее
+﻿# NAME: Без рекламы Windows (Пуск, Проводник, экран блокировки)
+# DESC: Отключает AdvertisingInfo + ConsumerFeatures + советы через реестр и политики. Нужен повторный вход
 # TAGS: 1
 # ICON: 🚫
 # PRESET: potato, office, game

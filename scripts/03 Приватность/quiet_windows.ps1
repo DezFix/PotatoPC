@@ -1,5 +1,5 @@
-﻿# NAME: Тихая Windows
-# DESC: Меньше слежки и отправки данных. ПК дышит свободнее
+﻿# NAME: Телеметрия на минимум (AllowTelemetry=0)
+# DESC: Ставит AllowTelemetry=0 + отключает 5 задач сбора данных в Планировщике (CEIP, Appraiser и др.)
 # TAGS: 1
 # ICON: 🕵️
 # PRESET: potato, office

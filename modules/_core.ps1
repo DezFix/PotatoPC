@@ -243,6 +243,7 @@ $script:AsyncLogWriter = {
 function Get-ScriptTimeout {
     param([string]$FilePath)
     # PotatoPC: тяжелые качают из сети, средние трогают службы, реестр - быстрый
+    if ($FilePath -like '*winsxs*') { return 1800 }
     if ($FilePath -like '*winget*' -or $FilePath -like '*security_only*') { return 600 }
     if ($FilePath -like '*remove_bloat*' -or $FilePath -like '*strong_net*' -or $FilePath -like '*light_defender*') { return 300 }
     return 60

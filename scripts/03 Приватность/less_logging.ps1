@@ -1,5 +1,5 @@
-﻿# NAME: Меньше записей в фоне
-# DESC: Выключает скрытые журналы. Меньше нагрузка на диск
+﻿# NAME: Выкл. скрытые журналы трассировки (WMI Autologger)
+# DESC: Ставит Start=0 для 7 логгеров (DiagLog, SQM, WiFiSession и др.). Меньше постоянной записи на диск
 # TAGS: 1
 # ICON: 📝
 # PRESET: potato, office

@@ -1,5 +1,5 @@
-﻿# NAME: Вернуть убранное
-# DESC: Отменяет раздел Очистка. Удаленное из образа вернется через Store
+﻿# NAME: Откат «Очистки»: вернуть OneDrive, Xbox, Copilot…
+# DESC: Снимает политики Copilot/Кортаны/OneDrive, службы Xbox в Manual. Снесённое из образа — докачать в Microsoft Store
 # TAGS: 1
 # ICON: ↩️
 

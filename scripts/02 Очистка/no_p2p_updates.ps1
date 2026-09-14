@@ -1,5 +1,5 @@
-﻿# NAME: Не раздавать обновления
-# DESC: ПК качает обновления только себе. Экономит интернет
+﻿# NAME: Не раздавать обновления другим ПК (Delivery Optimization)
+# DESC: Ставит DODownloadMode=0: качает обновления только с серверов Microsoft. Экономит отдачу интернета
 # TAGS: 1
 # ICON: 📥
 # PRESET: potato, office

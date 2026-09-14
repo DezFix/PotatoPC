@@ -1,5 +1,5 @@
-﻿# NAME: Убрать Xbox
-# DESC: Выключает службы Xbox. Офисному ПК да, геймеру нет
+﻿# NAME: Отключить службы Xbox (4 шт.)
+# DESC: Останавливает XblGameSave, XboxNetApiSvc и др. (Startup=Disabled). НЕ ставить геймерам — сломает Game Pass и Game Bar
 # TAGS: 2
 # ICON: 🎮
 # PRESET: potato, office

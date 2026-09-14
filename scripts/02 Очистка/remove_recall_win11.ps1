@@ -1,5 +1,5 @@
-﻿# NAME: Убрать Recall (Win11)
-# DESC: Выключает снимки экрана. Только Windows 11
+﻿# NAME: Отключить Recall — скриншоты для ИИ (Win11)
+# DESC: Блокирует политиками AllowRecallEnablement=0: Windows не делает постоянные снимки экрана. Только Win11 24H2+
 # TAGS: 1,win11
 # ICON: 🪟
 # PRESET: potato, office, game

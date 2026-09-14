@@ -1,5 +1,5 @@
-﻿# NAME: Без OneDrive
-# DESC: Убирает облако из автозапуска. Меньше нагрузки
+﻿# NAME: Удалить OneDrive (облако Microsoft)
+# DESC: Запускает OneDriveSetup /uninstall + политика DisableFileSyncNGSC. Файлы в облаке и локальные копии не удаляет
 # TAGS: 2
 # ICON: ☁️
 # PRESET: potato, game

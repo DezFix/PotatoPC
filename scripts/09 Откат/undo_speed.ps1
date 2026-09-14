@@ -1,5 +1,5 @@
-﻿# NAME: Вернуть скорость
-# DESC: Отменяет раздел Скорость. Всё как было
+﻿# NAME: Откат «Скорости»: эффекты, фон, питание, мышь как было
+# DESC: Возвращает VisualFX, MenuShowDelay=400, схему «Сбалансированная», рекламу, GameDVR и ускорение мыши. Откат раздела «Скорость»
 # TAGS: 1
 # ICON: ↩️
 
@@ -45,6 +45,11 @@ try {
     Set-ItemProperty -Path $mp -Name "NetworkThrottlingIndex" -Value 10 -Type DWord -Force -ErrorAction SilentlyContinue
     Del-Prop $mp "SystemResponsiveness"
     Remove-Item "$mp\Tasks\Games" -Recurse -Force -ErrorAction SilentlyContinue
+    Del-Prop "HKCU:\Software\Microsoft\GameBar" "AllowAutoGameMode"
+    Del-Prop "HKCU:\Software\Microsoft\GameBar" "AutoGameModeEnabled"
+    Set-ItemProperty "HKCU:\Control Panel\Mouse" -Name "MouseSpeed" -Value "1" -Type String -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty "HKCU:\Control Panel\Mouse" -Name "MouseThreshold1" -Value "6" -Type String -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty "HKCU:\Control Panel\Mouse" -Name "MouseThreshold2" -Value "10" -Type String -Force -ErrorAction SilentlyContinue
 
     Write-Output "[OK] Раздел Скорость откачен. Перезайди или перезагрузись."
     exit 0

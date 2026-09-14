@@ -1,5 +1,5 @@
-﻿# NAME: Без навязчивых советов
-# DESC: Убирает автоустановку мусора из Пуска
+﻿# NAME: Пуск без «предложений» и тихой установки игр
+# DESC: Чистит ContentDeliveryManager (SilentInstalledApps=0): Windows сама не ставит рекламные игры в Пуск
 # TAGS: 1
 # ICON: 📦
 # PRESET: potato, office

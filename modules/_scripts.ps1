@@ -193,7 +193,7 @@ function Build-ScriptsPanel {
                 $descText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee")
             }
             $descText.FontSize = 11; $descText.Margin = [System.Windows.Thickness]::new(0,2,0,0)
-            $descText.TextTrimming = "CharacterEllipsis"
+            $descText.TextWrapping = "Wrap"
             $textStack.Children.Add($descText) | Out-Null
             [System.Windows.Controls.Grid]::SetColumn($textStack, 2)
             $runOneBtn = [System.Windows.Controls.Button]::new()

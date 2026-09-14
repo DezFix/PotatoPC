@@ -1,5 +1,5 @@
-﻿# NAME: Убрать Copilot
-# DESC: Выключает ИИ-помощника. Меньше памяти и нагрузки
+﻿# NAME: Отключить Copilot (ИИ-помощник)
+# DESC: Блокирует политиками TurnOffWindowsCopilot + убирает кнопку с панели. Сам пакет Edge не удаляет
 # TAGS: 1
 # ICON: 🤖
 # PRESET: potato, office, game

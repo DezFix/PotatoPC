@@ -1,5 +1,5 @@
-﻿# NAME: Без отчетов об ошибках
-# DESC: Не шлет отчеты в Microsoft. Чуть меньше нагрузки
+﻿# NAME: Выкл. отчёты об ошибках в Microsoft (WER)
+# DESC: Ставит WER Disabled=1 + служба WerSvc в Disabled. Отчёты о падениях больше не отправляются
 # TAGS: 1
 # ICON: 🔕
 # PRESET: potato, office
