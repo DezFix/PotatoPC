@@ -117,6 +117,8 @@ try {
 $script:V6DashBusy  = $false
 $script:V6DashStart = [DateTime]::MinValue
 $script:V6DashCache = $null
+$script:V6DashT0    = Get-Date
+$script:V6DashHintShown = $false
 
 function Update-DashStats {
     # Быстрый триггер: тяжёлые CIM/WMI-замеры уходят в фон. Кэш 30 сек.
@@ -223,6 +225,15 @@ try {
                     Set-BgResult -Key 'dashStats' -Value $null
                     $script:V6DashBusy = $false
                     Apply-V6Dash $d
+                } else {
+                    # Данных нет 90+ сек: вечные "…" превращаем в видимый хинт.
+                    try {
+                        if (-not $script:V6DashCache -and -not $script:V6DashHintShown -and $script:V6DashT0 -and (((Get-Date) - $script:V6DashT0).TotalSeconds -gt 90)) {
+                            $script:V6DashHintShown = $true
+                            if ($HealthSub) { $HealthSub.Text = "Нет данных 90+ сек: открой консоль (Развернуть) и смотри красные строки" }
+                            Write-Log "дашборд: нет данных 90+ сек — смотри консоль" -Color "Yellow"
+                        }
+                    } catch {}
                 }
             } catch {}
         })

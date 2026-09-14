@@ -1,4 +1,9 @@
-﻿# ═══ Null-safe привязки ═══
+﻿# _events грузится последним из UI-модулей: с этого момента фону можно работать.
+# Флаг здесь (а не только в menu.ps1), чтобы дашборд не зависел от версии menu.ps1
+# (старое меню + новые модули = вечные "…" без единой ошибки).
+$script:V6ModulesReady = $true
+
+# ═══ Null-safe привязки ═══
 # Если XAML и модули разошлись (старый кэш в $env:TEMP\PotatoPC), отсутствующий
 # контрол = $null, и прямой $btn.Add_Click() роняет ВЕСЬ файл целиком
 # (было: $saveLogBtn). Подменяем отсутствующие контролы пустышкой с теми же
@@ -370,6 +375,8 @@ function Test-BgQueue {
             $script:PanelsBuilt = $true
             if ($failed.Count -eq 0) { Write-Log "✓ Готов к работе." -Color "Green" }
             else { Write-Log ("✓ Частично готов: " + ($built -join ", ") + ". Не вышло: " + ($failed -join ", ") + " — жми «Обновить» или перезапусти.") -Color "Yellow" }
+            # Дашборд не ждёт menu.ps1: диспатчим первый замер сразу после панелей.
+            try { Update-DashStats } catch {}
             try {
                 if ($sideStatusText) {
                     $sideStatusText.Text = "Скриптов: $($script:ScriptCheckboxes.Count) • Программ: $($script:AppCheckboxes.Count)"
@@ -569,7 +576,7 @@ $window.Add_Loaded({
         }
     } catch {}
     $scriptsFolderText.Text = $script:ScriptsFolder
-    Write-Log ("PotatoPC Optimizer v6.0 запущен (build " + $script:BuildTag + ")")
+    Write-Log ("PotatoPC Optimizer v6.0 запущен (build " + $script:BuildTag + "; menu " + $(if ($script:MenuTag) { $script:MenuTag } else { '?' }) + ")")
     Write-Log "Система: $((Get-SystemInfo).OS)"
     Write-Log "Windows $($script:WindowsMajorVersion) обнаружена"
     Write-Log "Рабочая папка: $($script:WorkFolder)"

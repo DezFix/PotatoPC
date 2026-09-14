@@ -24,6 +24,10 @@ if (-not $isAdmin) {
 
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue
 
+# Menu build tag (ASCII-only file!): printed to the log at startup next to the
+# modules build tag, so a version mix (old menu + new modules) is visible.
+$script:MenuTag = '2026-09-14-r6'
+
 foreach ($m in @('Microsoft.PowerShell.Management','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Archive','CimCmdlets','ScheduledTasks','Microsoft.PowerShell.LocalAccounts','PrintManagement')) {
     try { Import-Module $m -ErrorAction SilentlyContinue } catch {}
 }
