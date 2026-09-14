@@ -333,6 +333,15 @@ try { if ($refreshProtectBtn) { $refreshProtectBtn.Add_Click({
 function Test-BgQueue {
     Drain-BgLog
     try { Update-ProgressUI } catch {}
+    # Запасной путь для дашборда: если таймер V6 мёртв, цифры применит главный поллер.
+    try {
+        $dsh = Get-BgResult -Key 'dashStats'
+        if ($dsh) {
+            Set-BgResult -Key 'dashStats' -Value $null
+            try { if (Get-Command Apply-V6Dash -ErrorAction SilentlyContinue) { Apply-V6Dash $dsh } } catch {}
+            try { $script:V6DashBusy = $false } catch {}
+        }
+    } catch {}
     if (-not $script:PanelsBuilt) {
         if (Get-BgResult -Key 'init') {
             $script:PanelsBuilt = $true

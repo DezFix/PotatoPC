@@ -48,19 +48,36 @@ if ($appSearchBox) { $appSearchBox.Add_TextChanged({
     $q=$appSearchBox.Text.Trim().ToLower()
     try { $appSearchHint.Visibility  = if($q -eq ""){"Visible"}else{"Collapsed"} } catch {}
     try { $appSearchClear.Visibility = if($q -eq ""){"Collapsed"}else{"Visible"} } catch {}
+    # Карточка продукта = Border->Grid (имя в CheckBox, описание+id в TextBlock),
+    # заголовок раздела = Border->StackPanel. Пустые разделы скрываем, как в Модулях.
+    $lastHeader = $null
+    $visibleInSection = 0
     foreach ($child in $appsPanel.Children) {
         if ($child -is [System.Windows.Controls.Border]) {
-            $inner=$child.Child
-            if ($inner -is [System.Windows.Controls.StackPanel]) {
+            $grid=$child.Child
+            if ($grid -is [System.Windows.Controls.Grid]) {
+                $child.Visibility="Visible"
                 $nameVal=""; $descVal=""
-                foreach ($el in $inner.Children) {
-                    if ($el -is [System.Windows.Controls.CheckBox]) { $nameVal=$el.Content.ToString().ToLower() }
-                    if ($el -is [System.Windows.Controls.TextBlock]) { $descVal=$el.Text.ToLower() }
+                foreach ($el in $grid.Children) {
+                    if ($el -is [System.Windows.Controls.StackPanel]) {
+                        foreach ($sub in $el.Children) {
+                            if ($sub -is [System.Windows.Controls.CheckBox]) { $nameVal += ([string]$sub.Content + " ") }
+                            elseif ($sub -is [System.Windows.Controls.TextBlock]) { $descVal += ([string]$sub.Text + " ") }
+                        }
+                    }
                 }
-                $child.Visibility = if ($q -ne "" -and ($nameVal -notlike "*$q*") -and ($descVal -notlike "*$q*")){"Collapsed"}else{"Visible"}
-            } else { $child.Visibility="Visible" }
+                $hay=($nameVal + $descVal).ToLower()
+                if ($q -ne "" -and ($hay -notlike "*$q*")) { $child.Visibility="Collapsed" }
+                else { $visibleInSection++ }
+            } else {
+                if ($lastHeader -ne $null -and $q -ne "" -and $visibleInSection -eq 0) { $lastHeader.Visibility = "Collapsed" }
+                $lastHeader = $child
+                $child.Visibility = "Visible"
+                $visibleInSection = 0
+            }
         }
     }
+    if ($lastHeader -ne $null -and $q -ne "" -and $visibleInSection -eq 0) { $lastHeader.Visibility = "Collapsed" }
 })}
 if ($appSearchClear) { $appSearchClear.Add_Click({ $appSearchBox.Text="" }) }
 

@@ -592,18 +592,25 @@ function Get-BgSessionState {
     # Снимок всех пользовательских функций один раз (после загрузки модулей).
     # Каждый фоновый ранспейс стартует с ним: общий ранспейс UI ни с кем не делится,
     # гонок подгрузки модулей между потоками больше нет.
+    # При сбое снимка возвращаем $null — Start-Background запустит тело
+    # в пустом ранспейсе, а ошибка уйдёт в лог (видимый), а не в тишину.
     if ($script:BgISS) { return $script:BgISS }
-    $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
-    foreach ($fn in (Get-Command -CommandType Function)) {
-        if ($fn.Source -ne '') { continue }
-        if ([string]::IsNullOrWhiteSpace($fn.Name)) { continue }
-        try {
-            $entry = New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($fn.Name, $fn.ScriptBlock)
-            $iss.Commands.Add($entry)
-        } catch {}
+    try {
+        $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+        foreach ($fn in (Get-Command -CommandType Function)) {
+            if ($fn.Source -ne '') { continue }
+            if ([string]::IsNullOrWhiteSpace($fn.Name)) { continue }
+            try {
+                $entry = New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($fn.Name, $fn.ScriptBlock)
+                $iss.Commands.Add($entry)
+            } catch {}
+        }
+        $script:BgISS = $iss
+        return $iss
+    } catch {
+        try { Write-Log ("Фон: не вышло снять функции: " + $_.Exception.Message) -Color "Yellow" } catch {}
+        return $null
     }
-    $script:BgISS = $iss
-    return $iss
 }
 
 function Start-Background {
@@ -631,7 +638,8 @@ function Start-Background {
     $logPathStr = [string]$script:LogPath
     $runner = {
         try {
-            $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss)
+            if ($iss) { $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss) }
+            else { $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace() }
             $rs.ApartmentState = "STA"
             $rs.ThreadOptions = "ReuseThread"
             $rs.Open()
@@ -646,17 +654,36 @@ function Start-Background {
                     [void]$ps.AddScript($bodySrc)
                     [void]$ps.Invoke()
                     foreach ($e in @($ps.Streams.Error)) {
+                        # Ошибка фона — и в файл, и в UI-очередь: молчащих кнопок больше нет.
                         try {
-                            $t = [DateTime]::Now.ToString("HH:mm:ss") + " [BG] " + $e.ToString() + "`r`n"
+                            $emsg = "[BG] " + $e.ToString()
+                            $t = [DateTime]::Now.ToString("HH:mm:ss") + " " + $emsg + "`r`n"
                             [System.IO.File]::AppendAllText($logPathStr, $t)
+                            try {
+                                $q = $null
+                                try { $q = $liveVars['bgLogQueue'] } catch {}
+                                if ($q) {
+                                    if ($q.Count -gt 5000) { try { $q.Dequeue() | Out-Null } catch {} }
+                                    $q.Enqueue(@{ T = $emsg; C = 'Red' })
+                                }
+                            } catch {}
                         } catch {}
                     }
                 } finally { try { $ps.Dispose() } catch {} }
             } finally { try { $rs.Dispose() } catch {} }
         } catch {
             try {
-                $t = [DateTime]::Now.ToString("HH:mm:ss") + " [BG bootstrap] " + $_.Exception.Message + "`r`n"
+                $emsg = "[BG bootstrap] " + $_.Exception.Message
+                $t = [DateTime]::Now.ToString("HH:mm:ss") + " " + $emsg + "`r`n"
                 [System.IO.File]::AppendAllText($logPathStr, $t)
+                try {
+                    $q = $null
+                    try { $q = $liveVars['bgLogQueue'] } catch {}
+                    if ($q) {
+                        if ($q.Count -gt 5000) { try { $q.Dequeue() | Out-Null } catch {} }
+                        $q.Enqueue(@{ T = $emsg; C = 'Red' })
+                    }
+                } catch {}
             } catch {}
         }
     }.GetNewClosure()
