@@ -87,6 +87,54 @@ function Update-SelectedCount {
     try { Update-HeaderCount } catch {}
 }
 
+# Чипы пресетов на карточке: видно, куда входит скрипт (цвета как у кнопок пресетов).
+$script:PresetBadgeStyle = @{
+    potato = @{ T = "POTATO"; Fg = "#FBBF24"; Bg = "#2A2300"; Bd = "#6B5B00" }
+    office = @{ T = "ОФИС";   Fg = "#7DD3FC"; Bg = "#0C2E44"; Bd = "#1a5aaa" }
+    game   = @{ T = "ИГРЫ";   Fg = "#F472B6"; Bg = "#4A1830"; Bd = "#8a2a52" }
+}
+
+function New-PresetBadge {
+    param([string]$Preset)
+    $key = ([string]$Preset).ToLower().Trim()
+    if (-not $script:PresetBadgeStyle.ContainsKey($key)) { return $null }
+    $st = $script:PresetBadgeStyle[$key]
+    try {
+        $b = [System.Windows.Controls.Border]::new()
+        $b.CornerRadius = [System.Windows.CornerRadius]::new(4)
+        $b.Padding = [System.Windows.Thickness]::new(5,1,5,1)
+        $b.Margin  = [System.Windows.Thickness]::new(7,0,0,0)
+        $b.VerticalAlignment = "Center"
+        $b.BorderThickness = [System.Windows.Thickness]::new(1)
+        $b.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom($st.Bg)
+        $b.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom($st.Bd)
+        $t = [System.Windows.Controls.TextBlock]::new()
+        $t.Text = $st.T; $t.FontSize = 10; $t.FontWeight = "SemiBold"
+        $t.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($st.Fg)
+        $b.Child = $t
+        return $b
+    } catch { return $null }
+}
+
+function New-RecommendedBadge {
+    try {
+        $b = [System.Windows.Controls.Border]::new()
+        $b.CornerRadius = [System.Windows.CornerRadius]::new(4)
+        $b.Padding = [System.Windows.Thickness]::new(5,1,5,1)
+        $b.Margin  = [System.Windows.Thickness]::new(7,0,0,0)
+        $b.VerticalAlignment = "Center"
+        $b.BorderThickness = [System.Windows.Thickness]::new(1)
+        $b.Background  = [Windows.Media.BrushConverter]::new().ConvertFrom("#2A2300")
+        $b.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFrom("#d4a017")
+        $t = [System.Windows.Controls.TextBlock]::new()
+        $t.Text = "★"; $t.FontSize = 10; $t.FontWeight = "Bold"
+        $t.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#d4a017")
+        $t.ToolTip = "Рекомендовано: входит в «Исправить всё»"
+        $b.Child = $t
+        return $b
+    } catch { return $null }
+}
+
 function Build-ScriptsPanel {
     if ($null -eq $scriptsPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     $scriptsPanel.Children.Clear()
@@ -115,7 +163,7 @@ function Build-ScriptsPanel {
         $scriptsPanel.Children.Add($catBorder) | Out-Null
         foreach ($script_item in $group.Group) {
             $isWin11Incompatible = $script_item.Win11Only -and ($script:WindowsMajorVersion -lt 11)
-            $card = New-Card -Large -Incompatible:$isWin11Incompatible -Recommended:($script_item.Recommended -and -not $isWin11Incompatible)
+            $card = New-Card -Large -Incompatible:$isWin11Incompatible
             Add-CardFx -Card $card
             $grid = [System.Windows.Controls.Grid]::new()
             $col1 = [System.Windows.Controls.ColumnDefinition]::new(); $col1.Width = [System.Windows.GridLength]::new(32)
@@ -151,7 +199,7 @@ function Build-ScriptsPanel {
             $nameText = [System.Windows.Controls.TextBlock]::new()
             $nameText.Text = $script_item.Name; $nameText.FontSize = 12; $nameText.FontWeight = "Medium"
             $nameText.VerticalAlignment = "Center"
-            $nameColor = if ($isWin11Incompatible) { "#505060" } elseif ($script_item.Recommended) { "#d4a017" } else { "#e0e0f4" }
+            $nameColor = if ($isWin11Incompatible) { "#505060" } else { "#e0e0f4" }
             $nameText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($nameColor)
             $nameRow.Children.Add($nameText) | Out-Null
             if ($script_item.Win11Only) {
@@ -182,6 +230,16 @@ function Build-ScriptsPanel {
             if (-not $isWin11Incompatible -and $script_item.Tag -in 1,2,3) {
                 $tagBorder = New-TagBadge -Tag $script_item.Tag
                 $nameRow.Children.Add($tagBorder) | Out-Null
+            }
+            if (-not $isWin11Incompatible) {
+                foreach ($pp in @($script_item.Presets)) {
+                    $pb = New-PresetBadge -Preset $pp
+                    if ($pb) { $nameRow.Children.Add($pb) | Out-Null }
+                }
+                if ($script_item.Recommended) {
+                    $rb = New-RecommendedBadge
+                    if ($rb) { $nameRow.Children.Add($rb) | Out-Null }
+                }
             }
             $textStack.Children.Add($nameRow) | Out-Null
             $descText = [System.Windows.Controls.TextBlock]::new()
@@ -214,6 +272,12 @@ function Build-ScriptsPanel {
                 $runOneBtn.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
                 $runOneBtn.Add_Click({
                     $scriptPath = $this.Tag
+                    $miss = @(Test-ScriptsExist -Paths @($scriptPath))
+                    if ($miss.Count -gt 0) {
+                        Write-Log ("✗ Файл пропал с диска: " + (Split-Path $scriptPath -Leaf)) -Color "Red"
+                        Repair-ScriptsCache
+                        return
+                    }
                     Write-Log "══ Запуск: $(Split-Path $scriptPath -Leaf) ══"
                     Start-Background {
                         try {
@@ -245,11 +309,39 @@ function Build-ScriptsPanel {
     Write-Log "Загружено скриптов: $($scripts.Count)$(if($win11Count -gt 0){" (только Win11: $win11Count, ОС: Windows $($script:WindowsMajorVersion))"})"
 }
 
+function Test-ScriptsExist {
+    # Возвращает список пропавших .ps1 (съел антивирус, битый кэш, чистка TEMP).
+    param([string[]]$Paths)
+    $miss = @()
+    foreach ($p in @($Paths)) {
+        try { if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { $miss += $p } } catch { $miss += $p }
+    }
+    return @($miss)
+}
+
+function Repair-ScriptsCache {
+    # Докачка репозитория в фоне + перестройка панелей через шину.
+    Write-Log "Файлы скриптов пропали с диска — качаю заново..." -Color "Yellow"
+    Write-Log "Если пропадают снова — глянь карантин Defender (свежая система их ест)." -Color "Yellow"
+    Start-Background {
+        try { Download-Repo }
+        catch { Write-Log ("Не вышло докачать: " + $_) -Color "Red" }
+        Set-BgResult -Key 'paths' -Value @{ ScriptsFolder = $script:ScriptsFolder; AppsJsonPath = $script:AppsJsonPath }
+        Set-BgResult -Key 'rebuildScripts' -Value $true
+    }
+}
+
 function Run-SelectedScripts {
     if ($script:BatchRunning) { Stop-SelectedScripts; return }
     $selected = $script:ScriptCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked }
     if (-not $selected) { Write-Log "⚠ Нет выбранных скриптов" -Color "Yellow"; return }
     $pathsList = @($selected | ForEach-Object { $_.Key })
+    $miss = @(Test-ScriptsExist -Paths $pathsList)
+    if ($miss.Count -gt 0) {
+        Write-Log ("✗ Нет файлов на диске: " + $miss.Count + " (напр. " + (Split-Path $miss[0] -Leaf) + ")") -Color "Red"
+        Repair-ScriptsCache
+        return
+    }
     $reboot    = $rebootAfterChk.IsChecked
     $count     = $pathsList.Count
     if (-not $script:RunBtnSaved) {

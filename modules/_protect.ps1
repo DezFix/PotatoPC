@@ -4,15 +4,51 @@ $script:ScanHandle = $null
 $script:ScanControl = $null
 
 function Get-YaraRulesDir {
+    # Правила живут в рабочей папке и качаются с GitHub только при проверке.
     try {
-        $rootHint = $null
-        try { $rootHint = $script:ModuleDir } catch {}
-        if ($rootHint) {
-            $cand = Join-Path (Split-Path $rootHint -Parent) 'protect\rules'
-            if (Test-Path $cand) { return $cand }
+        $d = Join-Path $script:WorkFolder 'protect-rules'
+        return $d
+    } catch { return '' }
+}
+
+function Ensure-YaraRules {
+    # Фон, самодостаточная: качает rules.txt + недостающие .yar с GitHub.
+    # Без сети работает на кэше, с пустым кэшем возвращает ''.
+    # Возвращает путь к папке с правилами или ''.
+    param([string]$RulesDir)
+    $base = 'https://raw.githubusercontent.com/DezFix/PotatoPC/main/protect'
+    try {
+        if ([string]::IsNullOrWhiteSpace($RulesDir)) { return '' }
+        if (-not (Test-Path -LiteralPath $RulesDir)) { New-Item -ItemType Directory -Path $RulesDir -Force | Out-Null }
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $names = @()
+        try {
+            $mt = (Invoke-WebRequest -Uri ($base + '/rules.txt') -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop).Content
+            $names = @($mt -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -like '*.yar' })
+        } catch { Write-Log ("[!] Манифест правил не скачался, беру кэш: " + $_.Exception.Message) }
+        if ($names.Count -eq 0) {
+            $names = @(Get-ChildItem -LiteralPath $RulesDir -Filter '*.yar' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+            if ($names.Count -eq 0) { return '' }
+            Write-Log ("[*] Без сети: правил в кэше " + $names.Count) -Color "Yellow"
+            return $RulesDir
         }
-    } catch {}
-    return ''
+        Write-Log ("[*] Правил в базе: " + $names.Count + ", качаю недостающие...")
+        $n = 0
+        foreach ($yn in $names) {
+            $dst = Join-Path $RulesDir $yn
+            if (Test-Path -LiteralPath $dst) { $n++; continue }
+            try {
+                Invoke-WebRequest -Uri ($base + '/rules/' + $yn) -OutFile $dst -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+                $n++
+            } catch { Write-Log ("  Правило не скачалось " + $yn) -Color "Yellow" }
+        }
+        foreach ($f in @(Get-ChildItem -LiteralPath $RulesDir -Filter '*.yar' -File -ErrorAction SilentlyContinue)) {
+            if ($names -notcontains $f.Name) { try { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue } catch {} }
+        }
+        if ($n -eq 0) { return '' }
+        Write-Log ("Правила YARA готовы: " + $n) -Color "Green"
+        return $RulesDir
+    } catch { return '' }
 }
 
 function Get-YaraStatus {
@@ -133,7 +169,7 @@ function Build-ProtectPanel {
     $rows = @(
         @{ L = "Defender"; V = $(if ($ds -and $ds.Ok) { if ($null -ne $ds.SigAge) { "активен, базы $($ds.SigAge) дн." } else { "активен" } } else { "недоступен" }); Good = [bool]($ds -and $ds.Ok -and ($null -eq $ds.SigAge -or $ds.SigAge -le 7)) },
         @{ L = "Движок YARA"; V = $(if ($st.Exe) { "есть ($($st.Version))" } else { "скачается при проверке" }); Good = [bool]$st.Exe },
-        @{ L = "Правила"; V = "$($st.RulesCount) файлов"; Good = ($st.RulesCount -gt 0) },
+        @{ L = "Правила"; V = $(if ($st.RulesCount -gt 0) { "$($st.RulesCount) файлов" } else { "скачаются при проверке" }); Good = ($st.RulesCount -gt 0) },
         @{ L = "Брандмауэр"; V = $(if ($fwOff -eq 0) { "включён везде" } else { "выключен: $fwOff" }); Good = ($fwOff -eq 0) }
     )
     foreach ($r in $rows) {
@@ -219,7 +255,7 @@ function Start-YaraScan {
         return
     }
     $rulesDir = Get-YaraRulesDir
-    if (-not $rulesDir) { Write-Log "Нет папки правил (protect/rules)" -Color "Red"; return }
+    if (-not $rulesDir) { Write-Log "Нет рабочей папки для правил" -Color "Red"; return }
     $toolsDir = Join-Path $script:WorkFolder 'tools'
     $scanBtnSaved = $false
     try {
@@ -236,6 +272,8 @@ function Start-YaraScan {
     Set-Progress
     $script:ScanHandle = Invoke-Async -ScriptBlock {
         try {
+            $rulesDir = Ensure-YaraRules -RulesDir $rulesDir
+            if (-not $rulesDir) { throw "Нет правил (для первой скачки нужен интернет)" }
             $exe = Ensure-YaraEngine -ToolsDir $toolsDir
             if (-not $exe) { throw "Нет движка" }
             $combined = Join-Path $toolsDir 'potato.yar'

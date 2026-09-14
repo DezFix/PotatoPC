@@ -129,6 +129,10 @@ $script:V6DashCache = $null
 function Update-DashStats {
     # Быстрый триггер: тяжёлые CIM/WMI-замеры уходят в фон. Кэш 30 сек.
     try {
+        # Важно: до полной загрузки модулей фон НЕ трогаем, иначе снепшот
+        # фоновых функций (Get-BgSessionState) навсегда закешируется без них —
+        # отвалятся автозагрузка, обновления, фавиконки (было).
+        if (-not $script:V6ModulesReady) { return }
         if ($script:V6DashBusy) {
             if (((Get-Date) - $script:V6DashStart).TotalSeconds -gt 60) { $script:V6DashBusy = $false }
             else { return }
