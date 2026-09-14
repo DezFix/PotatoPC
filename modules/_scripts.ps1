@@ -371,7 +371,35 @@ function Run-SelectedScripts {
             Write-Log "Завершено: ✓$ok$tail" -Color Green
         }
         Write-Log "══════════════════════════════════════"
-        if (-not $stoppedByUser -and $skipped.Count -eq 0 -and $reboot) { Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force }
+        if (-not $stoppedByUser -and $reboot) {
+            # Сбоев 2+: одноразовая задача — после перезагрузки открыть отчёт в блокноте,
+            # иначе про failures никто не узнает. RunOnce срабатывает 1 раз и самоудаляется.
+            if ($fail -ge 2) {
+                try {
+                    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+                    $note = Join-Path ([Environment]::GetFolderPath('Desktop')) ("PotatoPC-failures-" + $stamp + ".txt")
+                    $head = @(
+                        "PotatoPC: при запуске скриптов было сбоев: $fail (скипнуто зависших: $($skipped.Count))",
+                        "Время: $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+                    )
+                    if ($skipped.Count -gt 0) { $head += ("Скипнуты (висли 3 раза): " + ($skipped -join ", ")) }
+                    $tailLines = @()
+                    try {
+                        $lp = $null; try { $lp = $bgLogPath } catch {}
+                        if ($lp -and (Test-Path -LiteralPath $lp)) {
+                            $all = [System.IO.File]::ReadAllLines($lp)
+                            if ($all.Count -gt 200) { $tailLines = $all[($all.Count - 200)..($all.Count - 1)] } else { $tailLines = $all }
+                        }
+                    } catch {}
+                    ([string[]]$head + @('', '--- хвост лога ---', '') + [string[]]$tailLines) | Out-File -FilePath $note -Encoding UTF8 -Force
+                    $rk = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce'
+                    try { Remove-ItemProperty -LiteralPath $rk -Name 'PotatoPCFailures' -Force -ErrorAction SilentlyContinue } catch {}
+                    New-ItemProperty -LiteralPath $rk -Name 'PotatoPCFailures' -Value ('notepad.exe "' + $note + '"') -PropertyType String -Force | Out-Null
+                    Write-Log ("⚠ Сбоев: $fail — после перезагрузки откроется отчёт: " + $note) -Color "Yellow"
+                } catch { Write-Log ("Не вышло запланировать отчёт о сбоях: " + $_) -Color "Yellow" }
+            }
+            Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force
+        }
         } finally { Clear-Progress }
     } -Variables @{ pathsList=$pathsList; reboot=$reboot; batchControl=$script:BatchControl } -OnComplete {
         Invoke-OnUI { Reset-RunButton }
