@@ -2,8 +2,8 @@
 # DESC: Удаляет только мусор по cleaner/rules.json: Temp, кэши браузеров/игр, DNS-кэш. Программы и данные не трогает
 # TAGS: 1
 # ICON: 🧹
-# PRESET: potato, office, game
-# RECOMMENDED: true
+# PRESET: 
+# RECOMMENDED:false
 
 $ErrorActionPreference = "Stop"
 
