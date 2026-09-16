@@ -337,6 +337,7 @@ function Build-UpdatesPanel {
     $updatesPanel.Children.Clear()
     $script:UpdateCheckboxes.Clear()
     $script:UpdateIconImgs = @{}
+    try { $wh = New-WingetHintCard; if ($wh) { $updatesPanel.Children.Add($wh) | Out-Null } } catch {}
     $updateStatusText.Text = "Идёт проверка обновлений..."; $updateCountText.Text = ""
     Set-Progress
     Start-Background {

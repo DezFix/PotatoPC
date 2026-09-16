@@ -194,7 +194,10 @@ try {
     Write-Output "[6/7] Проверяю установку..."
     $okV = Get-WingetVersion -TimeoutSec 40
     if ([string]::IsNullOrWhiteSpace($okV)) {
-        try { $p = Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -ErrorAction Stop | Select-Object -First 1; if ($p) { $okV = "пакет " + [string]$p.Version } } catch {}
+        try {
+            $pv = Invoke-AppxJob -Code { Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -ErrorAction Stop | Select-Object -First 1 | Select-Object -ExpandProperty Version } -TimeoutSec 60 -What "проверка пакета"
+            if ($pv) { $okV = "пакет " + [string]$pv }
+        } catch { Write-Output ("[!] Проверка пакета: " + $_) }
     }
     if ([string]::IsNullOrWhiteSpace($okV)) {
         Write-Output "[X] Поставил, но winget не отзывается — перезайди в систему и проверь командой winget."

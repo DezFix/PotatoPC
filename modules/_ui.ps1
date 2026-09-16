@@ -210,6 +210,32 @@ function New-TagBadge {
     return $b
 }
 
+function New-WingetHintCard {
+    # Плашка для вкладок, зависящих от winget. $null если winget на месте.
+    # Проверка только наличием команды (без запуска — сломанный winget вешает вызов).
+    try {
+        if (Get-Command winget -ErrorAction SilentlyContinue) { return $null }
+    } catch { return $null }
+    try {
+        $b = New-Card
+        $b.BorderBrush = Get-ThemeBrush "#A07800"
+        $b.BorderThickness = $script:Theme.BorderAccentR
+        $stk = [System.Windows.Controls.StackPanel]::new()
+        $t = [System.Windows.Controls.TextBlock]::new()
+        $t.Text = "Winget не найден: установка и обновления программ не сработают."
+        $t.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#FBBF24")
+        $t.FontSize = 12; $t.FontWeight = "SemiBold"; $t.TextWrapping = "Wrap"
+        $stk.Children.Add($t) | Out-Null
+        $s = [System.Windows.Controls.TextBlock]::new()
+        $s.Text = "Запусти скрипт 07 02 «Winget» во вкладке «Модули» — он поставит или починит."
+        $s.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee")
+        $s.FontSize = 11; $s.TextWrapping = "Wrap"; $s.Margin = [System.Windows.Thickness]::new(0,3,0,0)
+        $stk.Children.Add($s) | Out-Null
+        $b.Child = $stk
+        return $b
+    } catch { return $null }
+}
+
 # ── Навигация сайдбара 2026: подсветка + заголовок ──
 $script:NavTitles = @(
     @{ Title = "Модули";       Sub = "Оптимизационные скрипты" },

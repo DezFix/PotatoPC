@@ -320,6 +320,31 @@ function Test-RequiredCommands {
     return @($Names | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
 }
 
+function Stop-ProcessTree {
+    # Рубим всё дерево: дети наследуют перенаправленные пайпы и держат их
+    # после смерти родителя — из-за этого ReadToEndAsync не завершается никогда
+    # и раннер "висит без ошибки". Сначала внуки, потом сам процесс.
+    # (Параметр НЕ называем $Pid — это read-only автовременная PowerShell.)
+    param([int]$TargetPid)
+    if ($TargetPid -le 4) { return }
+    try {
+        $kids = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$TargetPid" -ErrorAction SilentlyContinue |
+            Where-Object { $_.ProcessId -ne $TargetPid } |
+            Select-Object -ExpandProperty ProcessId)
+        foreach ($k in $kids) { try { Stop-ProcessTree -TargetPid ([int]$k) } catch {} }
+    } catch {}
+    try { Stop-Process -Id $TargetPid -Force -ErrorAction SilentlyContinue } catch {}
+}
+
+function Read-ProcessOutput {
+    # Забираем вывод с лимитом: висящий пайп не должен вешать раннер.
+    param($Task, [int]$TimeoutMs = 15000)
+    try {
+        if ($Task -and $Task.Wait($TimeoutMs)) { return [string]$Task.Result }
+    } catch {}
+    return ""
+}
+
 function Invoke-ScriptFileWithRetry {
     param([string]$FilePath, [int]$MaxAttempts = 2, [int]$TimeoutSec = 60, [hashtable]$Control = $null)
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
@@ -345,9 +370,11 @@ function Invoke-ScriptFileWithRetry {
             $errTask = $proc.StandardError.ReadToEndAsync()
             $exited = $proc.WaitForExit($TimeoutSec * 1000)
             if (-not $exited) {
-                Write-Log "ЗАВИС: $(Split-Path $FilePath -Leaf) не отвечает ${TimeoutSec}c, убиваю PID $($proc.Id)..." -Color Yellow
-                try { $proc.Kill() } catch {}
+                Write-Log "ЗАВИС: $(Split-Path $FilePath -Leaf) не отвечает ${TimeoutSec}c, убиваю дерево PID $($proc.Id)..." -Color Yellow
+                try { Stop-ProcessTree -TargetPid $proc.Id } catch { Write-Log ("Не вышло убить дерево: " + $_) -Color Yellow }
                 try { $null = $proc.WaitForExit(5000) } catch {}
+                $null = Read-ProcessOutput -Task $outTask -TimeoutMs 5000
+                $null = Read-ProcessOutput -Task $errTask -TimeoutMs 5000
                 if ($Control -and $Control.Abort) { throw "STOPPED_BY_USER: $(Split-Path $FilePath -Leaf)" }
                 if ($attempt -eq $MaxAttempts) {
                     throw "Скрипт `"$FilePath`" завис $MaxAttempts раза подряд (таймаут ${TimeoutSec}c)"
@@ -356,8 +383,8 @@ function Invoke-ScriptFileWithRetry {
                 continue
             }
             if ($Control -and $Control.Abort) { throw "STOPPED_BY_USER: $(Split-Path $FilePath -Leaf)" }
-            $stdout = $outTask.Result
-            $stderr = $errTask.Result
+            $stdout = Read-ProcessOutput -Task $outTask
+            $stderr = Read-ProcessOutput -Task $errTask
             if ($stdout) { $stdout -split "`r?`n" | Where-Object { $_.Trim() -ne "" } | ForEach-Object { Write-Log "   $_" } }
             if ($stderr) { $stderr -split "`r?`n" | Where-Object { $_.Trim() -ne "" } | ForEach-Object { Write-Log "   $_" -Color Yellow } }
             if ($proc.ExitCode -ne 0) {

@@ -113,6 +113,7 @@ function Build-AppsPanel {
     $script:AppCheckboxes = @{}
     $script:AppBadges = @{}
     $script:AppIconImgs = @{}
+    try { $wh = New-WingetHintCard; if ($wh) { $appsPanel.Children.Add($wh) | Out-Null } } catch {}
 
 
     $appsData = Load-Apps
