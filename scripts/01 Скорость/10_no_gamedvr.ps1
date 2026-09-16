@@ -1,8 +1,8 @@
-﻿# NAME: Выкл. фоновую запись игр (Game DVR)
+﻿# NAME: 10 · Выкл. фоновую запись игр (Game DVR)
 # DESC: Отключает GameDVR/AppCapture в реестре: +FPS, меньше лагов. Запись через Win+G перестанет работать
 # TAGS: 1
 # ICON: ⏺️
-# PRESET: potato, game
+# PRESET: potato, office, game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

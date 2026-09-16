@@ -100,6 +100,27 @@ $window = [Windows.Markup.XamlReader]::Load($reader)
 
 Initialize-Controls $window
 
+# XAML/modules mismatch gate: fail fast with a readable message
+# instead of a cryptic $null crash deep inside _events.ps1.
+$needNames = @("LogOutput","TaskProgressBar","ScriptsPanel","AppsPanel","SysPanel","UpdatesPanel","DiagPanel",
+    "ScriptsFolderText","SelectedCountText","RunScriptsBtn","RebootAfterScriptsChk","SelectAllBtn","DeselectAllBtn",
+    "RefreshBtn","OpenFolderBtn","ClearLogBtn","CopyLogBtn","SaveLogBtn","ToggleLogBtn","LogSplitter","LogRow",
+    "LogOuterBorder","LogHeaderBorder","MainTabControl","InstallAppsBtn","SelectAllAppsBtn","DeselectAllAppsBtn",
+    "AppCountText","RestorePointBtn","PresetPotatoBtn","PresetOfficeBtn","PresetGamesBtn",
+    "ScriptPresetPotatoBtn","ScriptPresetOfficeBtn","ScriptPresetGameBtn","CheckUpdatesBtn","SelectAllUpdatesBtn",
+    "DeselectAllUpdatesBtn","InstallUpdatesBtn","UpdateAllBtn","HiddenUpdatesBtn","UpdateStatusText","UpdateCountText",
+    "StartupAppsPanel","RefreshStartupBtn","DisableStartupBtn","EnableStartupBtn","SelectAllStartupBtn","DeselectAllStartupBtn",
+    "StartupFilterAllBtn","StartupFilterAppBtn","StartupFilterTaskBtn","StartupCountText","StartupSelectedText",
+    "StartupSearchBox","CleanPanel","CleanFilterRow","CleanScanBtn","SelectAllCleanBtn","DeselectAllCleanBtn","CleanBtn",
+    "CleanStatusText","CleanCountText","ProtectPanel","ProtectStatusText","ScanBtn","SelectAllScanBtn","DeselectAllScanBtn",
+    "QuarantineBtn","UsersPanel","RefreshUsersBtn","AddUserBtn","ScriptSearchBox","AppSearchBox",
+    "ToolsBtn","AdminBtn","NavModulesBtn","NavStartupBtn","NavUsersBtn","NavAppsBtn","NavUpdatesBtn","NavCleanBtn",
+    "NavProtectBtn","NavDiagBtn","NavSysBtn","HeaderTitleText","HeaderSubtitleText","SideStatusText")
+$missNames = @($needNames | Where-Object { -not $window.FindName($_) })
+if ($missNames.Count -gt 0) {
+    throw ("XAML outdated, missing controls: " + ($missNames -join ", ") + ". Delete $env:TEMP\PotatoPC and relaunch.")
+}
+
 # Last-chance UI-thread handler: an unhandled error goes to the log and expands
 # the console, but does NOT close the window (used to kill the whole app).
 try {
@@ -194,7 +215,7 @@ $requiredCommands = @(
     "Start-BgPoller", "Stop-BgPoller", "Test-BgQueue",
     "Start-Background", "Invoke-ScriptFileWithRetry", "Get-ScriptTimeout", "Get-WingetPath",
     "Set-Progress", "Clear-Progress", "Update-ProgressUI", "Get-LogAutoColor", "Get-LogHexColor",
-    "Sync-V6Page", "Update-DashStats", "Update-DashHealth"
+    "Sync-V6Page", "Update-DashStats"
 )
 $missingCommands = @(Test-RequiredCommands -Names $requiredCommands)
 if ($missingCommands.Count -gt 0) {

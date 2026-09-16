@@ -242,10 +242,10 @@ $script:AsyncLogWriter = {
 
 function Get-ScriptTimeout {
     param([string]$FilePath)
-    # Зависший плагин: 3 попытки по 120с, дальше скип (см. Run-SelectedScripts).
-    # Исключение — WinSxS/DISM: честные 10-30 мин работы, не вешать на него 120с.
+    # Зависший плагин: 2 попытки по 60с, дальше скип (см. Run-SelectedScripts).
+    # Исключение — WinSxS/DISM: честные 10-30 мин работы, не вешать на него 60с.
     if ($FilePath -like '*winsxs*') { return 1800 }
-    return 120
+    return 60
 }
 
 $global:BgResults = [hashtable]::Synchronized(@{})
@@ -320,7 +320,7 @@ function Test-RequiredCommands {
 }
 
 function Invoke-ScriptFileWithRetry {
-    param([string]$FilePath, [int]$MaxAttempts = 3, [int]$TimeoutSec = 120, [hashtable]$Control = $null)
+    param([string]$FilePath, [int]$MaxAttempts = 2, [int]$TimeoutSec = 60, [hashtable]$Control = $null)
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         if ($Control -and $Control.Abort) { throw "STOPPED_BY_USER: $(Split-Path $FilePath -Leaf)" }
         Write-Log "[$attempt/$MaxAttempts] Запуск: $(Split-Path $FilePath -Leaf)"

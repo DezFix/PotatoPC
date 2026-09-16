@@ -1,8 +1,8 @@
-﻿# NAME: Классическое меню правого клика как в Win10 (Win11)
+﻿# NAME: 02 · Классическое меню правого клика как в Win10 (Win11)
 # DESC: Возвращает полное контекстное меню через CLSID {86ca1aa0…}. Без пункта «Показать доп. параметры». Нужен перезаход
 # TAGS: 1,win11
 # ICON: 🖱️
-# PRESET: potato, office
+# PRESET: potato, office, game
 
 $ErrorActionPreference = "Stop"
 try {

@@ -1,8 +1,8 @@
-﻿# NAME: Телеметрия на минимум (AllowTelemetry=0)
+﻿# NAME: 05 · Телеметрия на минимум (AllowTelemetry=0)
 # DESC: Ставит AllowTelemetry=0 + отключает 5 задач сбора данных в Планировщике (CEIP, Appraiser и др.)
 # TAGS: 1
 # ICON: 🕵️
-# PRESET: potato, office
+# PRESET: potato, office, game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

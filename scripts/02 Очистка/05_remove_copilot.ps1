@@ -1,4 +1,4 @@
-﻿# NAME: Отключить Copilot (ИИ-помощник)
+﻿# NAME: 05 · Отключить Copilot (ИИ-помощник)
 # DESC: Блокирует политиками TurnOffWindowsCopilot + убирает кнопку с панели. Сам пакет Edge не удаляет
 # TAGS: 1
 # ICON: 🤖

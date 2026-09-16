@@ -1,8 +1,8 @@
-﻿# NAME: Остановить службы телеметрии (5 шт.)
+﻿# NAME: 06 · Остановить службы телеметрии (5 шт.)
 # DESC: Стоп + Startup=Disabled для DiagTrack, dmwappushservice, DusmSvc и др. Безопасно, есть откат
 # TAGS: 1
 # ICON: 🔇
-# PRESET: potato, office
+# PRESET: potato, office, game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

@@ -1,8 +1,8 @@
-﻿# NAME: Файл подкачки pagefile.sys (если мало RAM)
+﻿# NAME: 04 · Файл подкачки pagefile.sys (если мало RAM)
 # DESC: Ставит фиксированный pagefile 4–6 ГБ по размеру RAM на C:. Лечит вылеты «не хватает памяти». Нужна перезагрузка
 # TAGS: 2
 # ICON: 💾
-# PRESET: potato
+# PRESET: potato, office
 
 #Requires -RunAsAdministrator
 param([int]$SizeMB = 0)

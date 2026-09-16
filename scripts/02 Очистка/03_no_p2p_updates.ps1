@@ -1,8 +1,8 @@
-﻿# NAME: Не раздавать обновления другим ПК (Delivery Optimization)
+﻿# NAME: 03 · Не раздавать обновления другим ПК (Delivery Optimization)
 # DESC: Ставит DODownloadMode=0: качает обновления только с серверов Microsoft. Экономит отдачу интернета
 # TAGS: 1
 # ICON: 📥
-# PRESET: potato, office
+# PRESET: potato, office, game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

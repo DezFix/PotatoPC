@@ -1,5 +1,5 @@
-﻿# NAME: Откат «Скорости»: эффекты, фон, питание, мышь как было
-# DESC: Возвращает VisualFX, MenuShowDelay=400, схему «Сбалансированная», рекламу, GameDVR и ускорение мыши. Откат раздела «Скорость»
+﻿# NAME: 07 · Откат «Скорости»: эффекты, фон, питание, мышь как было
+# DESC: Возвращает VisualFX, схему «Сбалансированная», рекламу, GameDVR и ускорение мыши. Откат раздела «Скорость»
 # TAGS: 1
 # ICON: ↩️
 
@@ -15,13 +15,11 @@ try {
     Set-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 1 -Force -ErrorAction SilentlyContinue
     Set-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "EnableTransparency" -Value 1 -Force -ErrorAction SilentlyContinue
     Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "DragFullWindows" -Value 1 -Force -ErrorAction SilentlyContinue
-    Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Value "400" -Type String -Force -ErrorAction SilentlyContinue
 
     Write-Output "[*] Возвращаю фон и приоритеты..."
     Del-Prop "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" "GlobalUserDisabled"
     Del-Prop "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" "BackgroundAppGlobalToggle"
     Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" -Name "Win32PrioritySeparation" -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue
-    Set-ItemProperty "HKCU:\Control Panel\Keyboard" -Name "KeyboardDelay" -Value "1" -Type String -Force -ErrorAction SilentlyContinue
 
     Write-Output "[*] Возвращаю питание и рекламу..."
     powercfg /setactive 381b4222-f694-41f0-9685-ff5bb260df2e 2>$null | Out-Null

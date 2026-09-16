@@ -1,8 +1,8 @@
-﻿# NAME: Выкл. историю действий и геолокацию
+﻿# NAME: 03 · Выкл. историю действий и геолокацию
 # DESC: Блокирует Activity Feed (PublishUserActivities=0) + сенсор местоположения. Погода/Карты потеряют геопозицию
 # TAGS: 1
 # ICON: 📍
-# PRESET: potato, office
+# PRESET: potato, office, game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

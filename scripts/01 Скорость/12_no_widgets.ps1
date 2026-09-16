@@ -1,6 +1,6 @@
-﻿# NAME: Убрать Виджеты и ленту новостей с панели
+﻿# NAME: 12 · Убрать Виджеты и ленту новостей с панели
 # DESC: Выключает TaskbarDa + политику AllowNewsAndInterests. Меньше памяти в фоне, работает на Win10 и 11
-# TAGS: 1
+# TAGS: 1,win11
 # ICON: 📰
 # PRESET: potato, office, game
 

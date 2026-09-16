@@ -12,7 +12,7 @@ try {
 
 # ── Новые контролы в globals (рядом с картой Initialize-Controls) ──
 foreach ($n in @('NavDashBtn','GlobalSearch','GlobalSearchClear','P_Potato','P_Office','P_Game','FixAllBtn',
-                'DashCpuText','DashMemText','DashDiskText','DashUpText','HealthText','HealthSub','HealthBar',
+                'DashCpuText','DashMemText','DashDiskText','DashUpText',
                 'TitleBar','MinBtn','MaxBtn','CloseBtn')) {
     try {
         $ctl = $window.FindName($n)
@@ -117,8 +117,6 @@ try {
 $script:V6DashBusy  = $false
 $script:V6DashStart = [DateTime]::MinValue
 $script:V6DashCache = $null
-$script:V6DashT0    = Get-Date
-$script:V6DashHintShown = $false
 
 function Update-DashStats {
     # Быстрый триггер: тяжёлые CIM/WMI-замеры уходят в фон. Кэш 30 сек.
@@ -153,31 +151,6 @@ function Update-DashStats {
                     $freeGB  = [math]::Round($os.FreePhysicalMemory / 1KB / 1024, 1)
                     $d.Mem = ("{0} / {1} ГБ" -f [math]::Round($totalGB - $freeGB, 1), $totalGB)
                 } catch { Write-Log ("дашборд: память не посчиталась: " + $_.Exception.Message) -Color "Yellow" }
-                $score = 100; $notes = @()
-                try {
-                    $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" -ErrorAction Stop
-                    if ($disk.Size -gt 0) {
-                        $freePct = [math]::Round($disk.FreeSpace / $disk.Size * 100)
-                        if ($freePct -lt 10) { $score -= 25; $notes += "−25: диск C: забит ($freePct% свободно)" }
-                        elseif ($freePct -lt 20) { $score -= 10; $notes += "−10: диск C: $freePct% свободно" }
-                        else { $notes += "диск C: $freePct% свободно" }
-                    }
-                } catch { Write-Log ("дашборд: диск C: не прочитался: " + $_.Exception.Message) -Color "Yellow" }
-                try {
-                    $pr = @(Test-PendingReboot)
-                    if ($pr.Count -gt 0) { $score -= 5; $notes += "−5: нужна перезагрузка" }
-                } catch {}
-                try {
-                    $df = Get-DefenderStatus
-                    if ($df -and $df.Ok) {
-                        if ([string]$df.Mode -ne 'Normal') { $score -= 20; $notes += "−20: Defender не в норме" }
-                        elseif ([int]$df.SigAge -gt 7) { $score -= 10; $notes += "−10: базы Defender старые" }
-                        else { $notes += "Defender в норме" }
-                    } else { $notes += "Defender: нет данных" }
-                } catch { $notes += "Defender: нет данных" }
-                if ($score -lt 0) { $score = 0 }
-                $d.Score = $score; $d.Notes = $notes
-                Write-Log ("дашборд: готово, здоровье " + $score + "/100")
                 Set-BgResult -Key 'dashStats' -Value $d
             } catch {}
         }
@@ -193,23 +166,8 @@ function Apply-V6Dash {
         if ($Data.Mem -and $DashMemText) { $DashMemText.Text = [string]$Data.Mem }
         if ($Data.Disk -and $DashDiskText) { $DashDiskText.Text = [string]$Data.Disk }
         if ($Data.Up -and $DashUpText) { $DashUpText.Text = [string]$Data.Up }
-        $score = [int]$Data.Score
-        if ($HealthText) { $HealthText.Text = "Здоровье системы — $score/100" }
-        if ($HealthSub) {
-            $HealthSub.Text = if (@($Data.Notes).Count -gt 0) { ((@($Data.Notes)) -join "  •  ") } else { "Проверок пока нет" }
-        }
-        if ($HealthBar) {
-            $HealthBar.Value = $score
-            $c = if ($score -ge 70) { "#2DD4BF" } elseif ($score -ge 40) { "#FBBF24" } else { "#F87171" }
-            $HealthBar.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($c)
-        }
         $script:V6DashCache = $Data
     } catch {}
-}
-
-function Update-DashHealth {
-    # Совместимость: здоровье считается вместе со статистикой в фоне.
-    try { Update-DashStats } catch {}
 }
 
 # Поллер дашборда: живёт в UI-потоке, забирает готовое из шины.
@@ -225,15 +183,6 @@ try {
                     Set-BgResult -Key 'dashStats' -Value $null
                     $script:V6DashBusy = $false
                     Apply-V6Dash $d
-                } else {
-                    # Данных нет 90+ сек: вечные "…" превращаем в видимый хинт.
-                    try {
-                        if (-not $script:V6DashCache -and -not $script:V6DashHintShown -and $script:V6DashT0 -and (((Get-Date) - $script:V6DashT0).TotalSeconds -gt 90)) {
-                            $script:V6DashHintShown = $true
-                            if ($HealthSub) { $HealthSub.Text = "Нет данных 90+ сек: открой консоль (Развернуть) и смотри красные строки" }
-                            Write-Log "дашборд: нет данных 90+ сек — смотри консоль" -Color "Yellow"
-                        }
-                    } catch {}
                 }
             } catch {}
         })
