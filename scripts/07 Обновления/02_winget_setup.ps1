@@ -71,6 +71,40 @@ function Get-WingetVersion {
     return ""
 }
 
+function Save-UrlWithProgress {
+    # Скачивание с видимым прогрессом: на медленном канале видно движение, а не "вис".
+    param([string]$Url, [string]$OutFile, [int]$TimeoutSec = 600)
+    try { Add-Type -AssemblyName System.Net.Http -ErrorAction Stop } catch {}
+    $client = $null
+    try {
+        $h = New-Object System.Net.Http.HttpClientHandler
+        $client = New-Object System.Net.Http.HttpClient($h)
+        $client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
+        $resp = $client.GetAsync($Url, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
+        [void]$resp.EnsureSuccessStatusCode()
+        $total = 0L
+        try { $total = [long]$resp.Content.Headers.ContentLength } catch {}
+        $stream = $resp.Content.ReadAsStreamAsync().Result
+        $fs = [System.IO.File]::OpenWrite($OutFile)
+        try {
+            $buf = New-Object byte[] 65536
+            $read = 0L; $lastLog = 0L
+            while (($n = $stream.Read($buf, 0, $buf.Length)) -gt 0) {
+                $fs.Write($buf, 0, $n)
+                $read += $n
+                if (($read - $lastLog) -ge 5MB) {
+                    $lastLog = $read
+                    if ($total -gt 0) { Write-Output ("[*] Качаю: {0} МБ из {1} МБ" -f [math]::Round($read/1MB,1), [math]::Round($total/1MB,1)) }
+                    else { Write-Output ("[*] Качаю: {0} МБ..." -f [math]::Round($read/1MB,1)) }
+                }
+            }
+        } finally { try { $fs.Dispose() } catch {}; try { $stream.Dispose() } catch {} }
+        if ($read -lt 1MB) { Write-Output ("[*] Скачано: {0} КБ" -f [math]::Round($read/1KB,1)) }
+        else { Write-Output ("[*] Скачано: {0} МБ" -f [math]::Round($read/1MB,1)) }
+        return [long]$read
+    } finally { try { if ($client) { $client.Dispose() }; } catch {} }
+}
+
 function Repair-WingetSources {
     # Чинит источники: update, при неудаче — сброс двух штатных + update.
     param([string]$Wg)
@@ -161,9 +195,9 @@ try {
     Write-Output "[3/7] Качаю зависимости..."
     $xaml = Join-Path $tmp "ui.xaml.appx"
     $libs = Join-Path $tmp "vclibs.appx"
-    try { Invoke-WebRequest "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.$arch.appx" -OutFile $xaml -UseBasicParsing -TimeoutSec 180 -ErrorAction Stop }
+    try { [void](Save-UrlWithProgress -Url "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.$arch.appx" -OutFile $xaml -TimeoutSec 300) }
     catch { Write-Output ("[!] Зависимость XAML не скачалась, иду дальше: " + $_.Exception.Message) }
-    try { Invoke-WebRequest "https://aka.ms/Microsoft.VCLibs.$arch.14.00.Desktop.appx" -OutFile $libs -UseBasicParsing -TimeoutSec 180 -ErrorAction Stop }
+    try { [void](Save-UrlWithProgress -Url "https://aka.ms/Microsoft.VCLibs.$arch.14.00.Desktop.appx" -OutFile $libs -TimeoutSec 300) }
     catch { Write-Output ("[!] Зависимость VCLibs не скачалась, иду дальше: " + $_.Exception.Message) }
     if (Test-Path -LiteralPath $xaml) {
         try { Install-AppxWithTimeout -Path $xaml -TimeoutSec 180 }
@@ -185,7 +219,7 @@ try {
     }
     $pkg = Join-Path $tmp "winget.msixbundle"
     Write-Output "[4/7] Качаю пакет winget..."
-    Invoke-WebRequest $url -OutFile $pkg -UseBasicParsing -TimeoutSec 600 -ErrorAction Stop
+    [void](Save-UrlWithProgress -Url $url -OutFile $pkg -TimeoutSec 900)
     $pkgSize = 0
     try { $pkgSize = (Get-Item -LiteralPath $pkg -ErrorAction Stop).Length } catch {}
     Write-Output ("[*] Скачано байт: " + $pkgSize)
