@@ -186,6 +186,10 @@ try {
     $pkg = Join-Path $tmp "winget.msixbundle"
     Write-Output "[4/7] Качаю пакет winget..."
     Invoke-WebRequest $url -OutFile $pkg -UseBasicParsing -TimeoutSec 600 -ErrorAction Stop
+    $pkgSize = 0
+    try { $pkgSize = (Get-Item -LiteralPath $pkg -ErrorAction Stop).Length } catch {}
+    Write-Output ("[*] Скачано байт: " + $pkgSize)
+    if ($pkgSize -lt 5MB) { throw "Файл пакета подозрительно мал ($pkgSize байт) — докачка оборвалась, проверь интернет." }
     Write-Output "[5/7] Устанавливаю пакет..."
     Install-AppxWithTimeout -Path $pkg -TimeoutSec 300
 
