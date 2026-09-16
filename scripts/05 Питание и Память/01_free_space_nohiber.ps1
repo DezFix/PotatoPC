@@ -1,4 +1,4 @@
-﻿# NAME: 05 01 · Удалить файл гибернации hiberfil.sys (освободить ГБ)
+﻿# NAME: 01 · Удалить файл гибернации hiberfil.sys (освободить ГБ)
 # DESC: Команда powercfg /hibernate off: удаляет hiberfil.sys (~40% RAM). Пропадут гибернация и быстрый запуск
 # TAGS: 2
 # ICON: 💽

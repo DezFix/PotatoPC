@@ -1,4 +1,4 @@
-﻿# NAME: 04 01 · Тёмная тема Windows и приложений
+﻿# NAME: 01 · Тёмная тема Windows и приложений
 # DESC: Ставит AppsUseLightTheme=0 + SystemUsesLightTheme=0 в реестре. Только внешний вид, на скорость не влияет
 # TAGS: 1
 # ICON: 🌙

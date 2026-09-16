@@ -1,4 +1,4 @@
-﻿# NAME: 02 04 · Удалить встроенные приложения (Bloatware)
+﻿# NAME: 04 · Удалить встроенные приложения (Bloatware)
 # DESC: Сносит ~28 AppX через Remove-AppxPackage: Solitaire, Советы, Новости, Skype и т.п. + убирает из образа системы
 # TAGS: 2
 # ICON: 🗑️

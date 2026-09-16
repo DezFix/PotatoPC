@@ -1,4 +1,4 @@
-﻿# NAME: 03 02 · Выкл. отчёты об ошибках в Microsoft (WER)
+﻿# NAME: 02 · Выкл. отчёты об ошибках в Microsoft (WER)
 # DESC: Ставит WER Disabled=1 + служба WerSvc в Disabled. Отчёты о падениях больше не отправляются
 # TAGS: 1
 # ICON: 🔕

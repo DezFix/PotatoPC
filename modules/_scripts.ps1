@@ -138,7 +138,7 @@ function Build-ScriptsPanel {
     }
     $grouped = $scripts | Group-Object { $_.Category } | Sort-Object Name
     foreach ($group in $grouped) {
-        $catBorder = New-CategoryHeader -Title (([string]$group.Name) -replace '^\d+\s+', '')
+        $catBorder = New-CategoryHeader -Title $group.Name
         $scriptsPanel.Children.Add($catBorder) | Out-Null
         foreach ($script_item in $group.Group) {
             $isWin11Incompatible = $script_item.Win11Only -and ($script:WindowsMajorVersion -lt 11)
