@@ -1,4 +1,4 @@
-﻿# NAME: 02 · Удалить OneDrive (облако Microsoft)
+﻿# NAME: 02 02 · Удалить OneDrive (облако Microsoft)
 # DESC: Запускает OneDriveSetup /uninstall + политика DisableFileSyncNGSC. Файлы в облаке и локальные копии не удаляет
 # TAGS: 2
 # ICON: ☁️

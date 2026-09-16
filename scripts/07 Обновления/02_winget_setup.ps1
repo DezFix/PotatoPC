@@ -1,4 +1,4 @@
-﻿# NAME: 02 · Winget: снос под чистую и установка (не Store!)
+﻿# NAME: 07 02 · Winget: снос под чистую и установка (не Store!)
 # DESC: Убивает процессы, сносит пакет/образ/данные, ставит заново с GitHub. Каждый шаг с таймаутом — не виснет. Нужен вкладке «Приложения»
 # TAGS: 2
 # ICON: 📦
@@ -33,25 +33,30 @@ function Invoke-WithTimeout {
     } finally { try { $p.Dispose() } catch {} }
 }
 
-function Install-AppxWithTimeout {
-    # Add-AppxPackage в джобе: зависший Store не вешает скрипт.
-    param([string]$Path, [int]$TimeoutSec = 300)
+function Invoke-AppxJob {
+    # Любая AppX/DISM-операция с таймаутом: зависший servicing убивается, а не висит.
+    param([scriptblock]$Code, [int]$TimeoutSec = 300, [string]$What = "операция", [object[]]$JobArgs = @())
     $j = $null
-    try { $j = Start-Job -ScriptBlock { param($p) Add-AppxPackage -Path $p -ForceApplicationShutdown -ErrorAction Stop } -ArgumentList $Path -ErrorAction Stop }
-    catch { throw ("Не запустился установщик пакетов: " + $_) }
+    try { $j = Start-Job -ScriptBlock $Code -ArgumentList $JobArgs -ErrorAction Stop }
+    catch { throw ("Не запустился фон для «" + $What + "»: " + $_) }
     try {
-        $done = Wait-Job $j -Timeout $TimeoutSec
-        if (-not $done) { throw ("Add-AppxPackage завис ${TimeoutSec}с (Store подвис?) — убиваю.") }
+        if (-not (Wait-Job $j -Timeout $TimeoutSec)) { throw ("«" + $What + "» завис " + $TimeoutSec + "с — убиваю.") }
         if ($j.State -eq 'Failed') {
             $reason = $null
             try { $reason = $j.ChildJobs[0].JobStateInfo.Reason } catch {}
-            throw ("Пакет не встал: " + $(if ($reason) { $reason.Message } else { $j.State }))
+            throw ("«" + $What + "»: " + $(if ($reason) { $reason.Message } else { $j.State }))
         }
-        try { [void](Receive-Job $j -ErrorAction SilentlyContinue) } catch {}
+        return (Receive-Job $j -ErrorAction SilentlyContinue)
     } finally {
         try { Stop-Job $j -ErrorAction SilentlyContinue } catch {}
         try { Remove-Job $j -Force -ErrorAction SilentlyContinue } catch {}
     }
+}
+
+function Install-AppxWithTimeout {
+    # Установка пакета с таймаутом (зависший Store не вешает скрипт).
+    param([string]$Path, [int]$TimeoutSec = 300)
+    Invoke-AppxJob -Code { param($p) Add-AppxPackage -Path $p -ForceApplicationShutdown -ErrorAction Stop } -TimeoutSec $TimeoutSec -What ("установка " + (Split-Path $Path -Leaf)) -JobArgs @($Path) | Out-Null
 }
 
 function Get-WingetVersion {
@@ -69,7 +74,7 @@ function Get-WingetVersion {
 function Repair-WingetSources {
     # Чинит источники: update, при неудаче — сброс двух штатных + update.
     param([string]$Wg)
-    $r = Invoke-WithTimeout -Exe $Wg -Arguments "source update --accept-source-agreements" -TimeoutSec 120
+    $r = Invoke-WithTimeout -Exe $Wg -Arguments "source update" -TimeoutSec 120
     if ($r.Ok) { Write-Output "[*] Источники обновлены."; return $true }
     if ($r.TimedOut) { Write-Output "[!] Источники зависли — сбрасываю штатные..." }
     else { Write-Output "[*] Источники битые — сбрасываю штатные..." }
@@ -79,7 +84,7 @@ function Repair-WingetSources {
             if ($rr.TimedOut) { Write-Output ("[!] Сброс $s завис — пропускаю.") }
         } catch {}
     }
-    $r2 = Invoke-WithTimeout -Exe $Wg -Arguments "source update --accept-source-agreements" -TimeoutSec 120
+    $r2 = Invoke-WithTimeout -Exe $Wg -Arguments "source update" -TimeoutSec 120
     if ($r2.Ok) { Write-Output "[*] Источники обновлены после сброса."; return $true }
     Write-Output "[!] Источники не чинятся."
     return $false
@@ -87,19 +92,26 @@ function Repair-WingetSources {
 
 function Remove-WingetClean {
     # Снос под чистую: процессы, пакет у всех, образ, данные и кэш.
-    Write-Output "[*] Сношу winget под чистую..."
+    # Долгие шаги тоже в джобах с таймаутом — виснуть негде.
+    Write-Output "[2/7] Сношу winget под чистую..."
     try { Stop-Process -Name "winget" -Force -ErrorAction SilentlyContinue } catch {}
-    foreach ($p in @(Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -AllUsers -ErrorAction SilentlyContinue)) {
+    try {
+        $pkgs = @(Invoke-AppxJob -Code { Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -AllUsers -ErrorAction Stop | Select-Object -ExpandProperty PackageFullName } -TimeoutSec 120 -What "поиск пакета")
+    } catch { Write-Output ("[!] Поиск пакета: " + $_); $pkgs = @() }
+    foreach ($full in @($pkgs | Where-Object { $_ })) {
         try {
-            Remove-AppxPackage -Package $p.PackageFullName -AllUsers -ErrorAction Stop
-            Write-Output ("[*] Снесён пакет: " + $p.PackageFullName)
-        } catch { Write-Output ("[!] Пакет не снесся: " + $_.Exception.Message) }
+            Invoke-AppxJob -Code { param($f) Remove-AppxPackage -Package $f -AllUsers -ErrorAction Stop } -TimeoutSec 300 -What "снос пакета" -JobArgs @($full)
+            Write-Output ("[*] Снесён пакет: " + $full)
+        } catch { Write-Output ("[!] Пакет не снесся, ставлю поверх: " + $_) }
     }
-    foreach ($prov in @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq "Microsoft.DesktopAppInstaller" })) {
+    try {
+        $provs = @(Invoke-AppxJob -Code { Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq "Microsoft.DesktopAppInstaller" } | Select-Object -ExpandProperty PackageName } -TimeoutSec 120 -What "поиск в образе")
+    } catch { Write-Output ("[!] Образ не прочитался: " + $_); $provs = @() }
+    foreach ($pn in @($provs | Where-Object { $_ })) {
         try {
-            Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop
+            Invoke-AppxJob -Code { param($n) Remove-AppxProvisionedPackage -Online -PackageName $n -ErrorAction Stop } -TimeoutSec 300 -What "уборка образа" -JobArgs @($pn)
             Write-Output "[*] Убран из образа системы."
-        } catch { Write-Output ("[!] Из образа не убрался: " + $_.Exception.Message) }
+        } catch { Write-Output ("[!] Из образа не убрался, иду дальше: " + $_) }
     }
     foreach ($d in @(
         (Join-Path $env:LOCALAPPDATA "Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe"),
@@ -125,6 +137,7 @@ function Write-WingetMarker {
 }
 
 try {
+    Write-Output "[1/7] Проверяю текущий winget..."
     $cur = Get-WingetVersion -TimeoutSec 25
     if ($cur) {
         Write-Output ("[*] Winget отзывается: " + $cur + ". Проверяю источники...")
@@ -145,6 +158,7 @@ try {
     if (-not (Test-Path $tmp)) { New-Item -ItemType Directory -Path $tmp -Force | Out-Null }
 
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Write-Output "[3/7] Качаю зависимости..."
     $xaml = Join-Path $tmp "ui.xaml.appx"
     $libs = Join-Path $tmp "vclibs.appx"
     try { Invoke-WebRequest "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.$arch.appx" -OutFile $xaml -UseBasicParsing -TimeoutSec 180 -ErrorAction Stop }
@@ -170,11 +184,14 @@ try {
         Write-Output "[*] Беру запасную версию v1.29.290 напрямую."
     }
     $pkg = Join-Path $tmp "winget.msixbundle"
+    Write-Output "[4/7] Качаю пакет winget..."
     Invoke-WebRequest $url -OutFile $pkg -UseBasicParsing -TimeoutSec 600 -ErrorAction Stop
+    Write-Output "[5/7] Устанавливаю пакет..."
     Install-AppxWithTimeout -Path $pkg -TimeoutSec 300
 
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 
+    Write-Output "[6/7] Проверяю установку..."
     $okV = Get-WingetVersion -TimeoutSec 40
     if ([string]::IsNullOrWhiteSpace($okV)) {
         try { $p = Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -ErrorAction Stop | Select-Object -First 1; if ($p) { $okV = "пакет " + [string]$p.Version } } catch {}
@@ -185,6 +202,7 @@ try {
         exit 1
     }
     Write-WingetMarker -Ver $okV
+    Write-Output "[7/7] Настраиваю источники..."
     try {
         $wg2 = (Get-Command winget -ErrorAction Stop).Source
         [void](Repair-WingetSources -Wg $wg2)

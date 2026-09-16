@@ -1,4 +1,4 @@
-﻿# NAME: 05 · Контроль памяти: авточистка диска Windows
+﻿# NAME: 05 05 · Контроль памяти: авточистка диска Windows
 # DESC: Включает Storage Sense (StoragePolicy 01=1): Windows сама чистит Temp и Корзину ~раз в месяц
 # TAGS: 1
 # ICON: 🧽

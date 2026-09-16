@@ -1,4 +1,4 @@
-﻿# NAME: 05 · Игровой режим Windows (Game Mode)
+﻿# NAME: 01 05 · Игровой режим Windows (Game Mode)
 # DESC: Включает AutoGameMode + GameDVR-оптимизации для игр через реестр HKCU. Безопасно, только для игр
 # TAGS: 1
 # ICON: 🕹️

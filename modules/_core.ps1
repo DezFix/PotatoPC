@@ -243,8 +243,9 @@ $script:AsyncLogWriter = {
 function Get-ScriptTimeout {
     param([string]$FilePath)
     # Зависший плагин: 2 попытки по 60с, дальше скип (см. Run-SelectedScripts).
-    # Исключение — WinSxS/DISM: честные 10-30 мин работы, не вешать на него 60с.
+    # Исключения — WinSxS/DISM и winget (снос+установка): честные десятки минут, не вешать на них 60с.
     if ($FilePath -like '*winsxs*') { return 1800 }
+    if ($FilePath -like '*winget*') { return 1800 }
     return 60
 }
 

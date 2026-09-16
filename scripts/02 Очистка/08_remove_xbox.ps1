@@ -1,4 +1,4 @@
-﻿# NAME: 08 · Отключить службы Xbox (4 шт.)
+﻿# NAME: 02 08 · Отключить службы Xbox (4 шт.)
 # DESC: Останавливает XblGameSave, XboxNetApiSvc и др. (Startup=Disabled). НЕ ставить геймерам — сломает Game Pass и Game Bar
 # TAGS: 2
 # ICON: 🎮
