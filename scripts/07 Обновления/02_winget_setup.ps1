@@ -187,36 +187,64 @@ try {
 
     Remove-WingetClean
 
-    $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
+    $arch = "x64"
+    try {
+        $oa = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+        if ("$oa" -eq "Arm64") { $arch = "arm64" }
+        elseif ("$oa" -eq "X86") { $arch = "x86" }
+    } catch { if (-not [Environment]::Is64BitOperatingSystem) { $arch = "x86" } }
     $tmp = Join-Path $env:TEMP "winget-install"
     if (-not (Test-Path $tmp)) { New-Item -ItemType Directory -Path $tmp -Force | Out-Null }
 
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Write-Output "[3/7] Качаю зависимости..."
-    $xaml = Join-Path $tmp "ui.xaml.appx"
-    $libs = Join-Path $tmp "vclibs.appx"
-    try { [void](Save-UrlWithProgress -Url "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.$arch.appx" -OutFile $xaml -TimeoutSec 300) }
-    catch { Write-Output ("[!] Зависимость XAML не скачалась, иду дальше: " + $_.Exception.Message) }
-    try { [void](Save-UrlWithProgress -Url "https://aka.ms/Microsoft.VCLibs.$arch.14.00.Desktop.appx" -OutFile $libs -TimeoutSec 300) }
-    catch { Write-Output ("[!] Зависимость VCLibs не скачалась, иду дальше: " + $_.Exception.Message) }
-    if (Test-Path -LiteralPath $xaml) {
-        try { Install-AppxWithTimeout -Path $xaml -TimeoutSec 180 }
-        catch { Write-Output ("[!] XAML: " + $_) }
-    }
-    if (Test-Path -LiteralPath $libs) {
-        try { Install-AppxWithTimeout -Path $libs -TimeoutSec 180 }
-        catch { Write-Output ("[!] VCLibs: " + $_) }
-    }
-
+    Write-Output "[3/7] Качаю официальные зависимости версии..."
     $url = ""
+    $depUrl = ""
     try {
         $rel = Invoke-RestMethod "https://api.github.com/repos/microsoft/winget-cli/releases/latest" -TimeoutSec 60 -ErrorAction Stop
         $url = ($rel.assets | Where-Object { $_.name -like "Microsoft.DesktopAppInstaller_*.msixbundle" } | Select-Object -First 1).browser_download_url
+        $depUrl = ($rel.assets | Where-Object { $_.name -eq "DesktopAppInstaller_Dependencies.zip" } | Select-Object -First 1).browser_download_url
     } catch { Write-Output ("[!] API GitHub недоступен (лимит?): " + $_.Exception.Message) }
     if ([string]::IsNullOrWhiteSpace($url)) {
         $url = "https://github.com/microsoft/winget-cli/releases/download/v1.29.290/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+        $depUrl = "https://github.com/microsoft/winget-cli/releases/download/v1.29.290/DesktopAppInstaller_Dependencies.zip"
         Write-Output "[*] Беру запасную версию v1.29.290 напрямую."
     }
+    $depOk = $false
+    try {
+        $depZip = Join-Path $tmp "deps.zip"
+        $depDir = Join-Path $tmp "deps"
+        [void](Save-UrlWithProgress -Url $depUrl -OutFile $depZip -TimeoutSec 600)
+        if (Test-Path -LiteralPath $depDir) { Remove-Item -LiteralPath $depDir -Recurse -Force -ErrorAction SilentlyContinue }
+        Expand-Archive -LiteralPath $depZip -DestinationPath $depDir -Force -ErrorAction Stop
+        $archDir = Join-Path $depDir $arch
+        if (-not (Test-Path -LiteralPath $archDir)) { $archDir = $depDir }
+        foreach ($a in @(Get-ChildItem -LiteralPath $archDir -Filter "*.appx" -File -ErrorAction SilentlyContinue | Sort-Object Name)) {
+            try {
+                Install-AppxWithTimeout -Path $a.FullName -TimeoutSec 180
+                Write-Output ("[*] Зависимость встала: " + $a.Name)
+            } catch { Write-Output ("[!] Зависимость " + $a.Name + ": " + $_) }
+        }
+        $depOk = $true
+    } catch { Write-Output ("[!] Официальный пак не встал: " + $_.Exception.Message) }
+    if (-not $depOk) {
+        Write-Output "[*] Пробую старые прямые ссылки (XAML + VCLibs)..."
+        $xaml = Join-Path $tmp "ui.xaml.appx"
+        $libs = Join-Path $tmp "vclibs.appx"
+        try { [void](Save-UrlWithProgress -Url "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.$arch.appx" -OutFile $xaml -TimeoutSec 300) }
+        catch { Write-Output ("[!] Зависимость XAML не скачалась, иду дальше: " + $_.Exception.Message) }
+        try { [void](Save-UrlWithProgress -Url "https://aka.ms/Microsoft.VCLibs.$arch.14.00.Desktop.appx" -OutFile $libs -TimeoutSec 300) }
+        catch { Write-Output ("[!] Зависимость VCLibs не скачалась, иду дальше: " + $_.Exception.Message) }
+        if (Test-Path -LiteralPath $xaml) {
+            try { Install-AppxWithTimeout -Path $xaml -TimeoutSec 180 }
+            catch { Write-Output ("[!] XAML: " + $_) }
+        }
+        if (Test-Path -LiteralPath $libs) {
+            try { Install-AppxWithTimeout -Path $libs -TimeoutSec 180 }
+            catch { Write-Output ("[!] VCLibs: " + $_) }
+        }
+    }
+
     $pkg = Join-Path $tmp "winget.msixbundle"
     Write-Output "[4/7] Качаю пакет winget..."
     [void](Save-UrlWithProgress -Url $url -OutFile $pkg -TimeoutSec 900)
