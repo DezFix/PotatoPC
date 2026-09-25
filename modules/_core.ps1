@@ -504,11 +504,18 @@ function Set-RepoCacheAcl {
 }
 
 function Initialize-RepoCache {
-    $base = if (-not [string]::IsNullOrWhiteSpace($env:ProgramData)) { Join-Path $env:ProgramData 'PotatoPC' } else { [string]$script:WorkFolder }
-    $cache = if (-not [string]::IsNullOrWhiteSpace($script:RepoCacheFolder)) { [string]$script:RepoCacheFolder } else { Join-Path $base 'cache' }
-    try { if (-not (Test-Path -LiteralPath $base)) { New-Item -ItemType Directory -Path $base -Force -ErrorAction Stop | Out-Null } } catch { return '' }
-    try { if (-not (Test-Path -LiteralPath $cache)) { New-Item -ItemType Directory -Path $cache -Force -ErrorAction Stop | Out-Null } } catch { return '' }
-    if (-not (Set-RepoCacheAcl -Path $base) -or -not (Set-RepoCacheAcl -Path $cache)) { return '' }
+    $token = [Guid]::NewGuid().ToString('N').Substring(0, 12)
+    $base = if (-not [string]::IsNullOrWhiteSpace($env:ProgramData)) { Join-Path $env:ProgramData ('PotatoPC-' + $token) } else { Join-Path ([string]$script:WorkFolder) ('PotatoPC-cache-' + $token) }
+    $cache = Join-Path $base 'cache'
+    try {
+        if (-not (Test-Path -LiteralPath $base)) { New-Item -ItemType Directory -Path $base -Force -ErrorAction Stop | Out-Null }
+        if (-not (Test-Path -LiteralPath $cache)) { New-Item -ItemType Directory -Path $cache -Force -ErrorAction Stop | Out-Null }
+    } catch { Write-Log ('Не удалось создать каталог кэша: ' + $_.Exception.Message) -Color 'Red'; return '' }
+    if (-not (Set-RepoCacheAcl -Path $base) -or -not (Set-RepoCacheAcl -Path $cache)) {
+        Write-Log ('Не удалось установить ACL кэша: ' + $base) -Color 'Red'
+        return ''
+    }
+    $script:RepoCacheFolder = $cache
     return $cache
 }
 
