@@ -409,6 +409,25 @@ function Invoke-ScriptFileWithRetry {
     return $false
 }
 
+function Test-RepoManifestTextFile {
+    param([string]$Path)
+    $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
+    $name = [System.IO.Path]::GetFileName($Path).ToLowerInvariant()
+    return (@('.bat', '.cfg', '.cmd', '.conf', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.toml', '.txt', '.xml', '.xaml', '.yaml', '.yml', '.yar', '.yara') -contains $ext) -or ($name -match '^(license|notice|copying|readme)$')
+}
+
+function Get-RepoManifestHash {
+    param([string]$Path)
+    if (Test-RepoManifestTextFile -Path $Path) {
+        $text = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($Path))
+        $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try { return ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '') } finally { $sha.Dispose() }
+    }
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256 -ErrorAction Stop).Hash
+}
+
 function Test-RepoManifest {
     param([string]$Root, [switch]$Strict)
     if ([string]::IsNullOrWhiteSpace($Root) -or -not (Test-Path -LiteralPath $Root -PathType Container)) { return $false }
@@ -466,7 +485,7 @@ function Test-RepoManifest {
                 if ($Strict -or ($file.Extension -ieq '.ps1')) { return $false }
                 continue
             }
-            $hash = [string](Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256 -ErrorAction Stop).Hash
+            $hash = [string](Get-RepoManifestHash -Path $file.FullName)
             if ($hash.ToUpperInvariant() -ne $expected[$key]) { return $false }
         }
         return $true

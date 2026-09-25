@@ -58,10 +58,29 @@ if ($IncludeUntracked) {
 }
 $files = @($files | Sort-Object FullName)
 
+function Test-RepoManifestTextFile {
+    param([string]$Path)
+    $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
+    $name = [System.IO.Path]::GetFileName($Path).ToLowerInvariant()
+    return (@('.bat', '.cfg', '.cmd', '.conf', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.toml', '.txt', '.xml', '.xaml', '.yaml', '.yml', '.yar', '.yara') -contains $ext) -or ($name -match '^(license|notice|copying|readme)$')
+}
+
+function Get-RepoManifestHash {
+    param([string]$Path)
+    if (Test-RepoManifestTextFile -Path $Path) {
+        $text = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($Path))
+        $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try { return ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '') } finally { $sha.Dispose() }
+    }
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256 -ErrorAction Stop).Hash
+}
+
 $lines = @()
 foreach ($f in $files) {
     $rel = $f.FullName.Substring($Root.Length).TrimStart('\', '/') -replace '\\', '/'
-    $h = (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash
+    $h = Get-RepoManifestHash -Path $f.FullName
     $lines += ("$h  $rel")
 }
 [System.IO.File]::WriteAllLines($out, $lines, [System.Text.UTF8Encoding]::new($false))
