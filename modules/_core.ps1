@@ -487,18 +487,19 @@ function Expand-RepoArchive {
 
 function Set-RepoCacheAcl {
     param([string]$Path)
-    $secureDir = Get-Command Set-ProtectDirectoryAcl -ErrorAction SilentlyContinue
-    $secureFile = Get-Command Set-ProtectFileAcl -ErrorAction SilentlyContinue
-    if (-not $secureDir -or -not $secureFile) { return $false }
     try {
         $rootItem = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
         if (-not $rootItem.PSIsContainer -or (($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { return $false }
-        if (-not (& $secureDir -Path $Path)) { return $false }
-        foreach ($entry in @(Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction Stop)) {
-            if (($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
-            if ($entry.PSIsContainer) { if (-not (& $secureDir -Path $entry.FullName)) { return $false } }
-            elseif (-not (& $secureFile -Path $entry.FullName)) { return $false }
+        $entries = @(Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction Stop)
+        foreach ($entry in $entries) { if (($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $false } }
+        & icacls.exe $rootItem.FullName '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { return $false }
+        foreach ($entry in $entries) {
+            $flags = if ($entry.PSIsContainer) { '(OI)(CI)F' } else { 'F' }
+            & icacls.exe $entry.FullName '/inheritance:r' '/grant:r' ('*S-1-5-18:' + $flags) ('*S-1-5-32-544:' + $flags) 2>$null | Out-Null
+            if ($LASTEXITCODE -ne 0) { return $false }
         }
+        try { & icacls.exe $rootItem.FullName '/setowner' '*S-1-5-32-544' 2>$null | Out-Null } catch {}
         return $true
     } catch { return $false }
 }
@@ -511,12 +512,32 @@ function Initialize-RepoCache {
         if (-not (Test-Path -LiteralPath $base)) { New-Item -ItemType Directory -Path $base -Force -ErrorAction Stop | Out-Null }
         if (-not (Test-Path -LiteralPath $cache)) { New-Item -ItemType Directory -Path $cache -Force -ErrorAction Stop | Out-Null }
     } catch { Write-Log ('Не удалось создать каталог кэша: ' + $_.Exception.Message) -Color 'Red'; return '' }
-    if (-not (Set-RepoCacheAcl -Path $base) -or -not (Set-RepoCacheAcl -Path $cache)) {
-        Write-Log ('Не удалось установить ACL кэша: ' + $base) -Color 'Red'
-        return ''
+    $secure = (Set-RepoCacheAcl -Path $base) -and (Set-RepoCacheAcl -Path $cache)
+    if ($secure) {
+        try {
+            $probe = Join-Path $cache '.write-probe'
+            [System.IO.File]::WriteAllText($probe, 'ok')
+            Remove-Item -LiteralPath $probe -Force -ErrorAction Stop
+        } catch { $secure = $false }
     }
-    $script:RepoCacheFolder = $cache
-    return $cache
+    if ($secure) {
+        $script:RepoCacheSecure = $true
+        $script:RepoCacheFolder = $cache
+        return $cache
+    }
+    $fallbackBase = Join-Path ([string]$script:WorkFolder) ('PotatoPC-cache-' + $token)
+    $fallbackCache = Join-Path $fallbackBase 'cache'
+    try {
+        if (-not (Test-Path -LiteralPath $fallbackBase)) { New-Item -ItemType Directory -Path $fallbackBase -Force -ErrorAction Stop | Out-Null }
+        if (-not (Test-Path -LiteralPath $fallbackCache)) { New-Item -ItemType Directory -Path $fallbackCache -Force -ErrorAction Stop | Out-Null }
+        $probe = Join-Path $fallbackCache '.write-probe'
+        [System.IO.File]::WriteAllText($probe, 'ok')
+        Remove-Item -LiteralPath $probe -Force -ErrorAction Stop
+    } catch { Write-Log ('Не удалось подготовить временный кэш: ' + $_.Exception.Message) -Color 'Red'; return '' }
+    Write-Log 'Защищённый ProgramData-кэш недоступен; используется проверенный временный кэш текущего запуска' -Color 'Yellow'
+    $script:RepoCacheSecure = $false
+    $script:RepoCacheFolder = $fallbackCache
+    return $fallbackCache
 }
 
 function Get-RepoDirectories {
@@ -601,7 +622,7 @@ function Initialize-PotatoPC {
         $repoFolder = $repoFolder[0]
         $cachedScripts = Join-Path $repoFolder.FullName "scripts"
         $cachedN = @(Get-ChildItem -LiteralPath $cachedScripts -Recurse -Filter "*.ps1" -File -ErrorAction SilentlyContinue).Count
-        $cachedOk = ((Test-Path $cachedScripts -PathType Container) -and ($cachedN -gt 0) -and (Test-Path (Join-Path $repoFolder.FullName "apps.json") -PathType Leaf) -and (Test-RepoManifest -Root $repoFolder.FullName -Strict) -and (Set-RepoCacheAcl -Path $repoFolder.FullName))
+        $cachedOk = ((Test-Path $cachedScripts -PathType Container) -and ($cachedN -gt 0) -and (Test-Path (Join-Path $repoFolder.FullName "apps.json") -PathType Leaf) -and (Test-RepoManifest -Root $repoFolder.FullName -Strict) -and (($script:RepoCacheSecure -eq $true) -or (Set-RepoCacheAcl -Path $repoFolder.FullName)))
         if (-not $cachedOk) { Write-Log "Локальный кэш повреждён (скриптов: $cachedN), качаю заново..." -Color "Yellow" }
     }
     if ($cachedOk) {
@@ -612,7 +633,7 @@ function Initialize-PotatoPC {
     } elseif (-not (Download-Repo)) {
         $fallback = $null
         foreach ($candidate in @(Get-RepoDirectories -Root $cacheRoot)) {
-            if ((Test-RepoManifest -Root $candidate.FullName -Strict) -and (Set-RepoCacheAcl -Path $candidate.FullName)) { $fallback = $candidate; break }
+            if ((Test-RepoManifest -Root $candidate.FullName -Strict) -and (($script:RepoCacheSecure -eq $true) -or (Set-RepoCacheAcl -Path $candidate.FullName))) { $fallback = $candidate; break }
         }
         if ($null -eq $fallback) { $script:ScriptsFolder = ''; $script:AppsJsonPath = ''; Set-BgResult -Key 'initError' -Value 'Репозиторий недоступен или не прошёл проверку'; return }
         $script:ScriptsFolder = Join-Path $fallback.FullName "scripts"
