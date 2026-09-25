@@ -451,7 +451,7 @@ function Test-RepoManifest {
         $actual = @($entries | Where-Object { -not $_.PSIsContainer })
         $releaseFiles = @($actual | Where-Object {
             $rel = $_.FullName.Substring($Root.Length).TrimStart('\', '/')
-            $rel -notmatch '^(?i)(tests|mockup)[\\/]'
+            $rel -notmatch '^(?i)mockup[\\/]'
         })
         if ($Strict -and $releaseFiles.Count -ne $expected.Count) { return $false }
         foreach ($key in $expected.Keys) {
@@ -571,6 +571,9 @@ function Initialize-PotatoPC {
         New-Item -ItemType Directory -Path $script:WorkFolder -Force | Out-Null
     }
     $localRoot = [string]$script:LocalRepoRoot
+    if ([string]::IsNullOrWhiteSpace($localRoot)) {
+        try { if ($script:ModuleDir) { $localRoot = Split-Path $script:ModuleDir -Parent } } catch {}
+    }
     $localScripts = if ($localRoot) { Join-Path $localRoot 'scripts' } else { '' }
     $localApps = if ($localRoot) { Join-Path $localRoot 'apps.json' } else { '' }
     if ($localScripts -and $localApps -and (Test-Path -LiteralPath $localScripts -PathType Container) -and (Test-Path -LiteralPath $localApps -PathType Leaf) -and (Test-RepoManifest -Root $localRoot)) {
@@ -783,7 +786,7 @@ public static class PSAsyncHelper {
 }
 
 $script:BgISS = $null
-$script:BgConfigNames = @('WorkFolder','RepoCacheFolder','LocalRepoRoot','ScriptsFolder','AppsJsonPath','AppsJsonUrl','ProtectRulesManifestUrl','ProtectRulesBaseUrl','RepoZipUrl','RepoZipSha256','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion','CleanRulesPath','YaraEngineZipSha256','YaraEngineExeSha256','YaraRulesManifestSha256')
+$script:BgConfigNames = @('ModuleDir','WorkFolder','RepoCacheFolder','LocalRepoRoot','ScriptsFolder','AppsJsonPath','AppsJsonUrl','ProtectRulesManifestUrl','ProtectRulesBaseUrl','RepoZipUrl','RepoZipSha256','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion','CleanRulesPath','YaraEngineZipSha256','YaraEngineExeSha256','YaraRulesManifestSha256')
 
 function Get-BgSessionState {
     # Снимок всех пользовательских функций один раз (после загрузки модулей).
