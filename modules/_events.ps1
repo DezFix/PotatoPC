@@ -39,7 +39,8 @@ Protect-Controls @(
     'installAppsBtn','selectAllAppsBtn','deselectAllAppsBtn',
     'checkUpdatesBtn','selectAllUpdatesBtn','deselectAllUpdatesBtn','installUpdatesBtn','updateAllBtn','hiddenUpdatesBtn',
     'cleanScanBtn','selectAllCleanBtn','deselectAllCleanBtn','cleanBtn',
-    'scanBtn','selectAllScanBtn','deselectAllScanBtn','quarantineBtn',
+    'scanBtn','selectAllScanBtn','deselectAllScanBtn','quarantineBtn','restoreQuarantineBtn',
+    'rollbackPanel','rollbackCountText','rollbackFolderText','selectAllRollbackBtn','deselectAllRollbackBtn','runRollbackBtn',
     'scriptSearchBox','scriptSearchClear','appSearchBox','appSearchClear','startupSearchBox','startupSearchClear',
     'globalSearchClear'
 )
@@ -88,14 +89,13 @@ $refreshBtn.Add_Click({
     $refreshBtn.IsEnabled = $false
     Write-Log "Обновление списка скриптов..."
     Start-Background {
-        try {
-            Download-Repo -Force
+        $ok = $false
+        try { $ok = [bool](Download-Repo -Force) }
+        catch { Write-Log "Ошибка обновления: $_" -Color "Red" }
+        if ($ok) {
             Set-BgResult -Key 'paths' -Value @{ ScriptsFolder = $script:ScriptsFolder; AppsJsonPath = $script:AppsJsonPath }
-        } catch {
-            Write-Log "Ошибка обновления: $_" -Color "Red"
-        } finally {
             Set-BgResult -Key 'rebuildScripts' -Value $true
-        }
+        } else { Set-BgResult -Key 'initError' -Value 'Репозиторий не обновлён' }
     }
 })
 $openFolderBtn.Add_Click({
@@ -126,6 +126,9 @@ $restorePointBtn.Add_Click({ Create-RestorePoint })
 $refreshStartupBtn.Add_Click({ Build-StartupPanel })
 $refreshUsersBtn.Add_Click({ Build-UsersPanel })
 $addUserBtn.Add_Click({ Show-CreateUserDialog })
+$selectAllRollbackBtn.Add_Click({ Select-AllRollbackScripts })
+$deselectAllRollbackBtn.Add_Click({ Deselect-AllRollbackScripts })
+$runRollbackBtn.Add_Click({ Run-SelectedRollbackScripts })
 
 # ═══ Автозагрузка: кнопки ═══
 $disableStartupBtn.Add_Click({
@@ -234,6 +237,7 @@ try { if ($NavCleanBtn) { $NavCleanBtn.Add_Click({ Set-ActiveNav -Index 5 }) } }
 try { if ($NavProtectBtn) { $NavProtectBtn.Add_Click({ Set-ActiveNav -Index 6 }) } } catch {}
 try { if ($NavDiagBtn)    { $NavDiagBtn.Add_Click({ Set-ActiveNav -Index 7 }) } } catch {}
 try { if ($NavSysBtn)     { $NavSysBtn.Add_Click({ Set-ActiveNav -Index 8 }) } } catch {}
+try { if ($NavRollbackBtn){ $NavRollbackBtn.Add_Click({ Set-ActiveNav -Index 9 }) } } catch {}
 try { if ($MainTabControl) { $MainTabControl.Add_SelectionChanged({ try { Set-ActiveNav -Index $MainTabControl.SelectedIndex } catch {} }) } } catch {}
 $presetPotatoBtn.Add_Click({ Select-Preset "Potato-pack" })
 $presetOfficeBtn.Add_Click({ Select-Preset "Office-pack" })
@@ -244,7 +248,7 @@ $installAppsBtn.Add_Click({
     if (-not $sel) { Write-Log "⚠ Нет выбранных приложений" -Color "Yellow"; return }
     try {
         $wgTest = Get-WingetPath
-        if ($wgTest -eq "winget" -and -not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        if ([string]::IsNullOrWhiteSpace([string]$wgTest)) {
             Write-Log "winget не найден. Поставь его: Модули → Магазин программ." -Color "Red"
             return
         }
@@ -267,12 +271,14 @@ $installAppsBtn.Add_Click({
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             Write-Log "⏳ Установка [$i/$total]: $id..."
             Set-Progress ([double]$i / [double]([Math]::Max(1, $total)))
-            & $wg install --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
-                ForEach-Object { Write-Log "   $_" }
+            $result = Invoke-WingetCommand -Exe $wg -Arguments ("install --id " + $id + " --silent --accept-source-agreements --accept-package-agreements") -TimeoutSec 3600
+            if ($result.Out) { $result.Out -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Log "   $_" } }
+            if ($result.Error) { $result.Error -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Log "   $_" -Color "Yellow" } }
             $sw.Stop()
             $dur = if ($sw.Elapsed.TotalSeconds -ge 60) { "{0} мин" -f [int]$sw.Elapsed.TotalMinutes } else { "{0} сек" -f [int]$sw.Elapsed.TotalSeconds }
-            if ($LASTEXITCODE -eq 0) { Write-Log "✓ $id установлена за $dur" -Color "Green"; $ok++ }
-            else { Write-Log "✗ ${id}: ошибка (код $LASTEXITCODE)" -Color "Red"; $fail++ }
+            if ($result.Ok) { Write-Log "✓ $id установлена за $dur" -Color "Green"; $ok++ }
+            elseif ($result.TimedOut) { Write-Log "✗ ${id}: превышен таймаут" -Color "Red"; $fail++ }
+            else { Write-Log "✗ ${id}: ошибка (код $($result.Code))" -Color "Red"; $fail++ }
         }
         Write-Log "══ Установка завершена: ✓$ok$(if($fail -gt 0){ `" ✗$fail`" }) ══"
         Set-BgResult -Key 'appsRefresh' -Value $true
@@ -311,6 +317,28 @@ $scanBtn.Add_Click({ Start-YaraScan })
 $selectAllScanBtn.Add_Click({ foreach($cb in $script:ScanCheckboxes.Values){$cb.Box.IsChecked=$true}; Update-ScanCount })
 $deselectAllScanBtn.Add_Click({ foreach($cb in $script:ScanCheckboxes.Values){$cb.Box.IsChecked=$false}; Update-ScanCount })
 $quarantineBtn.Add_Click({ Start-Quarantine })
+$restoreQuarantineBtn.Add_Click({
+    if (-not (Get-Command Restore-QuarantinedFiles -ErrorAction SilentlyContinue)) {
+        Write-Log "Модуль восстановления карантина не загружен." -Color "Red"
+        return
+    }
+    $answer = [System.Windows.MessageBox]::Show(
+        "Восстановить все файлы из карантина PotatoPC?`nФайлы будут возвращены только по записанным SHA-256 и исходным путям.",
+        "Восстановление карантина",
+        [System.Windows.MessageBoxButton]::YesNo,
+        [System.Windows.MessageBoxImage]::Question)
+    if ($answer -ne [System.Windows.MessageBoxResult]::Yes) { return }
+    $restoreQuarantineBtn.IsEnabled = $false
+    Set-Progress
+    Start-Background {
+        try { [void](Restore-QuarantinedFiles -All) }
+        catch { Write-Log ("Ошибка восстановления карантина: " + $_) -Color "Red" }
+        finally {
+            Clear-Progress
+            Set-BgResult -Key 'quarantineRefresh' -Value $true
+        }
+    }
+})
 # Кнопок Defender в шапке нет (только YARA) — привязки терпят их отсутствие.
 try { if ($defenderScanBtn) { $defenderScanBtn.Add_Click({
     Write-Log "Запускаю проверку Defender в фоне..."
@@ -349,6 +377,14 @@ function Test-BgQueue {
     } catch {}
     if (-not $script:PanelsBuilt) {
         if (Get-BgResult -Key 'init') {
+            $initError = Get-BgResult -Key 'initError'
+            if ($initError) {
+                Set-BgResult -Key 'initError' -Value $null
+                $script:PanelsBuilt = $true
+                Write-Log ("✗ Репозиторий не инициализирован: " + $initError) -Color "Red"
+                try { if ($sideStatusText) { $sideStatusText.Text = 'Репозиторий недоступен' } } catch {}
+                return
+            }
             # Панели строятся изолированно: упавшая панель пишет ошибку в лог,
             # но НЕ роняет остальные (было: часть вкладок пустые навсегда,
             # а флаг готовности уже выставлен и повтора не было).
@@ -367,7 +403,8 @@ function Test-BgQueue {
                 @{ N = 'Автозагрузка';  F = { Build-StartupPanel } },
                 @{ N = 'Пользователи';  F = { Build-UsersPanel } },
                 @{ N = 'Очистка';       F = { Build-CleanPanel } },
-                @{ N = 'Защита';        F = { Build-ProtectPanel } }
+                @{ N = 'Защита';        F = { Build-ProtectPanel } },
+                @{ N = 'Откаты';        F = { Build-RollbackPanel } }
             )) {
                 try { & $pb.F; $built += $pb.N }
                 catch { $failed += $pb.N; try { Write-Log ("✗ Вкладка '" + $pb.N + "' не построилась: " + $_.Exception.Message) -Color "Red" } catch {} }
@@ -379,7 +416,7 @@ function Test-BgQueue {
             try { Update-DashStats } catch {}
             try {
                 if ($sideStatusText) {
-                    $sideStatusText.Text = "Скриптов: $($script:ScriptCheckboxes.Count) • Программ: $($script:AppCheckboxes.Count)"
+                    $sideStatusText.Text = "Скриптов: $($script:ScriptCheckboxes.Count) • Откатов: $($script:RollbackCheckboxes.Count) • Программ: $($script:AppCheckboxes.Count)"
                 }
                 Update-HeaderCount
             } catch {}
@@ -392,6 +429,12 @@ function Test-BgQueue {
         }
         return
     }
+    $lateInitError = Get-BgResult -Key 'initError'
+    if ($lateInitError) {
+        Set-BgResult -Key 'initError' -Value $null
+        Write-Log ("✗ Обновление репозитория не выполнено: " + $lateInitError) -Color "Red"
+        try { if ($refreshBtn) { $refreshBtn.IsEnabled = $true } } catch {}
+    }
     $s = Get-BgResult -Key 'startup'
     if ($s -and -not $s.Consumed) {
         $s.Consumed = $true
@@ -402,19 +445,22 @@ function Test-BgQueue {
     $up = Get-BgResult -Key 'updates'
     if ($up -and -not $up.Consumed) {
         $up.Consumed = $true
-        if ($up.Error) { Write-Log "Ошибка проверки обновлений: $($up.Error)" -Color "Red" }
-        else {
+        if ($up.Error) {
+            Write-Log "Ошибка проверки обновлений: $($up.Error)" -Color "Red"
+            Render-UpdatesPanel -Packages @() -PinnedItems @() -ErrorMessage ([string]$up.Error)
+        } else {
             $pins = @($up.Pinned)
             $script:UpdatesCache = @{ Time = (Get-Date); Data = @($up.Data); PinnedItems = $pins }
             if ($pins.Count -gt 0) { Write-Log "Скрыто закреплённых: $($pins.Count)" }
+            if ($up.PinError) { Write-Log ("Список закреплённых не прочитан: " + $up.PinError) -Color "Yellow" }
             try {
                 if ($hiddenUpdatesBtnText) {
                     $hiddenUpdatesBtnText.Text = if ($pins.Count -gt 0) { "📌 Скрытые ($($pins.Count))" } else { "📌 Скрытые" }
                 }
             } catch {}
+            $cpins = @(); try { $cpins = @($script:UpdatesCache.PinnedItems) } catch {}
+            Render-UpdatesPanel -Packages @($up.Data) -PinnedItems $cpins
         }
-        $cpins = @(); try { $cpins = @($script:UpdatesCache.PinnedItems) } catch {}
-        Render-UpdatesPanel -Packages @($up.Data) -PinnedItems $cpins
         try { Clear-Progress } catch {}
     }
     if (Get-BgResult -Key 'updatesRefresh') {
@@ -429,12 +475,22 @@ function Test-BgQueue {
         Set-BgResult -Key 'protectRefresh' -Value $null
         try { Build-ProtectPanel } catch {}
     }
+    if (Get-BgResult -Key 'quarantineRefresh') {
+        Set-BgResult -Key 'quarantineRefresh' -Value $null
+        try { $restoreQuarantineBtn.IsEnabled = $true } catch {}
+        try { Build-ProtectPanel } catch {}
+    }
     $sh = Get-BgResult -Key 'scanHits'
     if ($sh -and -not $sh.Consumed) {
         $sh.Consumed = $true
+        if ($sh.Cancelled) { Write-Log "Проверка остановлена пользователем." -Color "Yellow" }
+        elseif ($sh.Errors -gt 0) { Write-Log ("Проверка завершилась с ошибками: " + $sh.Errors) -Color "Yellow" }
+        if ($sh.TimedOut -gt 0) { Write-Log ("Элементов пропущено по таймауту: " + $sh.TimedOut) -Color "Yellow" }
         try {
-            Render-ScanHits -Items @($sh.Items)
-        } catch {}
+            $hitCount = @($sh.Items).Count
+            Render-ScanHits -Items @($sh.Items) -Complete ([bool]$sh.Complete) -Errors ([int]$sh.Errors) -TimedOut ([int]$sh.TimedOut) -Cancelled ([bool]$sh.Cancelled) -FailureMessage ([string]$sh.FailureMessage)
+            Write-Log ("Находки получены: " + $hitCount) -Color $(if ($hitCount -gt 0) { 'Yellow' } else { 'Gray' })
+        } catch { Write-Log ("Ошибка вывода находок: " + $_) -Color "Red" }
     }
     $ai = Get-BgResult -Key 'appIcons'
     if ($ai -and -not $ai.Consumed) {
@@ -465,6 +521,7 @@ function Test-BgQueue {
     if ($ia -and -not $ia.Consumed) {
         $ia.Consumed = $true
         try {
+            if ($ia.Error) { Write-Log ("Проверка установленных приложений: " + $ia.Error) -Color "Yellow" }
             $ids = @($ia.Ids)
             $script:InstalledAppIds = $ids
             $n = 0
@@ -562,6 +619,7 @@ function Test-BgQueue {
         try { if ($scriptsFolderText) { $scriptsFolderText.Text = $script:ScriptsFolder } } catch {}
         try { Build-ScriptsPanel } catch { try { Write-Log ("✗ Модули не перестроились: " + $_.Exception.Message) -Color "Red" } catch {} }
         try { Build-AppsPanel } catch { try { Write-Log ("✗ Приложения не перестроились: " + $_.Exception.Message) -Color "Red" } catch {} }
+        try { Build-RollbackPanel } catch { try { Write-Log ("✗ Откаты не перестроились: " + $_.Exception.Message) -Color "Red" } catch {} }
         try { if ($refreshBtn) { $refreshBtn.IsEnabled = $true } } catch {}
         Write-Log "✓ Список скриптов обновлён"
     }
@@ -589,6 +647,13 @@ $window.Add_Loaded({
     }
 })
 
-$window.Add_Closing({ Save-UIState; Stop-BgPoller })
+$window.Add_Closing({
+    try { if ($script:ScanRunning -and $script:ScanControl) { Stop-Operation -Control $script:ScanControl } } catch {}
+    try { if ($script:QuarantineRunning -and $script:QuarantineControl) { Stop-Operation -Control $script:QuarantineControl } } catch {}
+    try { if ($script:BatchRunning) { Stop-SelectedScripts } } catch {}
+    try { if ($script:RollbackBatchRunning) { Stop-SelectedRollbackScripts | Out-Null } } catch {}
+    Save-UIState
+    Stop-BgPoller
+})
 
 $window.ShowDialog() | Out-Null

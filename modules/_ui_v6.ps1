@@ -47,8 +47,8 @@ try {
     })
 } catch {}
 
-# ── Страницы v6: индекс -> панель + заголовок (9 = Дашборд, новое) ──
-$script:V6Pages = @('PageMods','PageStart','PageUsers','PageApps','PageUpd','PageClean','PageProt','PageDiag','PageSys','PageDash')
+# ── Страницы v6: индекс -> панель + заголовок (10 = Дашборд) ──
+$script:V6Pages = @('PageMods','PageStart','PageUsers','PageApps','PageUpd','PageClean','PageProt','PageDiag','PageSys','PageRollback','PageDash')
 $script:V6Titles = @(
     @{ Title = "Модули";       Sub = "Отмечай скрипты и запускай." },
     @{ Title = "Автозагрузка"; Sub = "Приложения и задачи планировщика." },
@@ -59,6 +59,7 @@ $script:V6Titles = @(
     @{ Title = "Защита";       Sub = "Проверка на вирусы." },
     @{ Title = "Тест системы"; Sub = "Диагностика в фоне." },
     @{ Title = "О системе";    Sub = "Железо, ОС, диски." },
+    @{ Title = "Откаты";       Sub = "Модуль отката изменений." },
     @{ Title = "Дашборд";      Sub = "Коротко о системе и быстрые действия." }
 )
 
@@ -84,13 +85,13 @@ function Sync-V6Page {
             $sw = $window.FindName("SearchBoxWrap")
             if ($sw) { $sw.Visibility = if ($idx -eq 0 -or $idx -eq 1 -or $idx -eq 3) { 'Visible' } else { 'Collapsed' } }
         } catch {}
-        if ($idx -eq 9) { try { Update-DashStats } catch {} }
+        if ($idx -eq 10) { try { Update-DashStats } catch {} }
     } catch {}
 }
 
 try { $MainTabControl.Add_SelectionChanged({ try { Sync-V6Page } catch {} }) } catch {}
 try {
-    if ($NavDashBtn) { $NavDashBtn.Add_Click({ try { Set-ActiveNav -Index 9 } catch {} }) }
+    if ($NavDashBtn) { $NavDashBtn.Add_Click({ try { Set-ActiveNav -Index 10 } catch {} }) }
 } catch {}
 
 # ── Общий поиск: пишет в скрытый бокс активной вкладки, фильтруют модули ──
@@ -204,7 +205,13 @@ try {
                 if ($script:BatchRunning) { Stop-SelectedScripts; return }
                 Select-ScriptPreset "potato"
                 Set-ActiveNav -Index 0
-                Run-SelectedScripts
+                $names = @($script:ScriptCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked } | ForEach-Object { Split-Path $_.Key -Leaf })
+                $answer = [System.Windows.MessageBox]::Show(
+                    ("Будут выполнены скрипты:`n" + ($names -join "`n") + "`n`nПродолжить?"),
+                    "PotatoPC: быстрый запуск",
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning)
+                if ($answer -eq [System.Windows.MessageBoxResult]::Yes) { Run-SelectedScripts }
             } catch {}
         })
     }

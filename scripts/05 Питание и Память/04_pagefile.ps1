@@ -29,17 +29,53 @@ try {
     }
 
     # Уже так? ничего не делаем
-    $cur = Get-CimInstance Win32_PageFileSetting -Filter "Name='C:\\pagefile.sys'" -ErrorAction SilentlyContinue
-    if ($cur -and $cur.InitialSize -eq $SizeMB -and $cur.MaximumSize -eq $SizeMB) {
+    $oldAutomatic = [bool]$cs.AutomaticManagedPagefile
+    $cur = @(Get-CimInstance Win32_PageFileSetting -ErrorAction Stop | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })
+    $cur = if ($cur.Count -gt 0) { $cur[0] } else { $null }
+    if ($cur -and [int]$cur.InitialSize -eq $SizeMB -and [int]$cur.MaximumSize -eq $SizeMB) {
         Write-Output "[=] Уже настроено, ничего не меняю."
         exit 0
     }
 
-    Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $false } -ErrorAction Stop
-    if ($cur) {
-        Set-CimInstance -InputObject $cur -Property @{ InitialSize = $SizeMB; MaximumSize = $SizeMB } -ErrorAction Stop
-    } else {
-        New-CimInstance -ClassName Win32_PageFileSetting -Property @{ Name = "C:\pagefile.sys"; InitialSize = $SizeMB; MaximumSize = $SizeMB } -ErrorAction Stop | Out-Null
+    try {
+        if ($oldAutomatic) {
+            Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $false } -ErrorAction Stop
+        }
+        if ($cur) {
+            Set-CimInstance -InputObject $cur -Property @{ InitialSize = $SizeMB; MaximumSize = $SizeMB } -ErrorAction Stop
+        } else {
+            New-CimInstance -ClassName Win32_PageFileSetting -Property @{ Name = "C:\pagefile.sys"; InitialSize = $SizeMB; MaximumSize = $SizeMB } -ErrorAction Stop | Out-Null
+        }
+        $after = @(Get-CimInstance Win32_PageFileSetting -ErrorAction Stop | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })
+        if ($after.Count -ne 1 -or [int]$after[0].InitialSize -ne $SizeMB -or [int]$after[0].MaximumSize -ne $SizeMB) {
+            throw "CIM не подтвердил настройки pagefile"
+        }
+    } catch {
+        $failure = $_
+        $restoreErrors = @()
+        try {
+            if ($oldAutomatic) {
+                Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $true } -ErrorAction Stop
+            } else {
+                $now = @(Get-CimInstance Win32_PageFileSetting -ErrorAction Stop)
+                $current = @($now | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })
+                if ($cur) {
+                    if ($current.Count -gt 0) {
+                        Set-CimInstance -InputObject $current[0] -Property @{ InitialSize = [int]$cur.InitialSize; MaximumSize = [int]$cur.MaximumSize } -ErrorAction Stop
+                    } else {
+                        New-CimInstance -ClassName Win32_PageFileSetting -Property @{ Name = "C:\pagefile.sys"; InitialSize = [int]$cur.InitialSize; MaximumSize = [int]$cur.MaximumSize } -ErrorAction Stop | Out-Null
+                    }
+                } else {
+                    foreach ($item in $current) { Remove-CimInstance -InputObject $item -ErrorAction Stop }
+                }
+            }
+        } catch {
+            $restoreErrors += [string]$_
+        }
+        if ($restoreErrors.Count -gt 0) {
+            throw ("Настройка pagefile не применена; откат не удался: " + ($restoreErrors -join "; ") + "; исходная ошибка: " + [string]$failure)
+        }
+        throw $failure
     }
     Write-Output "[OK] Готово. Перезагрузись чтобы применилось."
     exit 0

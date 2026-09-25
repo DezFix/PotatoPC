@@ -7,7 +7,9 @@
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
-    powercfg /hibernate off | Out-Null
+    $out = & powercfg /hibernate off 2>&1
+    $code = $LASTEXITCODE
+    if ($code -ne 0) { throw ("powercfg /hibernate off: код " + $code + "; " + (($out | Out-String).Trim())) }
     Write-Output "[OK] Файл гибернации удален. Место освобождено."
     exit 0
 } catch {

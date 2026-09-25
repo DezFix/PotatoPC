@@ -20,16 +20,36 @@ try {
         "Microsoft.BingNews","Microsoft.NewsAndInterests","Microsoft.549981C3F5F10"
     )
     $n = 0
+    $errors = 0
+    $provisioned = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop)
     foreach ($app in $apps) {
-        $pkg = Get-AppxPackage -Name $app -ErrorAction SilentlyContinue
-        if ($pkg) {
-            Remove-AppxPackage -Package $pkg.PackageFullName -ErrorAction SilentlyContinue
-            $n++
+        $pkgs = @(Get-AppxPackage -Name $app -ErrorAction Stop)
+        foreach ($pkg in $pkgs) {
+            try {
+                Remove-AppxPackage -Package $pkg.PackageFullName -ErrorAction Stop
+                $remaining = @(Get-AppxPackage -Name $app -ErrorAction Stop | Where-Object { $_.PackageFullName -eq $pkg.PackageFullName })
+                if ($remaining.Count -gt 0) { throw "пакет остался после удаления" }
+                $n++
+            } catch {
+                $errors++
+                Write-Output ("[!] " + $app + ": " + $_)
+            }
         }
-        $prov = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq $app }
-        if ($prov) {
-            Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction SilentlyContinue
+        $provs = @($provisioned | Where-Object { $_.DisplayName -eq $app })
+        foreach ($prov in $provs) {
+            try {
+                Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop | Out-Null
+                $remaining = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.PackageName -eq $prov.PackageName })
+                if ($remaining.Count -gt 0) { throw "пакет остался в образе" }
+            } catch {
+                $errors++
+                Write-Output ("[!] " + $app + " (образ): " + $_)
+            }
         }
+    }
+    if ($errors -gt 0) {
+        Write-Output ("[X] Удалено приложений: " + $n + "; ошибок: " + $errors)
+        exit 1
     }
     Write-Output ("[OK] Удалено приложений: " + $n)
     exit 0

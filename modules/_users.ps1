@@ -3,16 +3,29 @@
     $chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*'.ToCharArray()
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
     try {
-        $buf = New-Object byte[] $Length
-        $rng.GetBytes($buf)
-        return -join ($buf | ForEach-Object { $chars[$_ % $chars.Length] })
+        $result = New-Object System.Collections.Generic.List[char]
+        $limit = 256 - (256 % $chars.Length)
+        while ($result.Count -lt $Length) {
+            $bytes = New-Object byte[] ($Length - $result.Count)
+            $rng.GetBytes($bytes)
+            foreach ($value in $bytes) {
+                if ($value -ge $limit) { continue }
+                $result.Add($chars[$value % $chars.Length])
+                if ($result.Count -ge $Length) { break }
+            }
+        }
+        return -join $result
     } finally { try { $rng.Dispose() } catch {} }
 }
 
 function New-EasyPassword {
-    # Простой пароль из словаря (для тестовых/временных учёток)
-    $easy = @('admin','user','root','guest','123456','12345','1234','qwerty','password','admin123','user123','root123','qwerty123','12345678')
-    return $easy[(Get-Random -Maximum $easy.Count)]
+    $chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'.ToCharArray()
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $bytes = New-Object byte[] 12
+        $rng.GetBytes($bytes)
+        return -join ($bytes | ForEach-Object { $chars[$_ % $chars.Length] })
+    } finally { try { $rng.Dispose() } catch {} }
 }
 
 function Copy-TextToClipboard {
@@ -36,7 +49,14 @@ function Set-DialogButtonIcon {
     } catch { try { if ($Text) { $Button.$Property = $Text } } catch {} }
 }
 
+function Get-AdministratorGroupName {
+    try { return (Get-LocalGroup -SID 'S-1-5-32-544' -ErrorAction Stop).Name } catch {}
+    foreach ($g in @('Администраторы','Administrators')) { if (Get-LocalGroup -Name $g -ErrorAction SilentlyContinue) { return $g } }
+    return $null
+}
+
 function Get-RdpGroupName {
+    try { return (Get-LocalGroup -SID 'S-1-5-32-555' -ErrorAction Stop).Name } catch {}
     foreach ($g in @('Remote Desktop Users', 'Пользователи удалённого рабочего стола')) {
         if (Get-LocalGroup -Name $g -ErrorAction SilentlyContinue) { return $g }
     }
@@ -49,15 +69,38 @@ function Test-UserInGroup {
     catch { return $false }
 }
 
-function Get-UserRoleLabel {    param($LocalUser)
+function Test-LastAdministrator {
+    param([string]$UserName)
+    $groupName = Get-AdministratorGroupName
+    if ([string]::IsNullOrWhiteSpace($groupName)) { return $true }
     try {
-        if ($null -eq $script:AdminGroupMembers) {
-            $g = Get-LocalGroupMember -Group "Администраторы" -ErrorAction SilentlyContinue
-            if (-not $g) { $g = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue }
-            $script:AdminGroupMembers = @($g)
+        $user = Get-LocalUser -Name $UserName -ErrorAction Stop
+        $members = @(Get-LocalGroupMember -Group $groupName -ErrorAction Stop)
+        foreach ($member in $members) {
+            if ([string]$member.SID -eq [string]$user.SID) { continue }
+            try {
+                $other = Get-LocalUser -SID $member.SID -ErrorAction Stop
+                if ($other.Enabled) { return $false }
+            } catch {}
         }
-        return (@($script:AdminGroupMembers | Where-Object { $_.SID -eq $LocalUser.SID }).Count -gt 0)
-    } catch { return $false }
+        return $true
+    } catch { return $true }
+}
+
+function Get-UserRoleState {
+    param($LocalUser)
+    try {
+        $groupName = Get-AdministratorGroupName
+        if ([string]::IsNullOrWhiteSpace($groupName)) { return [pscustomobject]@{ Known = $false; IsAdmin = $false } }
+        $members = @(Get-LocalGroupMember -Group $groupName -ErrorAction Stop)
+        return [pscustomobject]@{ Known = $true; IsAdmin = (@($members | Where-Object { [string]$_.SID -eq [string]$LocalUser.SID }).Count -gt 0) }
+    } catch { return [pscustomobject]@{ Known = $false; IsAdmin = $false } }
+}
+
+function Get-UserRoleLabel {
+    param($LocalUser)
+    $state = Get-UserRoleState -LocalUser $LocalUser
+    return [bool]$state.IsAdmin
 }
 
 function Build-UsersPanel {
@@ -78,10 +121,11 @@ function Build-UsersPanel {
         $usersPanel.Children.Add($lbl) | Out-Null
         return
     }
-    $currentUserName = $env:USERNAME
+    $currentUserSid = $null
+    try { $currentUserSid = ([System.Security.Principal.WindowsIdentity]::GetCurrent()).User.Value } catch {}
     foreach ($u in $users) {
         $isAdmin   = Get-UserRoleLabel -LocalUser $u
-        $isCurrent = ($u.Name -eq $currentUserName)
+        $isCurrent = ($null -ne $currentUserSid -and [string]$u.SID -eq [string]$currentUserSid)
         $card = New-Card -Dimmed:(-not $u.Enabled)
         $card.CornerRadius = [System.Windows.CornerRadius]::new(10)
         $card.Margin = [System.Windows.Thickness]::new(0,3,0,3)
@@ -239,13 +283,19 @@ function Build-UsersPanel {
             try { $lu = Get-LocalUser -Name $nm -ErrorAction Stop }
             catch { Write-Log ("Нет пользователя: " + $nm) -Color "Red"; return }
             try {
-                if ($lu.Enabled) {
-                    $msg = "Отключить учётную запись '$nm'?"
-                    if ($nm -eq $env:USERNAME) { $msg += "`nВНИМАНИЕ: это ваша текущая учётная запись!" }
-                    if ([System.Windows.MessageBox]::Show($msg, "Отключить", "YesNo", "Warning") -ne "Yes") { return }
-                    Disable-LocalUser -Name $nm -ErrorAction Stop
-                    Write-Log ("Отключён: " + $nm) -Color "Yellow"
-                } else {
+                 if ($lu.Enabled) {
+                     $roleState = Get-UserRoleState -LocalUser $lu
+                     if (-not $roleState.Known) { Write-Log "Нельзя проверить роль пользователя: $nm" -Color "Red"; return }
+                     if ($roleState.IsAdmin -and (Test-LastAdministrator -UserName $nm)) { Write-Log "Нельзя отключить последнего администратора: $nm" -Color "Red"; return }
+                     $msg = "Отключить учётную запись '$nm'?"
+                     if ($nm -eq $env:USERNAME) { $msg += "`nВНИМАНИЕ: это ваша текущая учётная запись!" }
+                     if ([System.Windows.MessageBox]::Show($msg, "Отключить", "YesNo", "Warning") -ne "Yes") { return }
+                     $roleState = Get-UserRoleState -LocalUser (Get-LocalUser -Name $nm -ErrorAction Stop)
+                     if (-not $roleState.Known) { Write-Log "Отключение отменено: роль изменилась или недоступна" -Color "Red"; return }
+                     if ($roleState.IsAdmin -and (Test-LastAdministrator -UserName $nm)) { Write-Log "Нельзя отключить последнего администратора: $nm" -Color "Red"; return }
+                     Disable-LocalUser -Name $nm -ErrorAction Stop
+                     Write-Log ("Отключён: " + $nm) -Color "Yellow"
+                 } else {
                     if ([System.Windows.MessageBox]::Show("Включить учётную запись '$nm'?", "Включить", "YesNo", "Question") -ne "Yes") { return }
                     Enable-LocalUser -Name $nm -ErrorAction Stop
                     Write-Log ("Включён: " + $nm) -Color "Green"
@@ -271,7 +321,9 @@ function Show-UserSettingsDialog {
     try { $user = Get-LocalUser -Name $UserName -ErrorAction Stop } catch {
         Write-Log "✗ Не удалось загрузить пользователя $UserName : $_" -Color "Red"; return
     }
-    $isAdminNow = Get-UserRoleLabel -LocalUser $user
+    $roleStateNow = Get-UserRoleState -LocalUser $user
+    $roleKnownAtOpen = [bool]$roleStateNow.Known
+    $isAdminNow = [bool]$roleStateNow.IsAdmin
     $dialogXaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -351,7 +403,7 @@ function Show-UserSettingsDialog {
                 <TextBox x:Name="GenPassView2" Style="{StaticResource DlgTextInput}" IsReadOnly="True" Margin="0,0,0,8"/>
                 <StackPanel Orientation="Horizontal">
                     <Button Content="Стандарт" x:Name="GenPasswordBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
-                    <Button Content="Простой" x:Name="GenEasyBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
+                    <Button Content="Простой" x:Name="GenEasyBtn2" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль без символов, сразу копируется в буфер"/>
                     <Button Content="Копировать" x:Name="CopyPassBtn2" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать пароль в буфер обмена"/>
                 </StackPanel>
             </StackPanel>
@@ -437,7 +489,13 @@ function Show-UserSettingsDialog {
     $genPasswordBtn     = $dlg.FindName("GenPasswordBtn2")
     try { $noExpireChk.IsChecked = ($null -eq $user.PasswordExpires) } catch { $noExpireChk.IsChecked = $false }
     $enabledChk.IsChecked = $user.Enabled
-    if ($isAdminNow) { $roleAdminRadio.IsChecked = $true } else { $roleUserRadio.IsChecked = $true }
+    if ($roleStateNow.Known) {
+        if ($isAdminNow) { $roleAdminRadio.IsChecked = $true } else { $roleUserRadio.IsChecked = $true }
+    } else {
+        $roleAdminRadio.IsEnabled = $false; $roleUserRadio.IsEnabled = $false
+        $dialogStatusText.Text = '⚠ Роль не удалось проверить; изменение роли отключено'
+        $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom('#f0c040')
+    }
     try {
         if ($null -eq $user.AccountExpires -or ([DateTime]$user.AccountExpires).Year -ge 9999) { $expireBox.Text = "" }
         else { $expireBox.Text = ([DateTime]$user.AccountExpires).ToString("dd.MM.yyyy") }
@@ -519,6 +577,20 @@ function Show-UserSettingsDialog {
         $messages = @()
         $hasError = $false
         try {
+            $requestedEnabled = [bool]($enabledChk.IsChecked -eq $true)
+            $requestedAdmin = [bool]($roleAdminRadio.IsChecked -eq $true)
+            $currentUser = Get-LocalUser -Name $UserName -ErrorAction Stop
+            $roleState = Get-UserRoleState -LocalUser $currentUser
+            if (-not $roleState.Known) { throw 'Не удалось проверить членство в группе администраторов' }
+            $currentAdmin = [bool]$roleState.IsAdmin
+            if ($currentAdmin -and ((-not $requestedEnabled) -or (-not $requestedAdmin)) -and (Test-LastAdministrator -UserName $UserName)) { throw 'Нельзя отключить или понизить последнего администратора' }
+        } catch {
+            $dialogStatusText.Text = "✗ Проверка безопасности: $_"
+            $dialogStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")
+            Write-Log ("Изменения пользователя отменены: " + $_) -Color "Red"
+            return
+        }
+        try {
             Set-LocalUser -Name $UserName -PasswordNeverExpires ([bool]($noExpireChk.IsChecked -eq $true)) -ErrorAction Stop
             $messages += if ($noExpireChk.IsChecked -eq $true) { "Пароль: без срока действия" } else { "Пароль: со сроком действия" }
         } catch {
@@ -527,29 +599,37 @@ function Show-UserSettingsDialog {
         try {
             $isEnabled = [bool]($enabledChk.IsChecked -eq $true)
             if ($isEnabled) { Enable-LocalUser -Name $UserName -ErrorAction Stop }
-            else { Disable-LocalUser -Name $UserName -ErrorAction Stop }
+            else {
+                $stateBeforeDisable = Get-UserRoleState -LocalUser (Get-LocalUser -Name $UserName -ErrorAction Stop)
+                if (-not $stateBeforeDisable.Known) { throw 'Не удалось повторно проверить роль перед отключением' }
+                if ($stateBeforeDisable.IsAdmin -and (Test-LastAdministrator -UserName $UserName)) { throw 'Нельзя отключить последнего администратора' }
+                Disable-LocalUser -Name $UserName -ErrorAction Stop
+            }
             $messages += if ($isEnabled) { "Учётная запись: активна" } else { "Учётная запись: отключена" }
         } catch {
             $messages += "Ошибка активности: $_"; $hasError = $true
         }
-        try {
-            $wantsAdmin = $roleAdminRadio.IsChecked
-            $adminGroupName = "Администраторы"
-            $userGroupName  = "Пользователи"
-            if (-not (Get-LocalGroup -Name $adminGroupName -ErrorAction SilentlyContinue)) { $adminGroupName = "Administrators" }
-            if (-not (Get-LocalGroup -Name $userGroupName -ErrorAction SilentlyContinue))  { $userGroupName  = "Users" }
-            $currentlyAdmin = Get-UserRoleLabel -LocalUser (Get-LocalUser -Name $UserName)
-            if ($wantsAdmin -and -not $currentlyAdmin) {
-                Add-LocalGroupMember -Group $adminGroupName -Member $UserName -ErrorAction Stop
-                $messages += "Роль: повышен до Администратора"
-            } elseif (-not $wantsAdmin -and $currentlyAdmin) {
-                Remove-LocalGroupMember -Group $adminGroupName -Member $UserName -ErrorAction Stop
-                $messages += "Роль: понижен до Пользователя"
-            } else {
-                $messages += "Роль: без изменений"
+        if (-not $roleKnownAtOpen) {
+            $messages += 'Роль: не изменена (не удалось проверить при открытии)'
+        } else {
+            try {
+                $wantsAdmin = [bool]($roleAdminRadio.IsChecked -eq $true)
+                $adminGroupName = Get-AdministratorGroupName
+                $currentlyAdmin = Get-UserRoleLabel -LocalUser (Get-LocalUser -Name $UserName -ErrorAction Stop)
+                if ([string]::IsNullOrWhiteSpace($adminGroupName)) { throw 'Группа администраторов не найдена' }
+                if ($wantsAdmin -and -not $currentlyAdmin) {
+                    Add-LocalGroupMember -Group $adminGroupName -Member $UserName -ErrorAction Stop
+                    $messages += 'Роль: повышен до Администратора'
+                } elseif (-not $wantsAdmin -and $currentlyAdmin) {
+                    $stateBeforeRole = Get-UserRoleState -LocalUser (Get-LocalUser -Name $UserName -ErrorAction Stop)
+                    if (-not $stateBeforeRole.Known -or -not $stateBeforeRole.IsAdmin) { throw 'Не удалось повторно проверить роль перед понижением' }
+                    if (Test-LastAdministrator -UserName $UserName) { throw 'Нельзя понизить последнего администратора' }
+                    Remove-LocalGroupMember -Group $adminGroupName -Member $UserName -ErrorAction Stop
+                    $messages += 'Роль: понижен до Пользователя'
+                } else { $messages += 'Роль: без изменений' }
+            } catch {
+                $messages += "Ошибка смены роли: $_"; $hasError = $true
             }
-        } catch {
-            $messages += "Ошибка смены роли: $_"; $hasError = $true
         }
         try {
             $expText = $expireBox.Text.Trim()
@@ -559,6 +639,7 @@ function Show-UserSettingsDialog {
             } else {
                 $expDt = [DateTime]::MinValue
                 if ([DateTime]::TryParseExact($expText, "dd.MM.yyyy", $null, "None", [ref]$expDt)) {
+                    if ($expDt.Date -le (Get-Date).Date) { throw 'Дата окончания должна быть в будущем' }
                     Set-LocalUser -Name $UserName -AccountExpires $expDt -ErrorAction Stop
                     $messages += ("Срок учётки: до " + $expDt.ToString("dd.MM.yyyy"))
                 } else { $messages += "Срок учётки: неверный формат даты"; $hasError = $true }
@@ -687,7 +768,7 @@ function Show-CreateUserDialog {
                 <TextBox x:Name="GenPassView" Style="{StaticResource DlgTextBox}" IsReadOnly="True" Margin="0,0,0,8"/>
                 <StackPanel Orientation="Horizontal">
                     <Button Content="Стандарт" x:Name="GenPasswordBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль 14 символов, сразу копируется в буфер"/>
-                    <Button Content="Простой" x:Name="GenEasyBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Простой пароль (admin, 123456...), сразу копируется в буфер"/>
+                    <Button Content="Простой" x:Name="GenEasyBtn" Style="{StaticResource DlgBtnSecondary}" Margin="0,0,8,0" ToolTip="Случайный пароль без символов, сразу копируется в буфер"/>
                     <Button Content="Копировать" x:Name="CopyPassBtn" Style="{StaticResource DlgBtnSecondary}" ToolTip="Скопировать пароль в буфер обмена"/>
                 </StackPanel>
             </StackPanel>
@@ -851,6 +932,7 @@ function Show-CreateUserDialog {
                 if ([string]::IsNullOrWhiteSpace($expText)) { throw "Включите срок: укажите дату (дд.мм.гггг) или снимите галочку" }
                 $expDt = [DateTime]::MinValue
                 if (-not [DateTime]::TryParseExact($expText, "dd.MM.yyyy", $null, "None", [ref]$expDt)) { throw "Неверный формат даты (нужно дд.мм.гггг)" }
+                if ($expDt.Date -le (Get-Date).Date) { throw "Дата окончания должна быть в будущем" }
                 $params.AccountExpires = $expDt
             } else {
                 $params.AccountNeverExpires = $true
@@ -859,14 +941,15 @@ function Show-CreateUserDialog {
             New-LocalUser @params -ErrorAction Stop | Out-Null
             Write-Log "✓ Пользователь '$name' создан" -Color "Green"
             $wantsAdmin = [bool]$newUserRoleAdminRadio.IsChecked
-            $groupName = if ($wantsAdmin) { "Администраторы" } else { "Пользователи" }
-            if (-not (Get-LocalGroup -Name $groupName -ErrorAction SilentlyContinue)) {
-                $groupName = if ($wantsAdmin) { "Administrators" } else { "Users" }
-            }
+            $groupName = if ($wantsAdmin) { Get-AdministratorGroupName } else { $null }
+            if (-not $wantsAdmin) { $groupName = $null; try { $groupName = (Get-LocalGroup -SID 'S-1-5-32-545' -ErrorAction Stop).Name } catch { foreach ($g in @('Пользователи','Users')) { if (Get-LocalGroup -Name $g -ErrorAction SilentlyContinue) { $groupName = $g; break } } } }
+            $partialFailure = $false
             try {
+                if ([string]::IsNullOrWhiteSpace($groupName)) { throw 'Группа пользователей не найдена' }
                 Add-LocalGroupMember -Group $groupName -Member $name -ErrorAction Stop
                 Write-Log "✓ '$name' добавлен в группу '$groupName'" -Color "Green"
             } catch {
+                $partialFailure = $true
                 Write-Log "⚠ Не удалось добавить '$name' в группу '$groupName': $_" -Color "Yellow"
             }
             if ([bool]$newUserRdpChk.IsChecked) {
@@ -875,14 +958,21 @@ function Show-CreateUserDialog {
                     if ($rdpGroup) {
                         Add-LocalGroupMember -Group $rdpGroup -Member $name -ErrorAction Stop
                         Write-Log "'$name': RDP доступ выдан ($rdpGroup)" -Color "Green"
-                    } else { Write-Log "RDP группа не найдена" -Color "Yellow" }
-                } catch { Write-Log ("RDP: " + $_) -Color "Yellow" }
+                    } else { $partialFailure = $true; Write-Log "RDP группа не найдена" -Color "Yellow" }
+                } catch { $partialFailure = $true; Write-Log ("RDP: " + $_) -Color "Yellow" }
             }
-            $createUserStatusText.Text = "✓ Пользователь '$name' успешно создан"
-            $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+            if ($partialFailure) {
+                $createUserStatusText.Text = "⚠ Пользователь создан, но назначение групп выполнено не полностью"
+                $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+            } else {
+                $createUserStatusText.Text = "✓ Пользователь '$name' успешно создан"
+                $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#2ecc71")
+            }
             Build-UsersPanel
-            Start-Sleep -Milliseconds 600
-            $dlg.Close()
+            if (-not $partialFailure) {
+                Start-Sleep -Milliseconds 600
+                $dlg.Close()
+            }
         } catch {
             $createUserStatusText.Text = "✗ Ошибка создания: $_"
             $createUserStatusText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#e74c3c")

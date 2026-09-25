@@ -19,12 +19,23 @@ try {
         try { Set-ItemProperty -Path $i.PSPath -Name "NetbiosOptions" -Value 0 -Type DWord -Force; $n++ } catch {}
     }
     Del-Prop "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad" "WpadOverride"
+    $dnsFailed = 0
     try {
-        Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' } | ForEach-Object {
-            try { Set-DnsClientServerAddress -InterfaceIndex $_.ifIndex -ResetServerAddresses -ErrorAction Stop } catch {}
+        $dnsAdapters = @(Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' })
+        foreach ($adapter in $dnsAdapters) {
+            try { Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ResetServerAddresses -ErrorAction Stop }
+            catch { $dnsFailed++; Write-Output ("[!] DNS для " + $adapter.Name + ": " + $_) }
         }
-        Write-Output "[*] DNS возвращён на авто (DHCP)."
-    } catch {}
+        if ($dnsAdapters.Count -eq 0) { Write-Output "[=] Активных адаптеров нет; DNS не менялся." }
+        elseif ($dnsFailed -eq 0) { Write-Output "[*] DNS возвращён на авто (DHCP)." }
+    } catch {
+        $dnsFailed++
+        Write-Output ("[!] DNS: " + $_)
+    }
+    if ($dnsFailed -gt 0) {
+        Write-Output ("[X] Сеть откатана частично; ошибок DNS: " + $dnsFailed)
+        exit 1
+    }
     Write-Output ("[OK] Сеть как была (" + $n + " инт.). SMBv1 специально НЕ включаю - это дыра.")
     exit 0
 } catch {

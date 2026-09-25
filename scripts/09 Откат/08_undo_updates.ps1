@@ -14,37 +14,70 @@ try {
     Start-Service wuauserv -ErrorAction SilentlyContinue
     Write-Output "[*] Блок больших версий снят."
 
-    # Метку ищем по всем профилям: откат идёт из-под админа, а ставил обычный юзер
-    $markers = @()
+    $marker = $null
     try {
-        $markers += @(Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-            Join-Path $_.FullName "AppData\Local\PotatoPC\winget-by-potatopc.txt"
-        } | Where-Object { Test-Path -LiteralPath $_ })
-        $own = Join-Path $env:LOCALAPPDATA "PotatoPC\winget-by-potatopc.txt"
-        if ((Test-Path -LiteralPath $own) -and ($markers -notcontains $own)) { $markers += $own }
+        $key = 'HKLM:\SOFTWARE\PotatoPC'
+        if (Test-Path -LiteralPath $key) { $marker = Get-ItemProperty -LiteralPath $key -Name 'WingetInstalledByPotatoPC' -ErrorAction SilentlyContinue }
     } catch {}
-    if (@($markers).Count -gt 0) {
+    $hasPotatoMarker = ($null -ne $marker -and -not [string]::IsNullOrWhiteSpace([string]$marker.WingetInstalledByPotatoPC))
+    $appxFailed = $false
+    if ($hasPotatoMarker) {
         Write-Output "[*] Winget ставил PotatoPC — сношу начисто..."
         $removed = $false
-        foreach ($p in @(Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -AllUsers -ErrorAction SilentlyContinue)) {
+        try {
+            $pkgs = @(Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -AllUsers -ErrorAction Stop)
+        } catch {
+            $appxFailed = $true
+            $pkgs = @()
+            Write-Output ("[!] Пакеты AppX не прочитались: " + $_)
+        }
+        foreach ($p in $pkgs) {
             try {
                 Remove-AppxPackage -Package $p.PackageFullName -AllUsers -ErrorAction Stop
                 Write-Output ("[*] Снесён пакет: " + $p.PackageFullName)
                 $removed = $true
-            } catch { Write-Output ("[!] Пакет не снесся: " + $_) }
+            } catch {
+                $appxFailed = $true
+                Write-Output ("[!] Пакет не снесся: " + $_)
+            }
         }
-        foreach ($prov in @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq "Microsoft.DesktopAppInstaller" })) {
+        try {
+            $provs = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq "Microsoft.DesktopAppInstaller" })
+        } catch {
+            $appxFailed = $true
+            $provs = @()
+            Write-Output ("[!] Пакеты образа не прочитались: " + $_)
+        }
+        foreach ($prov in $provs) {
             try {
                 Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop
                 Write-Output "[*] Убран из образа системы."
                 $removed = $true
-            } catch { Write-Output ("[!] Из образа не убрался: " + $_) }
+            } catch {
+                $appxFailed = $true
+                Write-Output ("[!] Из образа не убрался: " + $_)
+            }
+        }
+        try {
+            $remaining = @(Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -AllUsers -ErrorAction Stop)
+            $remaining += @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq "Microsoft.DesktopAppInstaller" })
+            if ($remaining.Count -gt 0) { throw "часть пакетов AppX осталась" }
+        } catch {
+            $appxFailed = $true
+            Write-Output ("[!] Проверка AppX не пройдена: " + $_)
         }
         if (-not $removed) { Write-Output "[=] Пакета уже нет (снесён вручную?)." }
-        foreach ($m in @($markers)) { try { Remove-Item -LiteralPath $m -Force -ErrorAction SilentlyContinue } catch {} }
+        if (-not $appxFailed) {
+            try { Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\PotatoPC' -Name 'WingetInstalledByPotatoPC' -Force -ErrorAction Stop }
+            catch { $appxFailed = $true; Write-Output ("[!] Системную метку не удалил: " + $_) }
+        }
     } else {
         Write-Output "[=] Winget ставил не PotatoPC (встроен или вручную) — не трогаю."
         Write-Output "[*] Удалить вручную при желании: Параметры -> Приложения -> Установщик приложений."
+    }
+    if ($appxFailed) {
+        Write-Output "[X] Обновления откачены частично."
+        exit 1
     }
     Write-Output "[OK] Обновления как были."
     exit 0

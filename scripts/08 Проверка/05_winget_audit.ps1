@@ -18,17 +18,41 @@ function Invoke-WithTimeout {
     try { $p = [System.Diagnostics.Process]::Start($psi) }
     catch { return @{ Ok = $false; TimedOut = $false; Out = ""; Code = -1 } }
     try {
+        $outTask = $null; $errTask = $null
+        try { $outTask = $p.StandardOutput.ReadToEndAsync() } catch {}
+        try { $errTask = $p.StandardError.ReadToEndAsync() } catch {}
         if (-not $p.WaitForExit($TimeoutSec * 1000)) {
             try { $p.Kill() } catch {}
             try { $p.WaitForExit(5000) } catch {}
             return @{ Ok = $false; TimedOut = $true; Out = ""; Code = -1 }
         }
-        $o = ""
-        try { $o = $p.StandardOutput.ReadToEnd() } catch {}
+        $o = ''; $e = ''
+        try { if ($outTask -and $outTask.Wait(2000)) { $o = [string]$outTask.Result } } catch {}
+        try { if ($errTask -and $errTask.Wait(2000)) { $e = [string]$errTask.Result } } catch {}
         $c = 0
         try { $c = $p.ExitCode } catch {}
-        return @{ Ok = ($c -eq 0); TimedOut = $false; Out = [string]$o; Code = $c }
+        return @{ Ok = ($c -eq 0); TimedOut = $false; Out = [string]$o; Error = [string]$e; Code = $c }
     } finally { try { $p.Dispose() } catch {} }
+}
+
+function Test-TrustedWingetAuditPath {
+    param([string]$Path)
+    try {
+        $full = [System.IO.Path]::GetFullPath($Path)
+        $root = [System.IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'WindowsApps')).TrimEnd('\')
+        if (-not $full.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+        $i = Get-Item -LiteralPath $full -Force -ErrorAction Stop
+        if ($i.PSIsContainer -or (($i.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { return $false }
+        $s = Get-AuthenticodeSignature -LiteralPath $full -ErrorAction Stop
+        return [bool]($s.Status -eq 'Valid' -and [string]$s.SignerCertificate.Subject -match '(?i)Microsoft')
+    } catch { return $false }
+}
+
+function Get-TrustedWingetAuditPath {
+    $c = @()
+    try { foreach ($p in @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller -ErrorAction Stop)) { if ($p.InstallLocation) { $c += (Join-Path ([string]$p.InstallLocation) 'winget.exe') } } } catch {}
+    foreach ($p in $c) { if (Test-TrustedWingetAuditPath -Path $p) { return $p } }
+    return ''
 }
 
 try {
@@ -36,7 +60,8 @@ try {
     Write-Output "[1/6] Команда:"
     try {
         $cmd = Get-Command winget -ErrorAction Stop
-        Write-Output ("[*] winget найден: " + $cmd.Source)
+        if (Test-TrustedWingetAuditPath -Path $cmd.Source) { Write-Output ("[*] Проверенный winget найден: " + $cmd.Source) }
+        else { Write-Output ("[!] PATH-ссылка не доверена: " + $cmd.Source) }
     } catch { Write-Output "[!] winget НЕТ в PATH." }
 
     Write-Output "[2/6] Пакет AppX:"
@@ -76,11 +101,10 @@ try {
     )) {
         Write-Output ("[*] " + $d + " есть: " + (Test-Path -LiteralPath $d))
     }
-    $mk = Join-Path $env:LOCALAPPDATA "PotatoPC\winget-by-potatopc.txt"
-    if (Test-Path -LiteralPath $mk) {
-        try { Write-Output ("[*] Метка PotatoPC: " + (Get-Content -LiteralPath $mk -Raw -Encoding UTF8).Trim()) }
-        catch { Write-Output "[*] Метка PotatoPC есть (не прочиталась)." }
-    } else { Write-Output "[*] Метки PotatoPC нет (ставил не наш скрипт или вручную)." }
+    $marker = $null
+    try { if (Test-Path -LiteralPath 'HKLM:\SOFTWARE\PotatoPC') { $marker = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\PotatoPC' -Name 'WingetInstalledByPotatoPC' -ErrorAction SilentlyContinue } } catch {}
+    if ($marker) { Write-Output ("[*] Метка PotatoPC: " + [string]$marker.WingetInstalledByPotatoPC) }
+    else { Write-Output "[*] Метки PotatoPC нет (ставил не наш скрипт или вручную)." }
     foreach ($fw in @("Microsoft.VCLibs", "Microsoft.UI.Xaml")) {
         try {
             $f = Get-AppxPackage -Name ($fw + "*") -ErrorAction Stop | Select-Object -First 1
@@ -90,16 +114,20 @@ try {
     }
 
     Write-Output "[6/6] Запуск и источники:"
-    $wr = Invoke-WithTimeout -Exe "winget" -Arguments "--version" -TimeoutSec 25
-    if ($wr.TimedOut) { Write-Output "[!] winget --version ВИСИТ (убит по таймауту 25с)." }
-    elseif (-not $wr.Ok) { Write-Output ("[!] winget --version код " + $wr.Code + " (нет winget или сломан).") }
+    $auditWg = Get-TrustedWingetAuditPath
+    if ([string]::IsNullOrWhiteSpace($auditWg)) { Write-Output "[!] Проверенный winget.exe не найден." }
     else {
-        Write-Output ("[*] Версия: " + $wr.Out.Trim())
-        $sr = Invoke-WithTimeout -Exe "winget" -Arguments "source list" -TimeoutSec 60
-        if ($sr.TimedOut) { Write-Output "[!] winget source list ВИСИТ." }
-        elseif ($sr.Ok) {
-            foreach ($ln in ($sr.Out -split "`r?`n" | Where-Object { $_ -match '\S' })) { Write-Output ("    " + $ln.Trim()) }
-        } else { Write-Output ("[!] winget source list код " + $sr.Code) }
+        $wr = Invoke-WithTimeout -Exe $auditWg -Arguments "--version" -TimeoutSec 25
+        if ($wr.TimedOut) { Write-Output "[!] winget --version ВИСИТ (убит по таймауту 25с)." }
+        elseif (-not $wr.Ok) { Write-Output ("[!] winget --version код " + $wr.Code + " (нет winget или сломан).") }
+        else {
+            Write-Output ("[*] Версия: " + $wr.Out.Trim())
+            $sr = Invoke-WithTimeout -Exe $auditWg -Arguments "source list" -TimeoutSec 60
+            if ($sr.TimedOut) { Write-Output "[!] winget source list ВИСИТ." }
+            elseif ($sr.Ok) {
+                foreach ($ln in ($sr.Out -split "`r?`n" | Where-Object { $_ -match '\S' })) { Write-Output ("    " + $ln.Trim()) }
+            } else { Write-Output ("[!] winget source list код " + $sr.Code) }
+        }
     }
     Write-Output "[OK] Аудит закончен, ничего не менялось."
     exit 0

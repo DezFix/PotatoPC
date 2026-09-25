@@ -22,7 +22,9 @@ try {
     Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" -Name "Win32PrioritySeparation" -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue
 
     Write-Output "[*] Возвращаю питание и рекламу..."
-    powercfg /setactive 381b4222-f694-41f0-9685-ff5bb260df2e 2>$null | Out-Null
+    $out = & powercfg /setactive 381b4222-f694-41f0-9685-ff5bb260df2e 2>&1
+    $code = $LASTEXITCODE
+    if ($code -ne 0) { throw ("powercfg /setactive: код " + $code + "; " + (($out | Out-String).Trim())) }
     Set-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo" -Name "Enabled" -Value 1 -Force -ErrorAction SilentlyContinue
     $cdm = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
     foreach ($n in @("ContentDeliveryAllowed","SubscribedContent-338387Enabled","SubscribedContent-338388Enabled","SubscribedContent-338389Enabled","SystemPaneSuggestionsEnabled","SilentInstalledAppsEnabled")) {
@@ -32,8 +34,14 @@ try {
     Set-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Privacy" -Name "TailoredExperiencesWithDiagnosticDataEnabled" -Value 1 -Force -ErrorAction SilentlyContinue
 
     Write-Output "[*] Возвращаю игры, виджеты и вход..."
-    Set-ItemProperty "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" -Name "AppCaptureEnabled" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
-    Set-ItemProperty "HKCU:\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+    $g = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR"
+    if (-not (Test-Path $g)) { New-Item -Path $g -Force | Out-Null }
+    Set-ItemProperty -Path $g -Name "AppCaptureEnabled" -Value 1 -Type DWord -Force -ErrorAction Stop
+    if ([int](Get-ItemProperty -Path $g -Name "AppCaptureEnabled" -ErrorAction Stop).AppCaptureEnabled -ne 1) { throw "AppCaptureEnabled не восстановлен" }
+    $c = "HKCU:\System\GameConfigStore"
+    if (-not (Test-Path $c)) { New-Item -Path $c -Force | Out-Null }
+    Set-ItemProperty -Path $c -Name "GameDVR_Enabled" -Value 1 -Type DWord -Force -ErrorAction Stop
+    if ([int](Get-ItemProperty -Path $c -Name "GameDVR_Enabled" -ErrorAction Stop).GameDVR_Enabled -ne 1) { throw "GameDVR_Enabled не восстановлен" }
     Del-Prop "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" "AllowGameDVR"
     Set-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
     Del-Prop "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" "AllowNewsAndInterests"

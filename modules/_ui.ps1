@@ -78,6 +78,13 @@ function Initialize-Controls {
         SelectAllScanBtn      = "SelectAllScanBtn"
         DeselectAllScanBtn    = "DeselectAllScanBtn"
         QuarantineBtn         = "QuarantineBtn"
+        RestoreQuarantineBtn  = "RestoreQuarantineBtn"
+        RollbackPanel         = "RollbackPanel"
+        RollbackCountText     = "RollbackCountText"
+        RollbackFolderText    = "RollbackFolderText"
+        SelectAllRollbackBtn  = "SelectAllRollbackBtn"
+        DeselectAllRollbackBtn= "DeselectAllRollbackBtn"
+        RunRollbackBtn        = "RunRollbackBtn"
         UsersPanel          = "UsersPanel"
         RefreshUsersBtn     = "RefreshUsersBtn"
         AddUserBtn          = "AddUserBtn"
@@ -96,8 +103,12 @@ function Initialize-Controls {
         NavUpdatesBtn       = "NavUpdatesBtn"
         NavCleanBtn         = "NavCleanBtn"
         NavProtectBtn       = "NavProtectBtn"
-        NavDiagBtn          = "NavDiagBtn"
+        NavDiagBtn           = "NavDiagBtn"
         NavSysBtn           = "NavSysBtn"
+        NavRollbackBtn       = "NavRollbackBtn"
+        NavRollbackIcon      = "NavRollbackIcon"
+        NavDashBtn          = "NavDashBtn"
+        NavDashIcon         = "NavDashIcon"
         HeaderTitleText     = "HeaderTitleText"
         HeaderSubtitleText  = "HeaderSubtitleText"
         SideStatusText      = "SideStatusText"
@@ -246,13 +257,14 @@ $script:NavTitles = @(
     @{ Title = "Очистка";      Sub = "Мусор и кэши" },
     @{ Title = "Защита";       Sub = "Проверка на вирусы" },
     @{ Title = "Тест системы"; Sub = "Диагностика в фоне" },
-    @{ Title = "О системе";    Sub = "Железо, ОС, диски" }
+    @{ Title = "О системе";    Sub = "Железо, ОС, диски" },
+    @{ Title = "Откаты";       Sub = "Модуль отката изменений" }
 )
 
 function Set-ActiveNav {
     param([int]$Index)
     try {
-        $btns = @($NavModulesBtn, $NavStartupBtn, $NavUsersBtn, $NavAppsBtn, $NavUpdatesBtn, $NavCleanBtn, $NavProtectBtn, $NavDiagBtn, $NavSysBtn)
+        $btns = @($NavModulesBtn, $NavStartupBtn, $NavUsersBtn, $NavAppsBtn, $NavUpdatesBtn, $NavCleanBtn, $NavProtectBtn, $NavDiagBtn, $NavSysBtn, $NavRollbackBtn)
         $activeBg = Get-ThemeBrush "#32323e"
         $activeFg = Get-ThemeBrush "#ffffff"
         $idleFg   = Get-ThemeBrush "#b8b8d0"
@@ -264,6 +276,15 @@ function Set-ActiveNav {
             } else {
                 $btns[$i].ClearValue([System.Windows.Controls.Control]::BackgroundProperty)
                 $btns[$i].Foreground = $idleFg
+            }
+        }
+        if ($NavDashBtn) {
+            if ($Index -eq 10) {
+                $NavDashBtn.Background = $activeBg
+                $NavDashBtn.Foreground = $activeFg
+            } else {
+                try { $NavDashBtn.ClearValue([System.Windows.Controls.Control]::BackgroundProperty) } catch {}
+                $NavDashBtn.Foreground = $idleFg
             }
         }
         if ($MainTabControl -and $Index -ge 0 -and $Index -lt $MainTabControl.Items.Count) {
@@ -304,6 +325,15 @@ function Update-HeaderCount {
             4 {
                 $c = @($script:UpdateCheckboxes.Values | Where-Object { $_.IsChecked }).Count
                 $selectedCountText.Text = if ($script:UpdateCheckboxes.Count -gt 0) { "Выбрано: $c" } else { "" }
+            }
+            9 {
+                $c = 0
+                $t = 0
+                try {
+                    $c = @($script:RollbackCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+                    $t = $script:RollbackCheckboxes.Count
+                } catch {}
+                $selectedCountText.Text = if ($t -gt 0) { "Выбрано: $c из $t" } else { "" }
             }
             default { $selectedCountText.Text = "" }
         }

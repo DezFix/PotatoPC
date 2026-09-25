@@ -52,9 +52,6 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
             New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) -Force | Out-Null
             if ($dlAttempt -eq 1) { Write-Host "Downloading PotatoPC Optimizer..." -ForegroundColor Cyan }
             else { Write-Host "Re-downloading PotatoPC Optimizer (attempt 2)..." -ForegroundColor Yellow }
-            Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-                try { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } catch {}
-            }
             Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
             try {
                 Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force -ErrorAction Stop
@@ -113,9 +110,10 @@ $needNames = @("LogOutput","TaskProgressBar","ScriptsPanel","AppsPanel","SysPane
     "StartupFilterAllBtn","StartupFilterAppBtn","StartupFilterTaskBtn","StartupCountText","StartupSelectedText",
     "StartupSearchBox","CleanPanel","CleanFilterRow","CleanScanBtn","SelectAllCleanBtn","DeselectAllCleanBtn","CleanBtn",
     "CleanStatusText","CleanCountText","ProtectPanel","ProtectStatusText","ScanBtn","SelectAllScanBtn","DeselectAllScanBtn",
-    "QuarantineBtn","UsersPanel","RefreshUsersBtn","AddUserBtn","ScriptSearchBox","AppSearchBox",
+    "QuarantineBtn","RestoreQuarantineBtn","RollbackPanel","RollbackCountText","RollbackFolderText","SelectAllRollbackBtn","DeselectAllRollbackBtn","RunRollbackBtn",
+    "UsersPanel","RefreshUsersBtn","AddUserBtn","ScriptSearchBox","AppSearchBox",
     "ToolsBtn","AdminBtn","NavModulesBtn","NavStartupBtn","NavUsersBtn","NavAppsBtn","NavUpdatesBtn","NavCleanBtn",
-    "NavProtectBtn","NavDiagBtn","NavSysBtn","HeaderTitleText","HeaderSubtitleText","SideStatusText")
+    "NavProtectBtn","NavDiagBtn","NavSysBtn","NavRollbackBtn","NavRollbackIcon","NavDashBtn","HeaderTitleText","HeaderSubtitleText","SideStatusText")
 $missNames = @($needNames | Where-Object { -not $window.FindName($_) })
 if ($missNames.Count -gt 0) {
     throw ("XAML outdated, missing controls: " + ($missNames -join ", ") + ". Delete $env:TEMP\PotatoPC and relaunch.")
@@ -142,13 +140,14 @@ try {
 # v6 bindings: chrome, pages, search, dashboard (shared modules untouched)
 . (Join-Path $script:ModuleDir "_ui_v6.ps1")
 
-# --- Restore saved UI state (tabs 0-8 + dashboard 9; console always starts collapsed) ---
+# --- Restore saved UI state (tabs 0-10; console state restored when saved) ---
 $script:LogHeight = 150
 $script:LogState  = $false
 $ui = Get-UIState
 if ($ui) {
     try {
         if ($ui.LogHeight -ge 60 -and $ui.LogHeight -le 600) { $script:LogHeight = [double]$ui.LogHeight }
+        if ($null -ne $ui.LogExpanded) { $script:LogState = [bool]$ui.LogExpanded }
         if ($null -ne $ui.Width  -and $ui.Width  -ge 500) { $window.Width  = [double]$ui.Width }
         if ($null -ne $ui.Height -and $ui.Height -ge 400) { $window.Height = [double]$ui.Height }
         if ($null -ne $ui.Left -and $null -ne $ui.Top) {
@@ -161,14 +160,16 @@ if ($ui) {
             if ($ui.State -ne "Maximized") { $window.Left = $l; $window.Top = $tp }
         }
         if ($ui.State -eq "Maximized") { $window.WindowState = "Maximized" }
-        if ($null -ne $ui.Tab -and $ui.Tab -ge 0 -and $ui.Tab -le 9) {
-            try { Set-ActiveNav -Index ([int]$ui.Tab) } catch {}
+        $tab = if ($null -ne $ui.Tab) { [int]$ui.Tab } else { -1 }
+        if ($null -eq $ui.UiVersion -and $tab -eq 9) { $tab = 10 }
+        if ($tab -ge 0 -and $tab -le 10) {
+            try { Set-ActiveNav -Index $tab } catch {}
         } else {
-            try { Set-ActiveNav -Index 9 } catch {}
+            try { Set-ActiveNav -Index 10 } catch {}
         }
     } catch {}
 } else {
-    try { Set-ActiveNav -Index 9 } catch {}
+    try { Set-ActiveNav -Index 10 } catch {}
 }
 Set-LogExpanded -Expand $script:LogState -Instant
 try { if ($logSplitter) { $logSplitter.Add_DragDelta({ if ($logRow.Height.Value -gt 32) { $script:LogHeight = $logRow.Height.Value } }) } } catch {}
@@ -208,7 +209,8 @@ try { Update-DashStats } catch { }
 $requiredCommands = @(
     "Run-SelectedScripts", "Stop-SelectedScripts", "Reset-RunButton", "Select-ScriptPreset",
     "Build-ScriptsPanel", "Build-AppsPanel", "Build-SysPanel", "Build-DiagPanel",
-    "Build-UpdatesPanel", "Build-StartupPanel", "Build-UsersPanel", "Build-CleanPanel", "Build-ProtectPanel",
+    "Build-UpdatesPanel",     "Build-StartupPanel", "Build-UsersPanel", "Build-CleanPanel", "Build-ProtectPanel", "Build-RollbackPanel",
+    "Run-SelectedRollbackScripts", "Restore-QuarantinedFiles",
     "New-Card", "New-CategoryHeader", "Set-LogExpanded", "Update-HeaderCount",
     "Get-IconImage", "Get-IconSource", "Initialize-WindowIcons", "New-SectionHeader",
     "Invoke-Async", "Invoke-OnUI", "Set-BgResult", "Get-BgResult",

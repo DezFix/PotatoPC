@@ -7,7 +7,6 @@
 $ErrorActionPreference = "Stop"
 
 function Invoke-WithTimeout {
-    # Запуск с таймаутом: зависший процесс убивается, а не висит вечно.
     param([string]$Exe, [string]$Arguments, [int]$TimeoutSec = 60)
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $Exe
@@ -20,16 +19,20 @@ function Invoke-WithTimeout {
     try { $p = [System.Diagnostics.Process]::Start($psi) }
     catch { return @{ Ok = $false; TimedOut = $false; Out = ""; Code = -1 } }
     try {
+        $outTask = $null; $errTask = $null
+        try { $outTask = $p.StandardOutput.ReadToEndAsync() } catch {}
+        try { $errTask = $p.StandardError.ReadToEndAsync() } catch {}
         if (-not $p.WaitForExit($TimeoutSec * 1000)) {
             try { $p.Kill() } catch {}
             try { $p.WaitForExit(5000) } catch {}
             return @{ Ok = $false; TimedOut = $true; Out = ""; Code = -1 }
         }
-        $o = ""
-        try { $o = $p.StandardOutput.ReadToEnd() } catch {}
+        $o = ''; $e = ''
+        try { if ($outTask -and $outTask.Wait(2000)) { $o = [string]$outTask.Result } } catch {}
+        try { if ($errTask -and $errTask.Wait(2000)) { $e = [string]$errTask.Result } } catch {}
         $c = 0
         try { $c = $p.ExitCode } catch {}
-        return @{ Ok = ($c -eq 0); TimedOut = $false; Out = [string]$o; Code = $c }
+        return @{ Ok = ($c -eq 0); TimedOut = $false; Out = [string]$o; Error = [string]$e; Code = $c }
     } finally { try { $p.Dispose() } catch {} }
 }
 
@@ -59,14 +62,52 @@ function Install-AppxWithTimeout {
     Invoke-AppxJob -Code { param($p) Add-AppxPackage -Path $p -ForceApplicationShutdown -ErrorAction Stop } -TimeoutSec $TimeoutSec -What ("установка " + (Split-Path $Path -Leaf)) -JobArgs @($Path) | Out-Null
 }
 
+function Test-TrustedWingetPath {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    try {
+        $full = [System.IO.Path]::GetFullPath($Path)
+        $root = [System.IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'WindowsApps')).TrimEnd('\')
+        if (-not $full.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+        $item = Get-Item -LiteralPath $full -Force -ErrorAction Stop
+        if ($item.PSIsContainer -or (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { return $false }
+        $sig = Get-AuthenticodeSignature -LiteralPath $full -ErrorAction Stop
+        return [bool]($sig.Status -eq 'Valid' -and [string]$sig.SignerCertificate.Subject -match '(?i)Microsoft')
+    } catch { return $false }
+}
+
+function Get-TrustedWingetPath {
+    $candidates = @()
+    try { foreach ($p in @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller -AllUsers -ErrorAction Stop)) { if ($p.InstallLocation) { $candidates += (Join-Path ([string]$p.InstallLocation) 'winget.exe') } } } catch {}
+    $candidates += "$env:ProgramFiles\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
+    foreach ($candidate in $candidates) {
+        if ($candidate -like '*`*') {
+            try { $found = Get-ChildItem -Path $candidate -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1; if ($found -and (Test-TrustedWingetPath -Path $found.FullName)) { return $found.FullName } } catch {}
+        } elseif (Test-TrustedWingetPath -Path $candidate) { return $candidate }
+    }
+    return ''
+}
+
+function Get-WingetTrustState {
+    $packageFound = $false
+    try {
+        $packages = @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller -AllUsers -ErrorAction Stop)
+        $packageFound = ($packages.Count -gt 0)
+    } catch { return [pscustomobject]@{ State = 'Error'; Path = ''; Error = $_.Exception.Message } }
+    $path = Get-TrustedWingetPath
+    if (-not [string]::IsNullOrWhiteSpace($path)) { return [pscustomobject]@{ State = 'Trusted'; Path = $path; Error = '' } }
+    if ($packageFound) { return [pscustomobject]@{ State = 'Error'; Path = ''; Error = 'Установленный winget не прошёл проверку подписи' } }
+    return [pscustomobject]@{ State = 'Missing'; Path = ''; Error = '' }
+}
+
 function Get-WingetVersion {
-    # Версия с таймаутом: сломанный winget вешает обычный вызов навсегда.
     param([int]$TimeoutSec = 25)
     try {
-        $cmd = Get-Command winget -ErrorAction Stop
-        $r = Invoke-WithTimeout -Exe $cmd.Source -Arguments "--version" -TimeoutSec $TimeoutSec
+        $exe = Get-TrustedWingetPath
+        if ([string]::IsNullOrWhiteSpace($exe)) { return "" }
+        $r = Invoke-WithTimeout -Exe $exe -Arguments "--version" -TimeoutSec $TimeoutSec
         if ($r.Ok -and -not [string]::IsNullOrWhiteSpace($r.Out)) { return $r.Out.Trim() }
-        if ($r.TimedOut) { Write-Output "[!] winget висит — буду сносить." }
+        if ($r.TimedOut) { Write-Verbose "winget завис — будет сброшен." }
     } catch {}
     return ""
 }
@@ -109,18 +150,18 @@ function Repair-WingetSources {
     # Чинит источники: update, при неудаче — сброс двух штатных + update.
     param([string]$Wg)
     $r = Invoke-WithTimeout -Exe $Wg -Arguments "source update" -TimeoutSec 120
-    if ($r.Ok) { Write-Output "[*] Источники обновлены."; return $true }
-    if ($r.TimedOut) { Write-Output "[!] Источники зависли — сбрасываю штатные..." }
-    else { Write-Output "[*] Источники битые — сбрасываю штатные..." }
+    if ($r.Ok) { Write-Host "[*] Источники обновлены."; return $true }
+    if ($r.TimedOut) { Write-Host "[!] Источники зависли — сбрасываю штатные..." }
+    else { Write-Host "[*] Источники битые — сбрасываю штатные..." }
     foreach ($s in @("msstore", "winget")) {
         try {
             $rr = Invoke-WithTimeout -Exe $Wg -Arguments ("source reset " + $s + " --force") -TimeoutSec 60
-            if ($rr.TimedOut) { Write-Output ("[!] Сброс $s завис — пропускаю.") }
+            if ($rr.TimedOut) { Write-Host ("[!] Сброс $s завис — пропускаю.") }
         } catch {}
     }
     $r2 = Invoke-WithTimeout -Exe $Wg -Arguments "source update" -TimeoutSec 120
-    if ($r2.Ok) { Write-Output "[*] Источники обновлены после сброса."; return $true }
-    Write-Output "[!] Источники не чинятся."
+    if ($r2.Ok) { Write-Host "[*] Источники обновлены после сброса."; return $true }
+    Write-Host "[!] Источники не чинятся."
     return $false
 }
 
@@ -164,19 +205,21 @@ function Remove-WingetClean {
 function Write-WingetMarker {
     param([string]$Ver)
     try {
-        $md = Join-Path $env:LOCALAPPDATA "PotatoPC"
-        if (-not (Test-Path $md)) { New-Item -ItemType Directory -Path $md -Force | Out-Null }
-        ("winget $Ver installed by PotatoPC " + (Get-Date -Format "yyyy-MM-dd HH:mm")) | Out-File -LiteralPath (Join-Path $md "winget-by-potatopc.txt") -Encoding UTF8 -Force
-    } catch {}
+        $key = 'HKLM:\SOFTWARE\PotatoPC'
+        if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+        New-ItemProperty -LiteralPath $key -Name 'WingetInstalledByPotatoPC' -PropertyType String -Value ("$Ver|" + (Get-Date -Format "yyyy-MM-dd HH:mm")) -Force | Out-Null
+    } catch { throw ("Не удалось записать системную метку установки: " + $_) }
 }
 
 try {
     Write-Output "[1/7] Проверяю текущий winget..."
+    $trustState = Get-WingetTrustState
+    if ($trustState.State -eq 'Error') { throw ("Проверка winget не выполнена: " + $trustState.Error) }
     $cur = Get-WingetVersion -TimeoutSec 25
     if ($cur) {
         Write-Output ("[*] Winget отзывается: " + $cur + ". Проверяю источники...")
-        $wgSrc = (Get-Command winget -ErrorAction Stop).Source
-        if (Repair-WingetSources -Wg $wgSrc) {
+        $wgSrc = Get-TrustedWingetPath
+        if (-not [string]::IsNullOrWhiteSpace($wgSrc) -and (Repair-WingetSources -Wg $wgSrc)) {
             Write-Output ("[OK] Winget в порядке: " + $cur)
             exit 0
         }
@@ -258,24 +301,16 @@ try {
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 
     Write-Output "[6/7] Проверяю установку..."
+    $finalTrust = Get-WingetTrustState
+    if ($finalTrust.State -ne 'Trusted') { throw ("Установленный winget не прошёл проверку: " + $finalTrust.Error) }
     $okV = Get-WingetVersion -TimeoutSec 40
     if ([string]::IsNullOrWhiteSpace($okV)) {
-        try {
-            $pv = Invoke-AppxJob -Code { Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -ErrorAction Stop | Select-Object -First 1 | Select-Object -ExpandProperty Version } -TimeoutSec 60 -What "проверка пакета"
-            if ($pv) { $okV = "пакет " + [string]$pv }
-        } catch { Write-Output ("[!] Проверка пакета: " + $_) }
-    }
-    if ([string]::IsNullOrWhiteSpace($okV)) {
-        Write-Output "[X] Поставил, но winget не отзывается — перезайди в систему и проверь командой winget."
-        Write-Output "[*] Если снова глухо — ставь «App Installer» из Microsoft Store вручную."
+        Write-Output "[X] Поставил, но проверенный winget не отвечает — перезайди в систему и проверь вручную."
         exit 1
     }
     Write-WingetMarker -Ver $okV
     Write-Output "[7/7] Настраиваю источники..."
-    try {
-        $wg2 = (Get-Command winget -ErrorAction Stop).Source
-        [void](Repair-WingetSources -Wg $wg2)
-    } catch {}
+    try { [void](Repair-WingetSources -Wg ([string]$finalTrust.Path)) } catch {}
     Write-Output ("[OK] Winget готов: " + $okV)
     exit 0
 } catch {

@@ -1,5 +1,5 @@
 ﻿# NAME: 07 · Отключить Recall — скриншоты для ИИ (Win11)
-# DESC: Блокирует политиками AllowRecallEnablement=0: Windows не делает постоянные снимки экрана. Только Win11 24H2+
+# DESC: Блокирует политиками AllowRecallEnablement=0: Windows не делает постоянные снимки экрана. Только Win11 24H2+ (build 26100+)
 # TAGS: 1,win11
 # ICON: 🪟
 # PRESET: potato, office, game
@@ -7,8 +7,13 @@
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
-    $build = [int](Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuildNumber
-    if ($build -lt 22000) { Write-Output "[=] Не Win11, пропускаю."; exit 0 }
+    $cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction Stop
+    $build = [int]$cv.CurrentBuildNumber
+    $displayVersion = [string]$cv.DisplayVersion
+    if ($build -lt 26100) {
+        Write-Output ("[=] Recall доступен только в Windows 11 24H2+ (build 26100+); текущая версия: " + $displayVersion + " (build " + $build + ").")
+        exit 0
+    }
 
     $pols = @(
         @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot"; Name = "TurnOffWindowsCopilot"; Value = 1 },
@@ -19,7 +24,7 @@ try {
         if (-not (Test-Path $r.Path)) { New-Item -Path $r.Path -Force | Out-Null }
         Set-ItemProperty -Path $r.Path -Name $r.Name -Value $r.Value -Type DWord -Force
     }
-    Write-Output "[OK] Recall заблокирован политиками."
+    Write-Output ("[OK] Recall заблокирован политиками (" + $displayVersion + ", build " + $build + ").")
     exit 0
 } catch {
     Write-Output ("[X] Ошибка: " + $_)

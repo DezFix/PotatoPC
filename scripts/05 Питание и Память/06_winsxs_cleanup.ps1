@@ -7,9 +7,13 @@
 $ErrorActionPreference = "Stop"
 try {
     Write-Output "[*] Запускаю DISM-чистку (долго, жди)..."
-    $out = dism /Online /Cleanup-Image /StartComponentCleanup 2>&1 | Out-String
-    Write-Output $out
-    Write-Output "[OK] WinSxS почищен."
+    $out = & dism /Online /Cleanup-Image /StartComponentCleanup 2>&1
+    $code = $LASTEXITCODE
+    $text = ($out | Out-String)
+    Write-Output $text
+    if ($code -notin @(0, 3010)) { throw ("DISM: код " + $code + "; " + $text.Trim()) }
+    if ($code -eq 3010) { Write-Output "[=] WinSxS почищен, требуется перезагрузка." }
+    else { Write-Output "[OK] WinSxS почищен." }
     exit 0
 } catch {
     Write-Output ("[X] Ошибка: " + $_)

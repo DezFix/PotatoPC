@@ -7,10 +7,20 @@
 $ErrorActionPreference = "Stop"
 try {
     Write-Output "[*] Сбрасываю winsock..."
-    netsh winsock reset | Out-String | Write-Output
+    $out = & netsh winsock reset 2>&1
+    $code = $LASTEXITCODE
+    $text = ($out | Out-String)
+    Write-Output $text
+    if ($code -ne 0) { throw ("netsh winsock reset: код " + $code + "; " + $text.Trim()) }
     Write-Output "[*] Сбрасываю IP-стек..."
-    netsh int ip reset | Out-String | Write-Output
-    try { ipconfig /flushdns 2>&1 | Out-Null } catch {}
+    $out = & netsh int ip reset 2>&1
+    $code = $LASTEXITCODE
+    $text = ($out | Out-String)
+    Write-Output $text
+    if ($code -ne 0) { throw ("netsh int ip reset: код " + $code + "; " + $text.Trim()) }
+    $out = & ipconfig /flushdns 2>&1
+    $code = $LASTEXITCODE
+    if ($code -ne 0) { throw ("ipconfig /flushdns: код " + $code + "; " + (($out | Out-String).Trim())) }
     Write-Output "[OK] Сеть сброшена. ПЕРЕЗАГРУЗИСЬ чтобы применилось."
     exit 0
 } catch {

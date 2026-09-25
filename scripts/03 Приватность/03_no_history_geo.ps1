@@ -17,7 +17,7 @@ try {
     Set-ItemProperty -Path $l -Name "DisableLocation" -Value 1 -Type DWord -Force
     Set-ItemProperty -Path $l -Name "DisableSensors" -Value 1 -Type DWord -Force
 
-    Disable-ScheduledTask -TaskName "\Microsoft\Windows\Maps\MapsUpdateTask" -ErrorAction SilentlyContinue | Out-Null
+    Disable-ScheduledTask -TaskName "MapsUpdateTask" -TaskPath "\Microsoft\Windows\Maps\" -ErrorAction SilentlyContinue | Out-Null
     Write-Output "[OK] История и геолокация выключены."
     exit 0
 } catch {

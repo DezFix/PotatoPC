@@ -1,5 +1,5 @@
-﻿# NAME: 05 · Откат «Приватности»: вернуть телеметрию и службы
-# DESC: Возвращает AllowTelemetry=1, службы DiagTrack/WerSvc, журналы и задачи планировщика. Откат всего раздела «Приватность»
+﻿# NAME: 05 · Откат «Приватности»: базовый уровень диагностических данных и службы
+# DESC: Возвращает базовый уровень AllowTelemetry=1, службы DiagTrack/WerSvc, журналы и задачи планировщика. Откат всего раздела «Приватность»
 # TAGS: 1
 # ICON: ↩️
 
@@ -11,8 +11,17 @@ function Del-Prop($Path, $Name) {
 }
 
 try {
-    Write-Output "[*] Возвращаю телеметрию..."
-    Set-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+    Write-Output "[*] Возвращаю базовый уровень диагностических данных..."
+    $telemetryValue = $null
+    try {
+        $edition = [string](Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name EditionID -ErrorAction Stop).EditionID
+        if ([string]::IsNullOrWhiteSpace($edition)) { throw 'EditionID пуст' }
+        $telemetryValue = if ($edition -match '(?i)(Enterprise|Education|Server|IoT)') { 0 } else { 1 }
+    } catch { throw ("Не удалось определить редакцию Windows; AllowTelemetry не изменён: " + $_.Exception.Message) }
+    foreach ($p in @("HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection","HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection")) {
+        if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
+        Set-ItemProperty -Path $p -Name "AllowTelemetry" -Value $telemetryValue -Type DWord -Force -ErrorAction Stop
+    }
     Del-Prop "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "DoNotShowFeedbackNotifications"
     Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name "Disabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
     Set-Service DiagTrack -StartupType Automatic -ErrorAction SilentlyContinue
@@ -39,19 +48,20 @@ try {
     }
 
     Write-Output "[*] Включаю задачи планировщика..."
-    foreach ($t in @(
-        "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
-        "\Microsoft\Windows\Application Experience\ProgramDataUpdater",
-        "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
-        "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
-        "\Microsoft\Windows\Feedback\Siuf\DmClient",
-        "\Microsoft\Windows\Windows Error Reporting\QueueReporting",
-        "\Microsoft\Windows\Maps\MapsUpdateTask"
-    )) {
-        try { Enable-ScheduledTask -TaskName $t -ErrorAction Stop | Out-Null } catch {}
+    $tasks = @(
+        @{ TaskName = "Microsoft Compatibility Appraiser"; TaskPath = "\Microsoft\Windows\Application Experience\" },
+        @{ TaskName = "ProgramDataUpdater"; TaskPath = "\Microsoft\Windows\Application Experience\" },
+        @{ TaskName = "Consolidator"; TaskPath = "\Microsoft\Windows\Customer Experience Improvement Program\" },
+        @{ TaskName = "UsbCeip"; TaskPath = "\Microsoft\Windows\Customer Experience Improvement Program\" },
+        @{ TaskName = "DmClient"; TaskPath = "\Microsoft\Windows\Feedback\Siuf\" },
+        @{ TaskName = "QueueReporting"; TaskPath = "\Microsoft\Windows\Windows Error Reporting\" },
+        @{ TaskName = "MapsUpdateTask"; TaskPath = "\Microsoft\Windows\Maps\" }
+    )
+    foreach ($t in $tasks) {
+        try { Enable-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath -ErrorAction Stop | Out-Null } catch {}
     }
 
-    Write-Output "[OK] Приватность откачена."
+    Write-Output ("[OK] Уровень AllowTelemetry=" + $telemetryValue + " и службы приватности восстановлены.")
     exit 0
 } catch {
     Write-Output ("[X] Ошибка: " + $_)

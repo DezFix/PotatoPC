@@ -15,7 +15,7 @@ try {
         Stop-Service -Name $s -Force -ErrorAction SilentlyContinue
         Set-Service -Name $s -StartupType Disabled -ErrorAction SilentlyContinue
     }
-    Disable-ScheduledTask -TaskName "\Microsoft\Windows\Windows Error Reporting\QueueReporting" -ErrorAction SilentlyContinue | Out-Null
+    Disable-ScheduledTask -TaskName "QueueReporting" -TaskPath "\Microsoft\Windows\Windows Error Reporting\" -ErrorAction SilentlyContinue | Out-Null
     Write-Output "[OK] Отчеты выключены."
     exit 0
 } catch {

@@ -59,7 +59,7 @@ function ConvertFrom-WingetUpgradeOutput {
     $lines = $RawOutput -split "`n" | Where-Object { $_ -match '\S' }
     $headerFound = $false
     foreach ($line in $lines) {
-        if ($line -match '^\s*-+\s*$') { $headerFound = $true; continue }
+        if ($line -match '^\s*-{3,}(?:\s+-{3,})*') { $headerFound = $true; continue }
         if (-not $headerFound) { continue }
         if ($line -match '(доступн|available|upgrade available|обновлен)') { continue }
         # По-токенно: работает и при схлопнутых пробелах (пайп), и при ровной таблице.
@@ -102,7 +102,7 @@ function ConvertFrom-WingetPinOutput {
     $lines = $RawOutput -split "`n" | Where-Object { $_ -match '\S' }
     $headerFound = $false
     foreach ($line in $lines) {
-        if ($line -match '^\s*-+\s*$') { $headerFound = $true; continue }
+        if ($line -match '^\s*-{3,}(?:\s+-{3,})*') { $headerFound = $true; continue }
         if (-not $headerFound) { continue }
         $tokens = @($line -split '\s+' | Where-Object { $_ -ne '' })
         $idIdx = -1
@@ -119,7 +119,7 @@ function ConvertFrom-WingetPinOutput {
 }
 
 function Render-UpdatesPanel {
-    param($Packages, $PinnedItems = @())
+    param($Packages, $PinnedItems = @(), [string]$ErrorMessage = '')
     if ($null -eq $updatesPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     if ($Packages.Count -eq 0) {
         $emptyWrap = [System.Windows.Controls.StackPanel]::new()
@@ -131,12 +131,19 @@ function Render-UpdatesPanel {
             $emptyWrap.Children.Add($emptyImg) | Out-Null
         }
         $lbl = [System.Windows.Controls.TextBlock]::new()
-        $lbl.Text = "Все пакеты актуальны — обновлений нет."
-        $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50e050")
+        if (-not [string]::IsNullOrWhiteSpace($ErrorMessage)) {
+            $lbl.Text = "Проверка обновлений не выполнена."
+            $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#f0c040")
+        } else {
+            $lbl.Text = "Все пакеты актуальны — обновлений нет."
+            $lbl.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#50e050")
+        }
         $lbl.FontSize = 13; $lbl.TextAlignment = "Center"; $lbl.Margin = "0,0,0,0"
         $emptyWrap.Children.Add($lbl) | Out-Null
         $updatesPanel.Children.Add($emptyWrap) | Out-Null
-        $updateStatusText.Text = "Обновлений нет"; Write-Log "Обновлений нет"; return
+        if (-not [string]::IsNullOrWhiteSpace($ErrorMessage)) { $updateStatusText.Text = "Ошибка проверки"; Write-Log ("Ошибка проверки обновлений: " + $ErrorMessage) -Color "Yellow" }
+        else { $updateStatusText.Text = "Обновлений нет"; Write-Log "Обновлений нет" }
+        return
     }
     $updatesPanel.Children.Add((New-CategoryHeader -Title ("Доступные обновления ({0})" -f @($Packages).Count))) | Out-Null
     $hg = [System.Windows.Controls.Grid]::new()
@@ -225,14 +232,16 @@ function Render-UpdatesPanel {
             Invoke-Async -ScriptBlock {
                 try {
                 $wg=Get-WingetPath
-                $out1 = @(& $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
-                    ForEach-Object { Write-Log ("   " + $_); $_ })
-                if ($LASTEXITCODE -eq 0) { Write-Log ("Готово: " + $id) -Color "Green" }
-                elseif ($LASTEXITCODE -eq -1978335189 -or ($out1 -match 'No available upgrade found|No newer package versions')) { Write-Log "Уже актуально." -Color "Gray" }
-                else { Write-Log ("Ошибка $id (код $LASTEXITCODE)") -Color "Red" }
+                $result = Invoke-WingetCommand -Exe $wg -Arguments ("upgrade --id " + $id + " --silent --accept-source-agreements --accept-package-agreements") -TimeoutSec 1800
+                if ($result.Out) { $result.Out -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Log ("   " + $_) } }
+                if ($result.Error) { $result.Error -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Log ("   " + $_) -Color "Yellow" } }
+                if ($result.Ok) { Write-Log ("Готово: " + $id) -Color "Green" }
+                elseif ($result.TimedOut) { Write-Log ("Таймаут обновления: " + $id) -Color "Red" }
+                elseif ($result.Code -eq -1978335189 -or ($result.Out -match 'No available upgrade found|No newer package versions')) { Write-Log "Уже актуально." -Color "Gray" }
+                else { Write-Log ("Ошибка $id (код $($result.Code))") -Color "Red" }
                 Set-BgResult -Key 'updatesRefresh' -Value $true
                 } finally { Clear-Progress }
-            } -Variables @{ id=$singleId }
+            } -Variables @{ id=$singleId } -OnComplete { Invoke-OnUI { try { $singleBtn.IsEnabled = $true } catch {} } }.GetNewClosure()
         })
         [System.Windows.Controls.Grid]::SetColumn($oneBtn,4)
         $g.Children.Add($oneBtn) | Out-Null
@@ -251,9 +260,11 @@ function Render-UpdatesPanel {
             Invoke-Async -ScriptBlock {
                 try {
                 $wg=Get-WingetPath
-                & $wg pin add --id $id 2>&1 | ForEach-Object { Write-Log ("   " + $_) }
-                if ($LASTEXITCODE -eq 0) { Write-Log ("Скрыто: " + $id) -Color "Green" }
-                else { Write-Log ("Не вышло скрыть $id (код $LASTEXITCODE)") -Color "Yellow" }
+                $result = Invoke-WingetCommand -Exe $wg -Arguments ("pin add --id " + $id) -TimeoutSec 180
+                if ($result.Out) { $result.Out -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Log ("   " + $_) } }
+                if ($result.Ok) { Write-Log ("Скрыто: " + $id) -Color "Green" }
+                elseif ($result.TimedOut) { Write-Log ("Таймаут скрытия: " + $id) -Color "Red" }
+                else { Write-Log ("Не вышло скрыть $id (код $($result.Code))") -Color "Yellow" }
                 Set-BgResult -Key 'updatesRefresh' -Value $true
                 } finally { Clear-Progress }
             } -Variables @{ id=$pinId }
@@ -294,9 +305,11 @@ function Render-UpdatesPanel {
             Invoke-Async -ScriptBlock {
                 try {
                 $wg=Get-WingetPath
-                & $wg pin remove --id $id 2>&1 | ForEach-Object { Write-Log ("   " + $_) }
-                if ($LASTEXITCODE -eq 0) { Write-Log ("Вернуто: " + $id) -Color "Green" }
-                else { Write-Log ("Не вышло вернуть $id (код $LASTEXITCODE)") -Color "Yellow" }
+                $result = Invoke-WingetCommand -Exe $wg -Arguments ("pin remove --id " + $id) -TimeoutSec 180
+                if ($result.Out) { $result.Out -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Log ("   " + $_) } }
+                if ($result.Ok) { Write-Log ("Вернуто: " + $id) -Color "Green" }
+                elseif ($result.TimedOut) { Write-Log ("Таймаут возврата: " + $id) -Color "Red" }
+                else { Write-Log ("Не вышло вернуть $id (код $($result.Code))") -Color "Yellow" }
                 Set-BgResult -Key 'updatesRefresh' -Value $true
                 } finally { Clear-Progress }
             } -Variables @{ id=$unId }
@@ -343,20 +356,25 @@ function Build-UpdatesPanel {
     Start-Background {
         try {
             $wg = Get-WingetPath
-            if ($wg -eq "winget" -and -not (Get-Command winget -ErrorAction SilentlyContinue)) {
+            if ([string]::IsNullOrWhiteSpace([string]$wg)) {
                 throw "winget не найден. Установи App Installer из Microsoft Store."
             }
-            $raw = & $wg upgrade --accept-source-agreements 2>&1 | Out-String
+            $result = Invoke-WingetCommand -Exe $wg -Arguments 'upgrade --accept-source-agreements' -TimeoutSec 600
+            if ($result.TimedOut) { throw 'Проверка обновлений превысила таймаут' }
+            if (-not $result.Ok) { throw ('winget upgrade: код ' + $result.Code + $(if ($result.Error) { '; ' + $result.Error } else { '' })) }
+            $raw = $result.Out
             $packages = @(ConvertFrom-WingetUpgradeOutput -RawOutput $raw)
+            $pinError = ''
             try {
-                $pinRaw = & $wg pin list 2>&1 | Out-String
-                $pinned = @(ConvertFrom-WingetPinOutput -RawOutput $pinRaw)
-            } catch { $pinned = @() }
+                $pinResult = Invoke-WingetCommand -Exe $wg -Arguments 'pin list' -TimeoutSec 180
+                if ($pinResult.Ok) { $pinned = @(ConvertFrom-WingetPinOutput -RawOutput $pinResult.Out) }
+                else { $pinError = 'winget pin list: код ' + $pinResult.Code; $pinned = @() }
+            } catch { $pinError = [string]$_; $pinned = @() }
             $pinnedIds = @($pinned | ForEach-Object { $_.Id })
             if ($pinnedIds.Count -gt 0) {
                 $packages = @($packages | Where-Object { $pinnedIds -notcontains $_.Id })
             }
-            Set-BgResult -Key 'updates' -Value @{ Data = $packages; Pinned = $pinned }
+            Set-BgResult -Key 'updates' -Value @{ Data = $packages; Pinned = $pinned; PinError = $pinError }
             try {
                 $icons = @()
                 foreach ($pkg in $packages) {
@@ -389,13 +407,15 @@ function Install-SelectedUpdates {
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             Write-Log "⬆ [$i/$total] $id..."
             Set-Progress ([double]$i / [double]([Math]::Max(1, $total)))
-            $outLines = @(& $wg upgrade --id $id --silent --accept-source-agreements --accept-package-agreements 2>&1 |
-                ForEach-Object { Write-Log "   $_"; $_ })
+            $result = Invoke-WingetCommand -Exe $wg -Arguments ("upgrade --id " + $id + " --silent --accept-source-agreements --accept-package-agreements") -TimeoutSec 1800
+            if ($result.Out) { $result.Out -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Log "   $_" } }
+            if ($result.Error) { $result.Error -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Log "   $_" -Color "Yellow" } }
             $sw.Stop()
             $dur = if ($sw.Elapsed.TotalSeconds -ge 60) { "{0} мин" -f [int]$sw.Elapsed.TotalMinutes } else { "{0} сек" -f [int]$sw.Elapsed.TotalSeconds }
-            if ($LASTEXITCODE -eq 0) { Write-Log "   ✓ Готово за $dur" -Color "Green"; $ok++ }
-            elseif ($LASTEXITCODE -eq -1978335189 -or ($outLines -match 'No available upgrade found|No newer package versions')) { Write-Log "   – уже актуально, пропускаю" -Color "Gray"; $skip++ }
-            else { Write-Log "   ✗ Ошибка (код $LASTEXITCODE)" -Color "Red"; $fail++ }
+            if ($result.Ok) { Write-Log "   ✓ Готово за $dur" -Color "Green"; $ok++ }
+            elseif ($result.TimedOut) { Write-Log "   ✗ Таймаут обновления" -Color "Red"; $fail++ }
+            elseif ($result.Code -eq -1978335189 -or ($result.Out -match 'No available upgrade found|No newer package versions')) { Write-Log "   – уже актуально, пропускаю" -Color "Gray"; $skip++ }
+            else { Write-Log "   ✗ Ошибка (код $($result.Code))" -Color "Red"; $fail++ }
         }
         Write-Log "══ Обновление завершено: ✓$ok$(if($skip -gt 0){ `" – пропущено: $skip`" })$(if($fail -gt 0){ `" ✗$fail`" }) ══"
         Set-BgResult -Key 'updatesRefresh' -Value $true
@@ -512,9 +532,11 @@ function Show-HiddenUpdatesDialog {
             Invoke-Async -ScriptBlock {
                 try {
                 $wg=Get-WingetPath
-                & $wg pin remove --id $id 2>&1 | ForEach-Object { Write-Log ("   " + $_) }
-                if ($LASTEXITCODE -eq 0) { Write-Log ("Вернуто: " + $id) -Color "Green" }
-                else { Write-Log ("Не вышло вернуть $id (код $LASTEXITCODE)") -Color "Yellow" }
+                $result = Invoke-WingetCommand -Exe $wg -Arguments ("pin remove --id " + $id) -TimeoutSec 180
+                if ($result.Out) { $result.Out -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Log ("   " + $_) } }
+                if ($result.Ok) { Write-Log ("Вернуто: " + $id) -Color "Green" }
+                elseif ($result.TimedOut) { Write-Log ("Таймаут возврата: " + $id) -Color "Red" }
+                else { Write-Log ("Не вышло вернуть $id (код $($result.Code))") -Color "Yellow" }
                 Set-BgResult -Key 'updatesRefresh' -Value $true
                 } finally { Clear-Progress }
             } -Variables @{ id = $t.Id }

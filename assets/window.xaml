@@ -4,7 +4,7 @@
      Страницы — 3-рядные: закреплённый верхний тулбар, скролл карточек,
      закреплённая нижняя панель действий. Новое: Дашборд (индекс 9),
      страница Пользователи, GlobalSearch, кастомный хром.
-     Скрытый MainTabControl (10 вкладок) — держатель индекса текущей страницы. -->
+     Скрытый MainTabControl (11 вкладок) — держатель индекса текущей страницы. -->
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="PotatoPC v6" Height="740" Width="1100"
@@ -154,9 +154,10 @@
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
               <StackPanel>
                 <TextBlock Text="ГЛАВНОЕ" Foreground="#55556E" FontSize="9.5" FontWeight="Bold" Margin="6,2,0,6"/>
-                <Button x:Name="NavDashBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavDashIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Дашборд" VerticalAlignment="Center"/></StackPanel></Button>
-                <Button x:Name="NavModulesBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavModulesIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Модули" VerticalAlignment="Center"/></StackPanel></Button>
-                <Button x:Name="NavAppsBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavAppsIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Приложения" VerticalAlignment="Center"/></StackPanel></Button>
+                 <Button x:Name="NavDashBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavDashIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Дашборд" VerticalAlignment="Center"/></StackPanel></Button>
+                 <Button x:Name="NavModulesBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavModulesIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Модули" VerticalAlignment="Center"/></StackPanel></Button>
+                 <Button x:Name="NavRollbackBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavRollbackIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Откаты" VerticalAlignment="Center"/></StackPanel></Button>
+                 <Button x:Name="NavAppsBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavAppsIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Приложения" VerticalAlignment="Center"/></StackPanel></Button>
                 <Button x:Name="NavUpdatesBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavUpdatesIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Обновления" VerticalAlignment="Center"/></StackPanel></Button>
                 <TextBlock Text="СИСТЕМА" Foreground="#55556E" FontSize="9.5" FontWeight="Bold" Margin="6,12,0,6"/>
                 <Button x:Name="NavStartupBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavStartupIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Автозагрузка" VerticalAlignment="Center"/></StackPanel></Button>
@@ -164,8 +165,8 @@
                 <Button x:Name="NavCleanBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavCleanIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Очистка" VerticalAlignment="Center"/></StackPanel></Button>
                 <Button x:Name="NavProtectBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavProtectIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Защита" VerticalAlignment="Center"/></StackPanel></Button>
                 <TextBlock Text="ПРОЧЕЕ" Foreground="#55556E" FontSize="9.5" FontWeight="Bold" Margin="6,12,0,6"/>
-                <Button x:Name="NavDiagBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavDiagIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Тест системы" VerticalAlignment="Center"/></StackPanel></Button>
-                <Button x:Name="NavSysBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavSysIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="О системе" VerticalAlignment="Center"/></StackPanel></Button>
+                 <Button x:Name="NavDiagBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavDiagIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="Тест системы" VerticalAlignment="Center"/></StackPanel></Button>
+                  <Button x:Name="NavSysBtn" Style="{StaticResource NavBtn}"><StackPanel Orientation="Horizontal"><Image x:Name="NavSysIcon" Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"/><TextBlock Text="О системе" VerticalAlignment="Center"/></StackPanel></Button>
               </StackPanel>
             </ScrollViewer>
             <StackPanel Grid.Row="2">
@@ -472,8 +473,9 @@
                     <TextBlock x:Name="ScanCountText" Style="{StaticResource CountLabel}"/>
                   </StackPanel>
                   <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <Button x:Name="ScanBtn" Style="{StaticResource Primary}" FontSize="12" Padding="16,8" MinHeight="34" Margin="0,0,6,0" Content="Проверить"/>
-                    <Button x:Name="QuarantineBtn" Style="{StaticResource Danger}" Content="В карантин"/>
+                     <Button x:Name="ScanBtn" Style="{StaticResource Primary}" FontSize="12" Padding="16,8" MinHeight="34" Margin="0,0,6,0" Content="Проверить"/>
+                     <Button x:Name="QuarantineBtn" Style="{StaticResource Danger}" Margin="0,0,6,0" Content="В карантин"/>
+                     <Button x:Name="RestoreQuarantineBtn" Style="{StaticResource Ghost}" Content="Восстановить"/>
                   </StackPanel>
                 </Grid>
               </Border>
@@ -500,10 +502,38 @@
               </ScrollViewer>
             </Grid>
 
+            <!-- ═══ ОТКАТЫ (индекс 9) ═══ -->
+            <Grid x:Name="PageRollback" Visibility="Collapsed">
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+              <Border Grid.Row="0" Background="#1B1B25" CornerRadius="10" Padding="10,8" Margin="0,0,0,8" BorderBrush="#2A2A38" BorderThickness="1">
+                <StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="ОТКАТЫ" Style="{StaticResource GroupLabel}"/>
+                    <Button x:Name="SelectAllRollbackBtn" Style="{StaticResource Small}" Margin="0,0,5,0" Content="Все"/>
+                    <Button x:Name="DeselectAllRollbackBtn" Style="{StaticResource Small}" Content="Снять"/>
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                    <Image x:Name="RollbackFolderIcon" Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="RollbackFolderText" Style="{StaticResource ToolbarLabel}" FontSize="10"/>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+              <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Background="#101014">
+                <StackPanel x:Name="RollbackPanel"/>
+              </ScrollViewer>
+              <Border Grid.Row="2" Background="#15151C" BorderBrush="#23232E" BorderThickness="0,1,0,0" Padding="10,8" Margin="0,8,0,0">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <TextBlock x:Name="RollbackCountText" Style="{StaticResource CountLabel}" VerticalAlignment="Center"/>
+                  <Button Grid.Column="1" x:Name="RunRollbackBtn" Style="{StaticResource Primary}" FontSize="12" Padding="16,8" MinHeight="34" Content="Выполнить выбранные"/>
+                </Grid>
+              </Border>
+            </Grid>
+
             <!-- Скрытый держатель индекса страницы для Set-ActiveNav/Update-HeaderCount -->
             <TabControl x:Name="MainTabControl" Visibility="Collapsed">
-              <TabItem/><TabItem/><TabItem/><TabItem/><TabItem/>
-              <TabItem/><TabItem/><TabItem/><TabItem/><TabItem/>
+               <TabItem/><TabItem/><TabItem/><TabItem/><TabItem/>
+               <TabItem/><TabItem/><TabItem/><TabItem/><TabItem/><TabItem/>
             </TabControl>
 
             <!-- Скрытые боксы поиска: GlobalSearch пишет сюда, фильтруют модули -->

@@ -124,7 +124,7 @@ function Scan-FolderStartup {
     if ([string]::IsNullOrWhiteSpace($DirPath) -or -not (Test-Path $DirPath)) { return $result }
     $approvedKey = $null
     try {
-        $approvedPath = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedStartupFolder'
+        $approvedPath = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder'
         $approvedKey  = $RootKeyForApproved.OpenSubKey($approvedPath)
         foreach ($file in [System.IO.Directory]::GetFiles($DirPath)) {
             $fileName = [System.IO.Path]::GetFileName($file)
@@ -176,8 +176,9 @@ function Apply-StartupFilter {
 
 function Get-StartupData {
     $startupItems = @()
-    $approvedRun     = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedRun'
-    $approvedRunOnce = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedRunOnce'
+    $approvedRun     = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
+    $approvedRun32   = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run32'
+    $approvedRunOnce = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\RunOnce'
 
     $startupItems += Scan-RegistryStartup `
         -RootKey ([Microsoft.Win32.Registry]::CurrentUser) `
@@ -192,7 +193,7 @@ function Get-StartupData {
     $startupItems += Scan-RegistryStartup `
         -RootKey ([Microsoft.Win32.Registry]::LocalMachine) `
         -SubKeyPath 'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' `
-        -ApprovedSubKeyPath $approvedRun -LocationLabel 'HKLM\Run (x86)'
+        -ApprovedSubKeyPath $approvedRun32 -LocationLabel 'HKLM\Run (x86)'
 
     $startupItems += Scan-RegistryStartup `
         -RootKey ([Microsoft.Win32.Registry]::CurrentUser) `

@@ -10,7 +10,8 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Root = ''
+    [string]$Root = '',
+    [switch]$IncludeUntracked
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,9 +20,43 @@ if (-not $Root) {
     else { $Root = (Get-Location).Path }
 }
 $out = Join-Path $Root 'SHA256SUMS'
-$files = Get-ChildItem -LiteralPath $Root -Recurse -File -Force -ErrorAction Stop |
-    Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' -and $_.Name -ne 'SHA256SUMS' } |
-    Sort-Object FullName
+$allFiles = @(Get-ChildItem -LiteralPath $Root -Recurse -File -Force -ErrorAction Stop |
+    Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' -and $_.Name -ne 'SHA256SUMS' })
+if ($IncludeUntracked) {
+    $files = @($allFiles)
+} else {
+    $tracked = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    $gitOk = $false
+    try {
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = 'git'
+        $psi.Arguments = '-C "' + $Root + '" ls-files -z'
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
+        try { $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        if ($proc) {
+            $raw = $proc.StandardOutput.ReadToEnd()
+            [void]$proc.WaitForExit()
+            if ($proc.ExitCode -eq 0) {
+                foreach ($rel in @($raw -split "`0")) {
+                    if (-not [string]::IsNullOrWhiteSpace($rel)) { [void]$tracked.Add(($rel -replace '/', '\')) }
+                }
+                $gitOk = $tracked.Count -gt 0
+            }
+            $proc.Dispose()
+        }
+    } catch {}
+    if ($gitOk) {
+        $files = @($allFiles | Where-Object {
+            $rel = $_.FullName.Substring($Root.Length).TrimStart('\', '/')
+            $tracked.Contains($rel)
+        })
+    } else { $files = @($allFiles) }
+}
+$files = @($files | Sort-Object FullName)
 
 $lines = @()
 foreach ($f in $files) {

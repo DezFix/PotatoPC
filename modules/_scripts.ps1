@@ -1,10 +1,109 @@
 ﻿$script:ScriptCheckboxes = @{}
+$script:RollbackCheckboxes = @{}
 $script:BatchRunning = $false
 $script:BatchControl = $null
 $script:BatchHandle  = $null
 $script:RunBtnSaved  = $false
 $script:RunBtnContent = $null
 $script:RunBtnStyle   = $null
+$script:RollbackBatchRunning = $false
+$script:RollbackBatchControl = $null
+$script:RollbackBatchHandle = $null
+$script:RollbackRunBtnSaved = $false
+$script:RollbackRunBtnContent = $null
+$script:RollbackRunBtnStyle = $null
+$script:RollbackFolderName = "09 Откат"
+$script:RollbackFolder = ""
+try { $script:RollbackFolder = Join-Path $script:ScriptsFolder $script:RollbackFolderName } catch {}
+
+function Get-RollbackFolder {
+    param(
+        [string]$ScriptsFolder = $script:ScriptsFolder,
+        [string]$FolderName = $script:RollbackFolderName
+    )
+    if ([string]::IsNullOrWhiteSpace($FolderName)) { $FolderName = "09 Откат" }
+    try {
+        if ([System.IO.Path]::IsPathRooted($FolderName)) {
+            return [System.IO.Path]::GetFullPath($FolderName)
+        }
+        if ([string]::IsNullOrWhiteSpace($ScriptsFolder)) { return "" }
+        return [System.IO.Path]::GetFullPath((Join-Path -Path $ScriptsFolder -ChildPath $FolderName))
+    } catch {
+        return ""
+    }
+}
+
+function Is-RollbackPath {
+    param(
+        [Parameter(Position = 0)]
+        [string]$Path,
+        [Parameter(Position = 1)]
+        [string]$ScriptsFolder = $script:ScriptsFolder,
+        [Parameter(Position = 2)]
+        [string]$FolderName = $script:RollbackFolderName
+    )
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    $folder = Get-RollbackFolder -ScriptsFolder $ScriptsFolder -FolderName $FolderName
+    if ([string]::IsNullOrWhiteSpace($folder)) { return $false }
+    try {
+        if (-not [System.IO.Path]::IsPathRooted($Path)) {
+            if ([string]::IsNullOrWhiteSpace($ScriptsFolder)) {
+                $Path = [System.IO.Path]::GetFullPath($Path)
+            } else {
+                $Path = Join-Path -Path $ScriptsFolder -ChildPath $Path
+            }
+        }
+        $fullPath = [System.IO.Path]::GetFullPath($Path)
+        $fullFolder = [System.IO.Path]::GetFullPath($folder).TrimEnd([char[]]@('\','/'))
+        $prefix = $fullFolder + [System.IO.Path]::DirectorySeparatorChar
+        $inside = $fullPath.Equals($fullFolder, [System.StringComparison]::OrdinalIgnoreCase) -or
+            $fullPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
+        if (-not $inside) { return $false }
+        $folderItem = $null
+        try { $folderItem = Get-Item -LiteralPath $fullFolder -Force -ErrorAction Stop } catch { return $false }
+        if ($null -eq $folderItem -or -not $folderItem.PSIsContainer -or (($folderItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { return $false }
+        $folderProbe = $fullFolder
+        $scriptsRoot = [System.IO.Path]::GetFullPath($ScriptsFolder).TrimEnd([char[]]@('\','/'))
+        while (-not [string]::IsNullOrEmpty($folderProbe) -and -not $folderProbe.Equals($scriptsRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            try { $folderPart = Get-Item -LiteralPath $folderProbe -Force -ErrorAction Stop } catch { return $false }
+            if (($folderPart.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+            $folderParent = [System.IO.Path]::GetDirectoryName($folderProbe)
+            if ([string]::IsNullOrEmpty($folderParent) -or $folderParent -eq $folderProbe) { break }
+            $folderProbe = $folderParent
+        }
+        $item = $null
+        try { $item = Get-Item -LiteralPath $fullPath -Force -ErrorAction Stop } catch { return $false }
+        if ($null -eq $item -or $item.PSIsContainer -or (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { return $false }
+        $probe = $fullPath
+        while (-not [string]::IsNullOrEmpty($probe) -and -not $probe.Equals($fullFolder, [System.StringComparison]::OrdinalIgnoreCase)) {
+            try { $part = Get-Item -LiteralPath $probe -Force -ErrorAction Stop } catch { return $false }
+            if (($part.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+            $parent = [System.IO.Path]::GetDirectoryName($probe)
+            if ([string]::IsNullOrEmpty($parent) -or $parent -eq $probe) { break }
+            $probe = $parent
+        }
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Get-RollbackScriptPaths {
+    param(
+        [string]$ScriptsFolder = $script:ScriptsFolder,
+        [string]$FolderName = $script:RollbackFolderName
+    )
+    $folder = Get-RollbackFolder -ScriptsFolder $ScriptsFolder -FolderName $FolderName
+    if ([string]::IsNullOrWhiteSpace($folder) -or -not (Test-Path -LiteralPath $folder -PathType Container)) { return @() }
+    try {
+        return @(Get-ChildItem -LiteralPath $folder -Filter "*.ps1" -File -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { Is-RollbackPath -Path $_.FullName -ScriptsFolder $ScriptsFolder -FolderName $FolderName } |
+            Sort-Object FullName |
+            ForEach-Object { $_.FullName })
+    } catch {
+        return @()
+    }
+}
 
 function Reset-RunButton {
     try {
@@ -24,16 +123,13 @@ function Stop-SelectedScripts {
         $pidToKill = 0
         try { $pidToKill = [int]$script:BatchControl.ChildPid } catch {}
         if ($pidToKill -gt 0) {
-            $p = Get-Process -Id $pidToKill -ErrorAction SilentlyContinue
-            if ($p -and ($p.ProcessName -like 'powershell*')) {
-                Write-Log "Останавливаю процесс PID $pidToKill..." -Color Yellow
-                Stop-Process -Id $pidToKill -Force -ErrorAction SilentlyContinue
-            }
+            Write-Log "Останавливаю дерево процессов PID $pidToKill..." -Color Yellow
+            Stop-ProcessTree -TargetPid $pidToKill
         }
     } catch {}
     try { if ($script:BatchHandle -and $script:BatchHandle.Stop) { & $script:BatchHandle.Stop } } catch {}
+    try { $runScriptsBtn.Content = '⏳ Остановка...' } catch {}
     Write-Log "Остановка запрошена, жду завершения..." -Color Yellow
-    Reset-RunButton
 }
 
 function Read-ScriptHeader {
@@ -48,7 +144,7 @@ function Read-ScriptHeader {
 
 function Load-Scripts {
     $result = @()
-    $files = Get-ChildItem -Path $script:ScriptsFolder -Filter "*.ps1" -Recurse -ErrorAction SilentlyContinue | Sort-Object Name
+    $files = Get-ChildItem -Path $script:ScriptsFolder -Filter "*.ps1" -Recurse -ErrorAction SilentlyContinue | Sort-Object Name | Where-Object { -not (Is-RollbackPath -Path $_.FullName) }
     foreach ($file in $files) {
         $parentName = $file.Directory.Name
         $category = if ($parentName -ne (Split-Path $script:ScriptsFolder -Leaf)) { $parentName } else { "Другое" }
@@ -76,6 +172,41 @@ function Load-Scripts {
         $result += $meta
     }
     return $result
+}
+
+function Load-RollbackScripts {
+    param(
+        [string]$ScriptsFolder = $script:ScriptsFolder,
+        [string]$FolderName = $script:RollbackFolderName
+    )
+    $result = @()
+    foreach ($path in @(Get-RollbackScriptPaths -ScriptsFolder $ScriptsFolder -FolderName $FolderName)) {
+        try { $file = Get-Item -LiteralPath $path -ErrorAction Stop } catch { continue }
+        $num = 0
+        if ($file.BaseName -match '^(\d{2})_') { $num = [int]$Matches[1] }
+        $meta = @{
+            Name        = ($file.BaseName -replace '^\d{2}_', '')
+            Num         = $num
+            Desc        = ""
+            Category    = "Откат"
+            Icon        = "↩️"
+            Presets     = @()
+            Tag         = 0
+            Win11Only   = $false
+            Path        = $file.FullName
+            IsRollback  = $true
+        }
+        foreach ($line in (Read-ScriptHeader -Path $file.FullName)) {
+            if ($line -match '^#\s*NAME:\s*(.+)')        { $meta.Name        = $Matches[1].Trim() }
+            if ($line -match '^#\s*DESC:\s*(.+)')        { $meta.Desc        = $Matches[1].Trim() }
+            if ($line -match '^#\s*ICON:\s*(.+)')        { $meta.Icon        = $Matches[1].Trim() }
+            if ($line -match '^#\s*PRESET:\s*(.+)')      { $meta.Presets     = @($Matches[1].Split(',') | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ -ne '' }) }
+            if ($line -match '^#\s*TAGS:\s*(\d)')        { $meta.Tag         = [int]$Matches[1].Trim() }
+            if ($line -match '^#\s*TAGS:.*win11')        { $meta.Win11Only   = $true }
+        }
+        $result += $meta
+    }
+    return @($result)
 }
 
 function Update-SelectedCount {
@@ -286,6 +417,183 @@ function Build-ScriptsPanel {
     Write-Log "Загружено скриптов: $($scripts.Count)$(if($win11Count -gt 0){" (только Win11: $win11Count, ОС: Windows $($script:WindowsMajorVersion))"})"
 }
 
+function Get-RollbackControl {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    if ([string]::IsNullOrWhiteSpace($Name)) { return $null }
+    $control = $null
+    try { $control = Get-Variable -Name $Name -Scope Global -ValueOnly -ErrorAction Stop } catch {}
+    if ($null -eq $control) {
+        try { $control = Get-Variable -Name $Name -Scope Script -ValueOnly -ErrorAction Stop } catch {}
+    }
+    if ($null -eq $control) {
+        try { $control = Get-Variable -Name $Name -Scope 1 -ValueOnly -ErrorAction Stop } catch {}
+    }
+    if ($null -eq $control -and $Name -match '^[a-z]') {
+        $pascalName = $Name.Substring(0, 1).ToUpperInvariant() + $Name.Substring(1)
+        try {
+            $win = Get-Variable -Name 'window' -Scope Global -ValueOnly -ErrorAction Stop
+            if (-not $win) { $win = Get-Variable -Name 'window' -Scope Script -ValueOnly -ErrorAction Stop }
+            if ($win) { $control = $win.FindName($pascalName) }
+        } catch {}
+    }
+    return $control
+}
+
+function Update-RollbackSelectedCount {
+    $count = @($script:RollbackCheckboxes.Values | Where-Object { $_.IsChecked }).Count
+    $total = $script:RollbackCheckboxes.Count
+    $countText = Get-RollbackControl -Name 'rollbackCountText'
+    if ($countText) {
+        try { $countText.Text = "Выбрано: $count из $total" } catch {}
+    }
+    try { Update-HeaderCount } catch {}
+}
+
+function Build-RollbackPanel {
+    $panel = Get-RollbackControl -Name 'rollbackPanel'
+    if ($null -eq $panel) { return }
+    try { $panel.Children.Clear() } catch { return }
+    $script:RollbackCheckboxes = @{}
+    $rollbackItems = @(Load-RollbackScripts)
+    $folderText = Get-RollbackControl -Name 'rollbackFolderText'
+    if ($folderText) {
+        try { $folderText.Text = Get-RollbackFolder } catch {}
+    }
+    if ($rollbackItems.Count -eq 0) {
+        $emptyWrap = [System.Windows.Controls.StackPanel]::new()
+        $emptyWrap.HorizontalAlignment = "Center"
+        $emptyWrap.Margin = [System.Windows.Thickness]::new(0,60,0,0)
+        $emptyImg = $null
+        try { $emptyImg = Get-IconImage -Name 'places/folder_open' -Size 32 } catch {}
+        if ($emptyImg) {
+            $emptyImg.HorizontalAlignment = "Center"
+            $emptyImg.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+            $emptyWrap.Children.Add($emptyImg) | Out-Null
+        }
+        $emptyText = [System.Windows.Controls.TextBlock]::new()
+        $emptyText.Text = "Папка отката пуста.`nПапка: $(Get-RollbackFolder)"
+        $emptyText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#a8a8d0")
+        $emptyText.FontSize = 13
+        $emptyText.TextAlignment = "Center"
+        $emptyWrap.Children.Add($emptyText) | Out-Null
+        try { $panel.Children.Add($emptyWrap) | Out-Null } catch {}
+        Update-RollbackSelectedCount
+        return
+    }
+    $osMajor = 10
+    try { $osMajor = [int]$script:WindowsMajorVersion } catch {}
+    $groups = @($rollbackItems | Group-Object -Property Category | Sort-Object -Property Name)
+    foreach ($group in $groups) {
+        $header = $null
+        try { $header = New-CategoryHeader -Title ([string]$group.Name) } catch {}
+        if ($null -eq $header) { continue }
+        try { $panel.Children.Add($header) | Out-Null } catch { continue }
+        foreach ($rollbackItem in @($group.Group)) {
+            $isWin11Incompatible = ([bool]$rollbackItem.Win11Only -and ($osMajor -lt 11))
+            $card = $null
+            try { $card = New-Card -Large -Incompatible:$isWin11Incompatible } catch {}
+            if ($null -eq $card) {
+                try { $card = [System.Windows.Controls.Border]::new() } catch { continue }
+            }
+            if (-not $isWin11Incompatible) {
+                try { Add-CardFx -Card $card } catch {}
+            }
+            $grid = [System.Windows.Controls.Grid]::new()
+            $col1 = [System.Windows.Controls.ColumnDefinition]::new(); $col1.Width = [System.Windows.GridLength]::new(32)
+            $col2 = [System.Windows.Controls.ColumnDefinition]::new(); $col2.Width = [System.Windows.GridLength]::new([System.Windows.GridUnitType]::Auto)
+            $col3 = [System.Windows.Controls.ColumnDefinition]::new(); $col3.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+            $col4 = [System.Windows.Controls.ColumnDefinition]::new(); $col4.Width = [System.Windows.GridLength]::new([System.Windows.GridUnitType]::Auto)
+            $grid.ColumnDefinitions.Add($col1) | Out-Null
+            $grid.ColumnDefinitions.Add($col2) | Out-Null
+            $grid.ColumnDefinitions.Add($col3) | Out-Null
+            $grid.ColumnDefinitions.Add($col4) | Out-Null
+            $checkBox = [System.Windows.Controls.CheckBox]::new()
+            $checkBox.VerticalAlignment = "Center"
+            $checkBox.Tag = [string]$rollbackItem.Path
+            if ($isWin11Incompatible) {
+                $checkBox.IsEnabled = $false
+            } else {
+                $checkBox.Add_Checked({ Update-RollbackSelectedCount })
+                $checkBox.Add_Unchecked({ Update-RollbackSelectedCount })
+            }
+            [System.Windows.Controls.Grid]::SetColumn($checkBox, 0)
+            $script:RollbackCheckboxes[[string]$rollbackItem.Path] = $checkBox
+            $iconImage = $null
+            try { $iconImage = Get-IconImage -Name (Get-ScriptIconName -Emoji $rollbackItem.Icon) -Size 22 } catch {}
+            if ($null -eq $iconImage) {
+                $iconImage = [System.Windows.Controls.TextBlock]::new()
+                $iconImage.Text = $rollbackItem.Icon
+                $iconImage.FontSize = 16
+                $iconImage.VerticalAlignment = "Center"
+            }
+            $iconImage.Margin = [System.Windows.Thickness]::new(0,0,8,0)
+            $iconImage.VerticalAlignment = "Center"
+            [System.Windows.Controls.Grid]::SetColumn($iconImage, 1)
+            $textStack = [System.Windows.Controls.StackPanel]::new()
+            $textStack.VerticalAlignment = "Center"
+            $nameText = [System.Windows.Controls.TextBlock]::new()
+            $nameText.Text = if ($rollbackItem.Num -gt 0) { ("{0:D2} · {1}" -f $rollbackItem.Num, $rollbackItem.Name) } else { $rollbackItem.Name }
+            $nameText.FontSize = 12
+            $nameText.FontWeight = "Medium"
+            $nameText.VerticalAlignment = "Center"
+            $nameColor = if ($isWin11Incompatible) { "#505060" } else { "#e0e0f4" }
+            try { $nameText.Foreground = Get-ThemeBrush $nameColor } catch { $nameText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom($nameColor) }
+            $textStack.Children.Add($nameText) | Out-Null
+            $descText = [System.Windows.Controls.TextBlock]::new()
+            if ($isWin11Incompatible) {
+                $descText.Text = "Требуется Windows 11 — недоступно на вашей системе"
+                try { $descText.Foreground = Get-ThemeBrush "#7a5a5a" } catch { $descText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#7a5a5a") }
+            } else {
+                $descText.Text = if ($rollbackItem.Desc) { $rollbackItem.Desc } else { $rollbackItem.Path | Split-Path -Leaf }
+                try { $descText.Foreground = Get-ThemeBrush "#c4c4ee" } catch { $descText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#c4c4ee") }
+            }
+            $descText.FontSize = 11
+            $descText.Margin = [System.Windows.Thickness]::new(0,2,0,0)
+            $descText.TextWrapping = "Wrap"
+            $textStack.Children.Add($descText) | Out-Null
+            [System.Windows.Controls.Grid]::SetColumn($textStack, 2)
+            $runOneButton = [System.Windows.Controls.Button]::new()
+            $runOneButton.Content = "▶"
+            $runOneButton.ToolTip = "Запустить только этот откат"
+            $runOneButton.Cursor = [System.Windows.Input.Cursors]::Hand
+            $runOneButton.BorderThickness = [System.Windows.Thickness]::new(0)
+            $runOneButton.Width = 30
+            $runOneButton.Height = 30
+            $runOneButton.FontSize = 12
+            $runOneButton.VerticalAlignment = "Center"
+            $runOneButton.Margin = [System.Windows.Thickness]::new(8,0,0,0)
+            $runOneButton.Tag = [string]$rollbackItem.Path
+            if ($isWin11Incompatible) {
+                $runOneButton.IsEnabled = $false
+                try {
+                    $runOneButton.Background = Get-ThemeBrush "#1a1a28"
+                    $runOneButton.Foreground = Get-ThemeBrush "#505068"
+                } catch {}
+            } else {
+                try {
+                    $runOneButton.Background = Get-ThemeBrush "#2d2d35"
+                    $runOneButton.Foreground = Get-ThemeBrush "#6c63ff"
+                } catch {
+                    $runOneButton.Background = [Windows.Media.BrushConverter]::new().ConvertFrom("#2d2d35")
+                    $runOneButton.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom("#6c63ff")
+                }
+                $runOneButton.Add_Click({
+                    $rollbackPath = [string]$this.Tag
+                    try { Run-SelectedRollbackScripts -Paths @($rollbackPath) } catch { try { Write-Log ("Ошибка запуска отката: " + $_) -Color "Red" } catch {} }
+                })
+            }
+            [System.Windows.Controls.Grid]::SetColumn($runOneButton, 3)
+            $grid.Children.Add($checkBox) | Out-Null
+            $grid.Children.Add($iconImage) | Out-Null
+            $grid.Children.Add($textStack) | Out-Null
+            $grid.Children.Add($runOneButton) | Out-Null
+            $card.Child = $grid
+            try { $panel.Children.Add($card) | Out-Null } catch {}
+        }
+    }
+    Update-RollbackSelectedCount
+}
+
 function Test-ScriptsExist {
     # Возвращает список пропавших .ps1 (съел антивирус, битый кэш, чистка TEMP).
     param([string[]]$Paths)
@@ -301,15 +609,215 @@ function Repair-ScriptsCache {
     Write-Log "Файлы скриптов пропали с диска — качаю заново..." -Color "Yellow"
     Write-Log "Если пропадают снова — глянь карантин Defender (свежая система их ест)." -Color "Yellow"
     Start-Background {
-        try { Download-Repo }
+        $ok = $false
+        try { $ok = [bool](Download-Repo) }
         catch { Write-Log ("Не вышло докачать: " + $_) -Color "Red" }
-        Set-BgResult -Key 'paths' -Value @{ ScriptsFolder = $script:ScriptsFolder; AppsJsonPath = $script:AppsJsonPath }
-        Set-BgResult -Key 'rebuildScripts' -Value $true
+        if ($ok) {
+            Set-BgResult -Key 'paths' -Value @{ ScriptsFolder = $script:ScriptsFolder; AppsJsonPath = $script:AppsJsonPath }
+            Set-BgResult -Key 'rebuildScripts' -Value $true
+        } else { Set-BgResult -Key 'initError' -Value 'Репозиторий не обновлён' }
+    }
+}
+
+function Select-AllRollbackScripts {
+    foreach ($checkBox in @($script:RollbackCheckboxes.Values)) {
+        try {
+            if ($checkBox.IsEnabled) { $checkBox.IsChecked = $true }
+        } catch {}
+    }
+    Update-RollbackSelectedCount
+}
+
+function Deselect-AllRollbackScripts {
+    foreach ($checkBox in @($script:RollbackCheckboxes.Values)) {
+        try { $checkBox.IsChecked = $false } catch {}
+    }
+    Update-RollbackSelectedCount
+}
+
+function Reset-RollbackRunButton {
+    $runButton = Get-RollbackControl -Name 'runRollbackBtn'
+    try {
+        if ($runButton -and $script:RollbackRunBtnSaved) {
+            $runButton.Content = $script:RollbackRunBtnContent
+            $runButton.Style = $script:RollbackRunBtnStyle
+        }
+    } catch {}
+    $script:RollbackBatchRunning = $false
+    $script:RollbackBatchControl = $null
+    $script:RollbackBatchHandle = $null
+}
+
+function Stop-SelectedRollbackScripts {
+    if (-not $script:RollbackBatchRunning) {
+        Reset-RollbackRunButton
+        return $false
+    }
+    try { if ($script:RollbackBatchControl) { $script:RollbackBatchControl.Abort = $true } } catch {}
+    try {
+        $rollbackProcessId = 0
+        try { $rollbackProcessId = [int]$script:RollbackBatchControl.ChildPid } catch {}
+        if ($rollbackProcessId -gt 0) {
+            Write-Log "Останавливаю дерево процессов отката PID $rollbackProcessId..." -Color Yellow
+            Stop-ProcessTree -TargetPid $rollbackProcessId
+        }
+    } catch {}
+    try {
+        if ($script:RollbackBatchHandle -and $script:RollbackBatchHandle.Stop) {
+            & $script:RollbackBatchHandle.Stop | Out-Null
+        }
+    } catch {}
+    Write-Log "Остановка отката запрошена, жду завершения..." -Color Yellow
+    return $true
+}
+
+function Get-RollbackConfirmationMessage {
+    param([string[]]$Paths)
+    $items = @($Paths | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    $names = @()
+    foreach ($path in $items) {
+        try { $names += (Split-Path -Path ([string]$path) -Leaf) } catch { $names += [string]$path }
+    }
+    $list = if ($names.Count -gt 0) { $names -join "`n" } else { "(нет)" }
+    return ("Будет последовательно выполнено откатов: $($items.Count).`n`n" + $list + "`n`nОткат изменит системные настройки. Продолжить?")
+}
+
+function Confirm-RollbackRun {
+    param([string[]]$Paths)
+    try {
+        $result = [System.Windows.MessageBox]::Show(
+            (Get-RollbackConfirmationMessage -Paths $Paths),
+            "PotatoPC: откат",
+            [System.Windows.MessageBoxButton]::YesNo,
+            [System.Windows.MessageBoxImage]::Warning)
+        return ($result -eq [System.Windows.MessageBoxResult]::Yes)
+    } catch {
+        try { Write-Log ("Не удалось запросить подтверждение отката: " + $_) -Color "Red" } catch {}
+        return $false
+    }
+}
+
+function Run-SelectedRollbackScripts {
+    param([string[]]$Paths)
+    if ($script:RollbackBatchRunning) {
+        Stop-SelectedRollbackScripts | Out-Null
+        return $false
+    }
+    if ($script:BatchRunning) {
+        try { Write-Log "Дождитесь завершения обычных скриптов перед откатом." -Color "Yellow" } catch {}
+        return $false
+    }
+    $rawPaths = @()
+    if ($PSBoundParameters.ContainsKey('Paths')) {
+        $rawPaths = @($Paths)
+    } else {
+        $selected = @($script:RollbackCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked })
+        $rawPaths = @($selected | ForEach-Object { $_.Key })
+    }
+    $pathsList = @()
+    foreach ($path in $rawPaths) {
+        if ([string]::IsNullOrWhiteSpace([string]$path)) { continue }
+        $path = [string]$path
+        if ($pathsList -notcontains $path) { $pathsList += $path }
+    }
+    if ($pathsList.Count -eq 0) {
+        try { Write-Log "⚠ Нет выбранных rollback-скриптов" -Color "Yellow" } catch {}
+        return $false
+    }
+    $invalid = @($pathsList | Where-Object { -not (Is-RollbackPath -Path $_) })
+    if ($invalid.Count -gt 0) {
+        try { Write-Log "✗ Отказ: выбран путь вне папки отката." -Color "Red" } catch {}
+        return $false
+    }
+    $miss = @(Test-ScriptsExist -Paths $pathsList)
+    if ($miss.Count -gt 0) {
+        try { Write-Log ("✗ Нет файлов отката: " + $miss.Count + " (напр. " + (Split-Path $miss[0] -Leaf) + ")") -Color "Red" } catch {}
+        return $false
+    }
+    if (-not (Confirm-RollbackRun -Paths $pathsList)) { return $false }
+    $script:RollbackBatchControl = [hashtable]::Synchronized(@{ Abort = $false; ChildPid = 0 })
+    $script:RollbackBatchRunning = $true
+    $runButton = Get-RollbackControl -Name 'runRollbackBtn'
+    if ($runButton) {
+        try {
+            if (-not $script:RollbackRunBtnSaved) {
+                $script:RollbackRunBtnContent = $runButton.Content
+                $script:RollbackRunBtnStyle = $runButton.Style
+                $script:RollbackRunBtnSaved = $true
+            }
+            $runButton.Content = "⏹ Стоп"
+            try {
+                $win = Get-Variable -Name 'window' -Scope Global -ValueOnly -ErrorAction Stop
+                if ($win) { $runButton.Style = $win.FindResource("BtnDanger") }
+            } catch {}
+        } catch {}
+    }
+    try { Write-Log "══════════════════════════════════════" } catch {}
+    try { Write-Log "▶ Запуск $($pathsList.Count) rollback-скриптов..." -Color "Cyan" } catch {}
+    try { Write-Log "══════════════════════════════════════" } catch {}
+    try {
+        $script:RollbackBatchHandle = Invoke-Async -ScriptBlock {
+            $ok = 0
+            $fail = 0
+            $stoppedByUser = $false
+            $total = @($pathsList).Count
+            $idx = 0
+            try {
+                foreach ($rollbackPath in $pathsList) {
+                    if ($batchControl.Abort) {
+                        $stoppedByUser = $true
+                        break
+                    }
+                    $idx++
+                    try { Set-Progress ([double]$idx / [double]([Math]::Max(1, $total))) } catch {}
+                     try {
+                         if (-not (Is-RollbackPath -Path $rollbackPath -ScriptsFolder $ScriptsFolder -FolderName $FolderName)) { throw 'Путь отката изменился или стал небезопасным' }
+                         Write-Log "── $(Split-Path $rollbackPath -Leaf)"
+                         $result = Invoke-ScriptFileWithRetry -FilePath $rollbackPath -MaxAttempts 2 -TimeoutSec (Get-ScriptTimeout $rollbackPath) -Control $batchControl
+                        if ($result) {
+                            Write-Log "   ✓ Готово" -Color "Green"
+                            $ok++
+                        } else {
+                            Write-Log "   ✗ Ошибка (код выхода)" -Color "Yellow"
+                            $fail++
+                        }
+                    } catch {
+                        if ("$_" -like "*STOPPED_BY_USER*") {
+                            $stoppedByUser = $true
+                            $fail++
+                            Write-Log "⏹ Остановлено пользователем: $(Split-Path $rollbackPath -Leaf)" -Color "Yellow"
+                            break
+                        }
+                        $fail++
+                        Write-Log "   ⚠ Скипаю: $_" -Color "Yellow"
+                    }
+                }
+                Write-Log "══════════════════════════════════════"
+                if ($stoppedByUser) {
+                    Write-Log "⏹ Откат остановлен пользователем. Выполнено: ✓$ok ✗$fail" -Color "Yellow"
+                } else {
+                    $tail = ""
+                    if ($fail -gt 0) { $tail += " ✗$fail ошибок" }
+                    Write-Log "Откат завершён: ✓$ok$tail" -Color "Green"
+                }
+                Write-Log "══════════════════════════════════════"
+            } finally {
+                try { Clear-Progress } catch {}
+            }
+        } -Variables @{ pathsList = $pathsList; batchControl = $script:RollbackBatchControl; ScriptsFolder = $script:ScriptsFolder; FolderName = $script:RollbackFolderName } -OnComplete {
+            try { Invoke-OnUI { Reset-RollbackRunButton } } catch { try { Reset-RollbackRunButton } catch {} }
+        }
+        return $true
+    } catch {
+        try { Write-Log ("✗ Не удалось запустить откат: " + $_) -Color "Red" } catch {}
+        Reset-RollbackRunButton
+        return $false
     }
 }
 
 function Run-SelectedScripts {
     if ($script:BatchRunning) { Stop-SelectedScripts; return }
+    if ($script:RollbackBatchRunning) { try { Write-Log 'Дождитесь завершения отката перед запуском обычных скриптов.' -Color 'Yellow' } catch {}; return }
     $selected = $script:ScriptCheckboxes.GetEnumerator() | Where-Object { $_.Value.IsChecked }
     if (-not $selected) { Write-Log "⚠ Нет выбранных скриптов" -Color "Yellow"; return }
     $pathsList = @($selected | ForEach-Object { $_.Key })
@@ -319,7 +827,16 @@ function Run-SelectedScripts {
         Repair-ScriptsCache
         return
     }
-    $reboot    = $rebootAfterChk.IsChecked
+    $reboot    = [bool]($rebootAfterChk.IsChecked -eq $true)
+    if ($reboot) {
+        $names = @($pathsList | ForEach-Object { Split-Path $_ -Leaf })
+        $answer = [System.Windows.MessageBox]::Show(
+            ("После выполнения " + $names.Count + " скриптов будет выполнена перезагрузка:`n" + ($names -join "`n") + "`n`nПродолжить?"),
+            "PotatoPC: перезагрузка",
+            [System.Windows.MessageBoxButton]::YesNo,
+            [System.Windows.MessageBoxImage]::Warning)
+        if ($answer -ne [System.Windows.MessageBoxResult]::Yes) { return }
+    }
     $count     = $pathsList.Count
     if (-not $script:RunBtnSaved) {
         try {
@@ -354,10 +871,9 @@ function Run-SelectedScripts {
                     Write-Log "⏹ Остановлено пользователем: $(Split-Path $scriptPath -Leaf)" -Color Yellow
                     break
                 }
-                # Зависший/упавший 3 раза плагин — скипаем и идём дальше, очередь не останавливаем.
                 $fail++
                 $skipped += (Split-Path $scriptPath -Leaf)
-                Write-Log "   ⚠ Скипаю (3 неудачные попытки): $_" -Color Yellow
+                Write-Log "   ⚠ Скипаю после неудачных попыток: $_" -Color Yellow
                 Write-Log "   Иду к следующему скрипту..." -Color Yellow
             }
         }
@@ -372,17 +888,16 @@ function Run-SelectedScripts {
         }
         Write-Log "══════════════════════════════════════"
         if (-not $stoppedByUser -and $reboot) {
-            # Сбоев 2+: одноразовая задача — после перезагрузки открыть отчёт в блокноте,
-            # иначе про failures никто не узнает. RunOnce срабатывает 1 раз и самоудаляется.
-            if ($fail -ge 2) {
+            if ($fail -eq 0) {
+                Write-Log "Перезагрузка через 10 секунд..."
+                Start-Sleep 10
+                Restart-Computer -Force
+            } else {
                 try {
                     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
                     $note = Join-Path ([Environment]::GetFolderPath('Desktop')) ("PotatoPC-failures-" + $stamp + ".txt")
-                    $head = @(
-                        "PotatoPC: при запуске скриптов было сбоев: $fail (скипнуто зависших: $($skipped.Count))",
-                        "Время: $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
-                    )
-                    if ($skipped.Count -gt 0) { $head += ("Скипнуты (висли 3 раза): " + ($skipped -join ", ")) }
+                    $head = @("PotatoPC: выполнение завершилось с ошибками: $fail", "Время: $(Get-Date -Format 'yyyy-MM-dd HH:mm')")
+                    if ($skipped.Count -gt 0) { $head += ("Скипнуты: " + ($skipped -join ", ")) }
                     $tailLines = @()
                     try {
                         $lp = $null; try { $lp = $bgLogPath } catch {}
@@ -392,13 +907,9 @@ function Run-SelectedScripts {
                         }
                     } catch {}
                     ([string[]]$head + @('', '--- хвост лога ---', '') + [string[]]$tailLines) | Out-File -FilePath $note -Encoding UTF8 -Force
-                    $rk = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce'
-                    try { Remove-ItemProperty -LiteralPath $rk -Name 'PotatoPCFailures' -Force -ErrorAction SilentlyContinue } catch {}
-                    New-ItemProperty -LiteralPath $rk -Name 'PotatoPCFailures' -Value ('notepad.exe "' + $note + '"') -PropertyType String -Force | Out-Null
-                    Write-Log ("⚠ Сбоев: $fail — после перезагрузки откроется отчёт: " + $note) -Color "Yellow"
-                } catch { Write-Log ("Не вышло запланировать отчёт о сбоях: " + $_) -Color "Yellow" }
+                    Write-Log ("Ошибки: перезагрузка отменена, отчёт: " + $note) -Color "Yellow"
+                } catch { Write-Log ("Не удалось сохранить отчёт: " + $_) -Color "Yellow" }
             }
-            Write-Log "🔄 Перезагрузка через 10 секунд..."; Start-Sleep 10; Restart-Computer -Force
         }
         } finally { Clear-Progress }
     } -Variables @{ pathsList=$pathsList; reboot=$reboot; batchControl=$script:BatchControl } -OnComplete {

@@ -245,7 +245,7 @@ function Get-ScriptTimeout {
     # Зависший плагин: 2 попытки по 60с, дальше скип (см. Run-SelectedScripts).
     # Исключения — WinSxS/DISM и winget (снос+установка): честные десятки минут, не вешать на них 60с.
     if ($FilePath -like '*winsxs*') { return 1800 }
-    if ($FilePath -like '*winget*') { return 1800 }
+    if ($FilePath -like '*winget*') { return 3600 }
     return 60
 }
 
@@ -409,6 +409,70 @@ function Invoke-ScriptFileWithRetry {
     return $false
 }
 
+function Test-RepoManifest {
+    param([string]$Root, [switch]$Strict)
+    if ([string]::IsNullOrWhiteSpace($Root) -or -not (Test-Path -LiteralPath $Root -PathType Container)) { return $false }
+    try {
+        $rootItem = Get-Item -LiteralPath $Root -Force -ErrorAction Stop
+        if (($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+        $ancestor = $Root
+        while (-not [string]::IsNullOrEmpty($ancestor)) {
+            $ancestorItem = $null
+            try { $ancestorItem = Get-Item -LiteralPath $ancestor -Force -ErrorAction Stop } catch {}
+            if ($null -ne $ancestorItem -and (($ancestorItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { return $false }
+            $parent = [System.IO.Path]::GetDirectoryName($ancestor)
+            if ([string]::IsNullOrEmpty($parent) -or $parent -eq $ancestor) { break }
+            $ancestor = $parent
+        }
+    } catch { return $false }
+    $manifestPath = Join-Path $Root 'SHA256SUMS'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { return $false }
+    try {
+        $manifestItem = Get-Item -LiteralPath $manifestPath -Force -ErrorAction Stop
+        if (($manifestItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+    } catch { return $false }
+    $expected = @{}
+    try {
+        foreach ($line in [System.IO.File]::ReadAllLines($manifestPath, [System.Text.Encoding]::UTF8)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line -notmatch '^([0-9A-Fa-f]{64})  (.+)$') { return $false }
+            $hash = $Matches[1].ToUpperInvariant()
+            $rel = $Matches[2].Replace('/', '\')
+            if ([System.IO.Path]::IsPathRooted($rel) -or $rel -match '(^|\\)\.\.(\\|$)' -or $rel.Contains(':')) { return $false }
+            $key = $rel.ToUpperInvariant()
+            if ($expected.ContainsKey($key)) { return $false }
+            $expected[$key] = $hash
+        }
+        if ($expected.Count -eq 0) { return $false }
+        $entries = @(Get-ChildItem -LiteralPath $Root -Recurse -Force -ErrorAction Stop | Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' -and $_.Name -ne 'SHA256SUMS' })
+        foreach ($entry in $entries) {
+            if (($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+        }
+        $actual = @($entries | Where-Object { -not $_.PSIsContainer })
+        $releaseFiles = @($actual | Where-Object {
+            $rel = $_.FullName.Substring($Root.Length).TrimStart('\', '/')
+            $rel -notmatch '^(?i)(tests|mockup)[\\/]'
+        })
+        if ($Strict -and $releaseFiles.Count -ne $expected.Count) { return $false }
+        foreach ($key in $expected.Keys) {
+            $path = Join-Path $Root $key
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+        }
+        foreach ($file in $actual) {
+            $rel = $file.FullName.Substring($Root.Length).TrimStart('\', '/')
+            $key = $rel.ToUpperInvariant()
+            if (-not $expected.ContainsKey($key)) {
+                if ($rel -match '^(?i)(tests|mockup)[\\/]') { continue }
+                if ($Strict -or ($file.Extension -ieq '.ps1')) { return $false }
+                continue
+            }
+            $hash = [string](Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256 -ErrorAction Stop).Hash
+            if ($hash.ToUpperInvariant() -ne $expected[$key]) { return $false }
+        }
+        return $true
+    } catch { return $false }
+}
+
 function Expand-RepoArchive {
     param([string]$ZipPath, [string]$Destination)
     try {
@@ -421,44 +485,83 @@ function Expand-RepoArchive {
     [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $Destination)
 }
 
+function Set-RepoCacheAcl {
+    param([string]$Path)
+    $secureDir = Get-Command Set-ProtectDirectoryAcl -ErrorAction SilentlyContinue
+    $secureFile = Get-Command Set-ProtectFileAcl -ErrorAction SilentlyContinue
+    if (-not $secureDir -or -not $secureFile) { return $false }
+    try {
+        $rootItem = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (-not $rootItem.PSIsContainer -or (($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { return $false }
+        if (-not (& $secureDir -Path $Path)) { return $false }
+        foreach ($entry in @(Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction Stop)) {
+            if (($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+            if ($entry.PSIsContainer) { if (-not (& $secureDir -Path $entry.FullName)) { return $false } }
+            elseif (-not (& $secureFile -Path $entry.FullName)) { return $false }
+        }
+        return $true
+    } catch { return $false }
+}
+
+function Initialize-RepoCache {
+    $base = if (-not [string]::IsNullOrWhiteSpace($env:ProgramData)) { Join-Path $env:ProgramData 'PotatoPC' } else { [string]$script:WorkFolder }
+    $cache = if (-not [string]::IsNullOrWhiteSpace($script:RepoCacheFolder)) { [string]$script:RepoCacheFolder } else { Join-Path $base 'cache' }
+    try { if (-not (Test-Path -LiteralPath $base)) { New-Item -ItemType Directory -Path $base -Force -ErrorAction Stop | Out-Null } } catch { return '' }
+    try { if (-not (Test-Path -LiteralPath $cache)) { New-Item -ItemType Directory -Path $cache -Force -ErrorAction Stop | Out-Null } } catch { return '' }
+    if (-not (Set-RepoCacheAcl -Path $base) -or -not (Set-RepoCacheAcl -Path $cache)) { return '' }
+    return $cache
+}
+
+function Get-RepoDirectories {
+    param([string]$Root = $script:RepoCacheFolder)
+    if ([string]::IsNullOrWhiteSpace($Root) -or -not (Test-Path -LiteralPath $Root -PathType Container)) { return @() }
+    try {
+        return @(Get-ChildItem -LiteralPath $Root -Directory -Force -ErrorAction Stop |
+            Where-Object { $_.Name -eq 'PotatoPC-main' -or $_.Name -like 'PotatoPC-main-*' -or $_.Name -like '*-main' } |
+            Sort-Object LastWriteTime -Descending)
+    } catch { return @() }
+}
+
 function Download-Repo {
     param([switch]$Force)
-    $zipPath = Join-Path $script:WorkFolder "repo.zip"
+    $token = [Guid]::NewGuid().ToString('N')
+    $cacheRoot = Initialize-RepoCache
+    if ([string]::IsNullOrWhiteSpace($cacheRoot)) { Write-Log 'Не удалось создать защищённый кэш репозитория' -Color 'Red'; return $false }
+    $zipPath = Join-Path $cacheRoot ('.repo-' + $token + '.zip')
+    $stagePath = Join-Path $cacheRoot ('.stage-' + $token)
+    $finalPath = Join-Path $cacheRoot ('PotatoPC-main-' + $token.Substring(0, 8))
     try {
         Write-Log "$(if($Force){'Обновление'}else{'Загрузка'}) репозитория с GitHub..."
-        if ($Force) {
-            $oldFolders = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory -ErrorAction SilentlyContinue
-            foreach ($old in $oldFolders) {
-                Write-Log "Удаление старой папки: $($old.Name)"
-                Remove-Item -Path $old.FullName -Recurse -Force -ErrorAction SilentlyContinue
-            }
-        }
-        if (-not (Test-Path $script:WorkFolder)) {
-            New-Item -ItemType Directory -Path $script:WorkFolder -Force | Out-Null
-        }
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $script:RepoZipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
-        Expand-RepoArchive -ZipPath $zipPath -Destination $script:WorkFolder
-        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
-        try {
-            Get-ChildItem -Path $script:WorkFolder -Filter '*.ps1' -Recurse -Force -ErrorAction SilentlyContinue |
-                Unblock-File -ErrorAction SilentlyContinue
-        } catch {}
-        $repoFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory |
-                      Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if ($repoFolder) {
-            $script:ScriptsFolder = Join-Path $repoFolder.FullName "scripts"
-            $script:AppsJsonPath  = Join-Path $repoFolder.FullName "apps.json"
-            $n = @(Get-ChildItem -Path $script:ScriptsFolder -Recurse -Filter "*.ps1" -ErrorAction SilentlyContinue).Count
-            Write-Log "Готово. Скриптов: $n"
-            return $true
-        } else {
-            Write-Log "Папка репозитория не найдена." -Color "Red"
-            return $false
+        if (-not [string]::IsNullOrWhiteSpace([string]$script:RepoZipSha256)) {
+            $zipHash = [string](Get-FileHash -LiteralPath $zipPath -Algorithm SHA256 -ErrorAction Stop).Hash
+            if ($zipHash -ne [string]$script:RepoZipSha256) { throw ('Хэш ZIP не совпадает: ' + $zipHash) }
         }
+        New-Item -ItemType Directory -Path $stagePath -Force | Out-Null
+        Expand-RepoArchive -ZipPath $zipPath -Destination $stagePath
+        $candidate = @(Get-ChildItem -LiteralPath $stagePath -Directory -Force -ErrorAction Stop |
+            Where-Object { (Test-Path (Join-Path $_.FullName 'menu.ps1')) -and (Test-Path (Join-Path $_.FullName 'apps.json')) } |
+            Select-Object -First 1)
+        if ($candidate.Count -eq 0) { throw 'В архиве нет menu.ps1 и apps.json' }
+        Move-Item -LiteralPath $candidate[0].FullName -Destination $finalPath -ErrorAction Stop
+        if (-not (Test-RepoManifest -Root $finalPath -Strict)) { throw 'Манифест SHA256SUMS не проходит проверку' }
+        try { Get-ChildItem -LiteralPath $finalPath -Filter '*.ps1' -Recurse -File -Force -ErrorAction Stop | Unblock-File -ErrorAction Stop } catch { throw ('Не удалось снять блокировку: ' + $_.Exception.Message) }
+        $scripts = Join-Path $finalPath 'scripts'
+        $apps = Join-Path $finalPath 'apps.json'
+        if (-not (Test-Path $scripts -PathType Container) -or -not (Test-Path $apps -PathType Leaf)) { throw 'В архиве отсутствуют scripts или apps.json' }
+        $script:ScriptsFolder = $scripts
+        $script:AppsJsonPath = $apps
+        $n = @(Get-ChildItem -LiteralPath $scripts -Recurse -File -Filter '*.ps1' -ErrorAction SilentlyContinue).Count
+        Write-Log "Готово. Скриптов: $n"
+        return $true
     } catch {
-        Write-Log "Ошибка загрузки: $_" -Color "Red"
+        try { if (Test-Path -LiteralPath $finalPath) { Remove-Item -LiteralPath $finalPath -Recurse -Force -ErrorAction SilentlyContinue } } catch {}
+        Write-Log ("Ошибка загрузки: " + $_.Exception.Message) -Color "Red"
         return $false
+    } finally {
+        try { if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue } } catch {}
+        try { if (Test-Path -LiteralPath $stagePath) { Remove-Item -LiteralPath $stagePath -Recurse -Force -ErrorAction SilentlyContinue } } catch {}
     }
 }
 
@@ -467,53 +570,117 @@ function Initialize-PotatoPC {
     if (-not (Test-Path $script:WorkFolder)) {
         New-Item -ItemType Directory -Path $script:WorkFolder -Force | Out-Null
     }
-    $repoFolder = Get-ChildItem -Path $script:WorkFolder -Filter "*-main" -Directory |
-                  Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    $cachedOk = $false
-    if ($repoFolder) {
-        $cachedScripts = Join-Path $repoFolder.FullName "scripts"
-        $cachedN = @(Get-ChildItem -Path $cachedScripts -Recurse -Filter "*.ps1" -ErrorAction SilentlyContinue).Count
-        $cachedOk = ((Test-Path $cachedScripts) -and ($cachedN -gt 0) -and (Test-Path (Join-Path $repoFolder.FullName "apps.json")))
-        if (-not $cachedOk) {
-            Write-Log "Локальный кэш повреждён (скриптов: $cachedN), качаю заново..." -Color "Yellow"
-            try { Remove-Item -LiteralPath $repoFolder.FullName -Recurse -Force -ErrorAction Stop } catch {}
+    $localRoot = [string]$script:LocalRepoRoot
+    $localScripts = if ($localRoot) { Join-Path $localRoot 'scripts' } else { '' }
+    $localApps = if ($localRoot) { Join-Path $localRoot 'apps.json' } else { '' }
+    if ($localScripts -and $localApps -and (Test-Path -LiteralPath $localScripts -PathType Container) -and (Test-Path -LiteralPath $localApps -PathType Leaf) -and (Test-RepoManifest -Root $localRoot)) {
+        $localCount = @(Get-ChildItem -LiteralPath $localScripts -Recurse -Filter '*.ps1' -File -ErrorAction SilentlyContinue).Count
+        if ($localCount -gt 0) {
+            $script:ScriptsFolder = $localScripts
+            $script:AppsJsonPath = $localApps
+            Write-Log ("Используется локальный репозиторий: $localScripts; скриптов: $localCount")
+            Set-BgResult -Key 'paths' -Value @{ ScriptsFolder = $script:ScriptsFolder; AppsJsonPath = $script:AppsJsonPath }
+            return
         }
+    }
+    $cacheRoot = Initialize-RepoCache
+    if ([string]::IsNullOrWhiteSpace($cacheRoot)) { $script:ScriptsFolder = ''; $script:AppsJsonPath = ''; Set-BgResult -Key 'initError' -Value 'Не удалось подготовить защищённый кэш репозитория'; return }
+    $repoFolder = @(Get-RepoDirectories -Root $cacheRoot | Select-Object -First 1)
+    $cachedOk = $false
+    if ($repoFolder.Count -gt 0) {
+        $repoFolder = $repoFolder[0]
+        $cachedScripts = Join-Path $repoFolder.FullName "scripts"
+        $cachedN = @(Get-ChildItem -LiteralPath $cachedScripts -Recurse -Filter "*.ps1" -File -ErrorAction SilentlyContinue).Count
+        $cachedOk = ((Test-Path $cachedScripts -PathType Container) -and ($cachedN -gt 0) -and (Test-Path (Join-Path $repoFolder.FullName "apps.json") -PathType Leaf) -and (Test-RepoManifest -Root $repoFolder.FullName -Strict) -and (Set-RepoCacheAcl -Path $repoFolder.FullName))
+        if (-not $cachedOk) { Write-Log "Локальный кэш повреждён (скриптов: $cachedN), качаю заново..." -Color "Yellow" }
     }
     if ($cachedOk) {
         $script:ScriptsFolder = Join-Path $repoFolder.FullName "scripts"
         $script:AppsJsonPath  = Join-Path $repoFolder.FullName "apps.json"
-        $n = @(Get-ChildItem -Path $script:ScriptsFolder -Recurse -Filter "*.ps1" -ErrorAction SilentlyContinue).Count
+        $n = @(Get-ChildItem -LiteralPath $script:ScriptsFolder -Recurse -Filter "*.ps1" -File -ErrorAction SilentlyContinue).Count
         Write-Log "Репозиторий найден локально. Скриптов: $n"
-    } else {
-        Download-Repo
+    } elseif (-not (Download-Repo)) {
+        $fallback = $null
+        foreach ($candidate in @(Get-RepoDirectories -Root $cacheRoot)) {
+            if ((Test-RepoManifest -Root $candidate.FullName -Strict) -and (Set-RepoCacheAcl -Path $candidate.FullName)) { $fallback = $candidate; break }
+        }
+        if ($null -eq $fallback) { $script:ScriptsFolder = ''; $script:AppsJsonPath = ''; Set-BgResult -Key 'initError' -Value 'Репозиторий недоступен или не прошёл проверку'; return }
+        $script:ScriptsFolder = Join-Path $fallback.FullName "scripts"
+        $script:AppsJsonPath = Join-Path $fallback.FullName "apps.json"
     }
     # Пути живут и в UI-сессии: кладём в шину, Test-BgQueue применит до построения панелей
     Set-BgResult -Key 'paths' -Value @{ ScriptsFolder = $script:ScriptsFolder; AppsJsonPath = $script:AppsJsonPath }
 }
 
+function Test-TrustedWingetPath {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    try {
+        $full = [System.IO.Path]::GetFullPath($Path)
+        $root = [System.IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'WindowsApps')).TrimEnd('\')
+        if (-not ($full.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase))) { return $false }
+        $item = Get-Item -LiteralPath $full -Force -ErrorAction Stop
+        if ($item.PSIsContainer -or (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { return $false }
+        $signature = Get-AuthenticodeSignature -LiteralPath $full -ErrorAction Stop
+        if ($signature.Status -ne 'Valid' -or [string]::IsNullOrWhiteSpace([string]$signature.SignerCertificate.Subject) -or $signature.SignerCertificate.Subject -notmatch '(?i)Microsoft') { return $false }
+        return $true
+    } catch { return $false }
+}
+
 function Get-WingetPath {
     try {
         $cmd = Get-Command winget -ErrorAction SilentlyContinue
-        if ($cmd -and $cmd.Source -and (Test-Path $cmd.Source)) { return $cmd.Source }
+        if ($cmd -and $cmd.Source -and (Test-Path $cmd.Source) -and (Test-TrustedWingetPath -Path $cmd.Source)) { return $cmd.Source }
     } catch {}
-    $candidates = @(
-        "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe",
-        "$env:USERPROFILE\AppData\Local\Microsoft\WindowsApps\winget.exe",
+    $candidates = @()
+    try {
+        $appx = @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller -ErrorAction Stop)
+        foreach ($package in $appx) { if ($package.InstallLocation) { $candidates += (Join-Path ([string]$package.InstallLocation) 'winget.exe') } }
+    } catch {}
+    $candidates += @(
         "$env:ProgramFiles\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
     )
     foreach ($p in $candidates) {
         if ($p -like "*`*") {
             try {
                 $found = Get-ChildItem -Path $p -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($found -and (Test-Path $found.FullName)) { return $found.FullName }
+                if ($found -and (Test-Path $found.FullName) -and (Test-TrustedWingetPath -Path $found.FullName)) { return $found.FullName }
             } catch {}
-        } elseif (Test-Path $p) { return $p }
+        } elseif ((Test-Path $p) -and (Test-TrustedWingetPath -Path $p)) { return $p }
     }
+    return ""
+}
+
+function Invoke-WingetCommand {
+    param([string]$Exe, [string]$Arguments, [int]$TimeoutSec = 300)
+    $result = @{ Code = -1; Out = ''; Error = ''; TimedOut = $false; Ok = $false }
+    if ([string]::IsNullOrWhiteSpace($Exe) -or $Exe -eq 'winget') { return $result }
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $Exe
+    $psi.Arguments = $Arguments
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    $process = $null
     try {
-        $where = (where.exe winget 2>$null | Select-Object -First 1)
-        if ($where) { $where = $where.Trim(); if (Test-Path $where) { return $where } }
-    } catch {}
-    return "winget"
+        $process = [System.Diagnostics.Process]::Start($psi)
+        if ($null -eq $process) { return $result }
+        $outTask = $process.StandardOutput.ReadToEndAsync()
+        $errTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit([Math]::Max(1000, $TimeoutSec * 1000))) {
+            try { Stop-ProcessTree -TargetPid $process.Id } catch {}
+            try { $null = $process.WaitForExit(5000) } catch {}
+            $result.TimedOut = $true
+            return $result
+        }
+        try { if ($outTask.Wait(5000)) { $result.Out = [string]$outTask.Result } } catch {}
+        try { if ($errTask.Wait(5000)) { $result.Error = [string]$errTask.Result } } catch {}
+        $result.Code = [int]$process.ExitCode
+        $result.Ok = ($result.Code -eq 0)
+        return $result
+    } catch { $result.Error = $_.Exception.Message; return $result }
+    finally { if ($process) { try { $process.Dispose() } catch {} } }
 }
 
 function Get-SystemInfo {
@@ -559,9 +726,11 @@ function Set-StartupApprovedState {
         $isRunOnce   = $RegKey -like "*RunOnce*"
         $approvedSub = if ($ApprovedSubOverride) { $ApprovedSubOverride }
                        elseif ($isRunOnce) {
-                           'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedRunOnce'
+                           'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\RunOnce'
+                       } elseif ($RegKey -like '*WOW6432Node*') {
+                           'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run32'
                        } else {
-                           'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApprovedRun'
+                           'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
                        }
         $rootKey = if ($isHKCU) { [Microsoft.Win32.Registry]::CurrentUser }
                    else         { [Microsoft.Win32.Registry]::LocalMachine }
@@ -591,7 +760,7 @@ using System;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 public static class PSAsyncHelper {
-    public static Action MakeCompletion(PowerShell ps, IAsyncResult iar, Action completion, Runspace bgRunspace, Runspace callerRunspace) {
+    public static Action MakeCompletion(PowerShell ps, IAsyncResult iar, Action<string> completion, Runspace bgRunspace, Runspace callerRunspace) {
         return () => {
             Exception err = null;
             try { ps.EndInvoke(iar); }
@@ -600,7 +769,7 @@ public static class PSAsyncHelper {
             try { if (bgRunspace != null) bgRunspace.Dispose(); } catch {}
             try { if (callerRunspace != null) { callerRunspace.SessionStateProxy.SetVariable("AsyncLastError", err == null ? null : err.Message); } } catch {}
             try { if (callerRunspace != null) { Runspace.DefaultRunspace = callerRunspace; } } catch {}
-            if (completion != null) { try { completion(); } catch {} }
+            if (completion != null) { try { completion(err == null ? null : err.Message); } catch {} }
         };
     }
     public static Action MakeRunAction(Action body, Runspace callerRunspace) {
@@ -614,7 +783,7 @@ public static class PSAsyncHelper {
 }
 
 $script:BgISS = $null
-$script:BgConfigNames = @('WorkFolder','ScriptsFolder','AppsJsonPath','AppsJsonUrl','RepoZipUrl','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion','CleanRulesPath')
+$script:BgConfigNames = @('WorkFolder','RepoCacheFolder','LocalRepoRoot','ScriptsFolder','AppsJsonPath','AppsJsonUrl','ProtectRulesManifestUrl','ProtectRulesBaseUrl','RepoZipUrl','RepoZipSha256','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion','CleanRulesPath','YaraEngineZipSha256','YaraEngineExeSha256','YaraRulesManifestSha256')
 
 function Get-BgSessionState {
     # Снимок всех пользовательских функций один раз (после загрузки модулей).
@@ -747,6 +916,8 @@ function Invoke-Async {
         $ps.AddScript("function Invoke-ScriptFileWithRetry {`n$retrySrc`n}") | Out-Null
         $timeoutSrc = ${function:Get-ScriptTimeout}.ToString()
         $ps.AddScript("function Get-ScriptTimeout {`n$timeoutSrc`n}") | Out-Null
+        $wingetTrustSrc = ${function:Test-TrustedWingetPath}.ToString()
+        $ps.AddScript("function Test-TrustedWingetPath {`n$wingetTrustSrc`n}") | Out-Null
         $wingetSrc = ${function:Get-WingetPath}.ToString()
         $ps.AddScript("function Get-WingetPath {`n$wingetSrc`n}") | Out-Null
         $onUISrc = ${function:Invoke-OnUI}.ToString()
@@ -760,7 +931,7 @@ function Invoke-Async {
     } catch {}
     # Хелперы вкладки Защита для фоновых сканирований.
     try {
-        foreach ($hfn in @('Ensure-YaraEngine', 'Combine-YaraRules', 'Invoke-YaraEntry', 'Ensure-YaraRules', 'Read-ProcessOutput', 'Stop-ProcessTree')) {
+        foreach ($hfn in @('Ensure-YaraEngine', 'Combine-YaraRules', 'Invoke-YaraEntry', 'Ensure-YaraRules', 'Read-ProcessOutput', 'Stop-ProcessTree', 'Invoke-WingetCommand', 'Get-RollbackFolder', 'Is-RollbackPath')) {
             try {
                 $hsrc = (Get-Command $hfn -CommandType Function -ErrorAction Stop).ScriptBlock.ToString()
                 $ps.AddScript("function $hfn {`n$hsrc`n}") | Out-Null
@@ -772,7 +943,14 @@ function Invoke-Async {
     $iar = $ps.BeginInvoke()
     $callerRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
     $completion = [Action]$OnComplete
-    $action = [PSAsyncHelper]::MakeCompletion($ps, $iar, $completion, $rs, $callerRunspace)
+    $completionWithError = [Action[string]]{
+        param([string]$message)
+        if (-not [string]::IsNullOrWhiteSpace($message)) {
+            try { Write-Log ("Фоновая операция завершилась с ошибкой: " + $message) -Color "Red" } catch {}
+        }
+        if ($completion) { try { $completion.Invoke() } catch {} }
+    }.GetNewClosure()
+    $action = [PSAsyncHelper]::MakeCompletion($ps, $iar, $completionWithError, $rs, $callerRunspace)
     [System.Threading.Tasks.Task]::Run($action) | Out-Null
     # Handle для внешней остановки: Stop() тормозит конвейер, завершение подчистит ранспейс.
     # Остальные вызовы возвращаемое значение игнорируют — безопасно.
@@ -813,6 +991,7 @@ function Save-UIState {
             Height      = $window.Height
             State       = [string]$window.WindowState
             Tab         = $MainTabControl.SelectedIndex
+            UiVersion   = 2
             LogExpanded = $script:LogState
             LogHeight   = $script:LogHeight
         } | ConvertTo-Json -Compress | Out-File -FilePath $script:UIStatePath -Encoding UTF8 -Force

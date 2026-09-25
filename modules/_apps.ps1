@@ -167,11 +167,14 @@ function Build-AppsPanel {
     Start-Background {
         try {
             $wg = Get-WingetPath
-            $raw = & $wg list --accept-source-agreements 2>$null | Out-String
+            $result = Invoke-WingetCommand -Exe $wg -Arguments 'list --accept-source-agreements' -TimeoutSec 180
+            if ($result.TimedOut) { throw 'winget list превысил таймаут' }
+            if (-not $result.Ok) { throw ('winget list: ' + $result.Error) }
+            $raw = $result.Out
             $ids = @()
             $hf = $false
             foreach ($ln in ($raw -split "`n")) {
-                if ($ln -match '^\s*-+\s*$') { $hf = $true; continue }
+                if ($ln -match '^\s*-{3,}(?:\s+-{3,})*') { $hf = $true; continue }
                 if (-not $hf) { continue }
                 $p = @($ln -split '\s{2,}' | Where-Object { $_.Trim() -ne '' })
                 if ($p.Count -ge 2) {
@@ -180,7 +183,9 @@ function Build-AppsPanel {
                 }
             }
             Set-BgResult -Key 'installedApps' -Value @{ Ids = $ids }
-        } catch {}
+        } catch {
+            Set-BgResult -Key 'installedApps' -Value @{ Ids = @(); Error = $_.Exception.Message }
+        }
     }
     # Фавиконки брендов: тихо подгружаются поверх иконок категорий.
     $iconJobs = @()
