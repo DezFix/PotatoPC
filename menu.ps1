@@ -42,7 +42,7 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
 } else {
     # Link launch: fetch a fresh ZIP. Any network/extract trouble ends here
     # with a readable message + pause instead of a silent flash-and-gone.
-    $zipUrl  = "https://github.com/DezFix/PotatoPC/archive/refs/heads/main.zip"
+    $zipUrl  = "https://codeload.github.com/DezFix/PotatoPC/zip/refs/heads/main?cachebust=$([Guid]::NewGuid().ToString('N'))"
     $downloadRoot = Join-Path $env:TEMP ('PotatoPC-link-' + [Guid]::NewGuid().ToString('N'))
     $zipPath = Join-Path $downloadRoot 'repo.zip'
     $needBase = @("_config.ps1","_core.ps1","_theme.ps1","_icons.ps1","_ui.ps1","_xaml.ps1")

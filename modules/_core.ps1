@@ -580,7 +580,9 @@ function Download-Repo {
     try {
         Write-Log "$(if($Force){'Обновление'}else{'Загрузка'}) репозитория с GitHub..."
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $script:RepoZipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+        $zipRequestUrl = [string]$script:RepoZipUrl
+        if ($zipRequestUrl -match '^https://(?:codeload\.)?github\.com/') { $zipRequestUrl = (($zipRequestUrl -split '\?')[0]) + '?cachebust=' + [Guid]::NewGuid().ToString('N') }
+        Invoke-WebRequest -Uri $zipRequestUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
         if (-not [string]::IsNullOrWhiteSpace([string]$script:RepoZipSha256)) {
             $zipHash = [string](Get-FileHash -LiteralPath $zipPath -Algorithm SHA256 -ErrorAction Stop).Hash
             if ($zipHash -ne [string]$script:RepoZipSha256) { throw ('Хэш ZIP не совпадает: ' + $zipHash) }

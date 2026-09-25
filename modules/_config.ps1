@@ -21,7 +21,7 @@ try {
         $script:AppsJsonPath = $localApps
     }
 } catch {}
-$script:RepoZipUrl    = if ($env:POTATOPC_REPO_ZIP_URL) { [string]$env:POTATOPC_REPO_ZIP_URL } else { "https://github.com/DezFix/PotatoPC/archive/refs/heads/main.zip" }
+$script:RepoZipUrl    = if ($env:POTATOPC_REPO_ZIP_URL) { [string]$env:POTATOPC_REPO_ZIP_URL } else { "https://codeload.github.com/DezFix/PotatoPC/zip/refs/heads/main" }
 $script:RepoZipSha256 = [string]$env:POTATOPC_REPO_SHA256
 $script:AppsJsonUrl   = "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/apps.json"
 $script:ProtectRulesManifestUrl = if ($env:POTATOPC_PROTECT_MANIFEST_URL) { [string]$env:POTATOPC_PROTECT_MANIFEST_URL } else { 'https://raw.githubusercontent.com/DezFix/PotatoPC/b5b26c3/protect/rules.txt' }
