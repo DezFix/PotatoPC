@@ -7,14 +7,20 @@ $script:ScanOperationId = ''
 $script:QuarantineRunning = $false
 $script:QuarantineControl = $null
 $script:QuarantineOperationId = ''
+$script:ProtectPanelReady = $false
+$script:DefenderRunning = $false
+$script:DefenderControl = $null
+$script:DefenderOperationId = ''
 $script:YaraEngineZipSha256 = '352396C8A3D9B31B157A4820ABD3B9347FC934A2314CDDA8A4F566A5570163E4'
 $script:YaraEngineExeSha256 = '1C45EB279D820ABA81FD41C22384428EBE44037CF5793BE4B52A9D3B3DF62B33'
-$script:YaraRulesManifestSha256 = '6854EA681543805EF8EEB4D10BE98AD9C40021894EAC4709CE64148C10D016B4'
+$script:YaraRulesManifestSha256 = '077466C4C9E17D9ACBDEEAC9780A706C6037501EE01B087A2DAEB972462D6EF4'
 $script:YaraRuleHashes = @{
     'MALW_Arkei.yar' = '3EBAE7B8D1EFD69FFBB7D3D3B7C285ED827F7226F0A3B6E009D7A35A57DA4206'
     'MALW_AZORULT.yar' = 'E86E0A5B6A71BD0F8F9BA404B93DDE97EBD41B64A5F6B6194E5690CC3D363670'
+    'MALW_AgentTesla.yar' = 'E5BEC864FBE50EB3CB4E36EF848EE0FED2A10140376358465F02525090381B40'
     'MALW_CAP_HookExKeylogger.yar' = '962D7904342AC4D9DF103C3A3F2B3EA06F167035EB9BFC1B7AADB49B1F37A42D'
     'MALW_Eicar.yar' = '1BA3175CEBE28FC5D4D25C1CAF604BEDA152766DB268A3F159E4BF61C2EDDF54'
+    'MALW_Emotet.yar' = '9A0749387089C47AD48F90D6284BC432876751BF07A86224A8899624FF7DC16C'
     'MALW_Fareit.yar' = '6A8CDC84CB8E9B6EFF4DC850ED607DB879F7061A5BB0ABC88F56D367D07EB145'
     'MALW_hancitor.yar' = '4D99A2992A41CC0BFA5152EB8E0A4E0BF8B09B1094B2C57587CA8D1E030C6794'
     'MALW_Install11.yar' = 'C968DAC993842B2AD9EAB3CD107948E0478193585CB2BD172B8EEC782C286DF7'
@@ -30,6 +36,7 @@ $script:YaraRuleHashes = @{
     'MALW_Zeus.yar' = '3B844477C7DBB97418EDC4B5485DF2D0E0F9E1119F73F99188EA6E36D4354CFF'
     'RANSOM_Cerber.yar' = '93E1DC32941AFD6B7FEBEFC4283FDB951B0CD1E354F2CBBC0AF6E8FD5A99C8EE'
     'RANSOM_Locky.yar' = 'EAF00A1660FA88B2D332CAEBAD9A41110131B5FC8C232315B63421FA409EC580'
+    'RANSOM_MS17-010_Wannacrypt.yar' = 'AF98F947FF400FE76F0D2F919749FBA5F278D7A6D19C0F34DE6EEDDD44E52F91'
     'RANSOM_Stampado.yar' = '60B41F887DC916B53E08C6D037492361F0125575C4CFE9C5D07D95CB000B4BAB'
     'RANSOM_TeslaCrypt.yar' = '45A89521A98F29E88C950C4A179320D72DBC5EC0BE0573D56DF6C97B16F59996'
     'RAT_Asyncrat.yar' = '7FFCA8D68A1DD22AC9C9CA157EC3DE87B770597718F9CFBF88E22CD61F6A6E3B'
@@ -193,48 +200,31 @@ function Test-ProtectRestoreTarget {
 
 function Set-ProtectDirectoryAcl {
     param([string]$Path)
+    try { if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { return $false } } catch { return $false }
     $full = ConvertTo-ProtectPath -Path $Path -AllowMissing
     if ($null -eq $full) { return $false }
     $item = $null
     try { $item = Get-Item -LiteralPath $full -Force -ErrorAction Stop } catch { return $false }
     if ($null -eq $item -or -not $item.PSIsContainer) { return $false }
     try {
-        $acl = New-Object System.Security.AccessControl.DirectorySecurity
-        $acl.SetAccessRuleProtection($true, $false)
-        $systemSid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
-        $adminSid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
-        $inherit = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
-        $none = [System.Security.AccessControl.PropagationFlags]::None
-        $allow = [System.Security.AccessControl.AccessControlType]::Allow
-        $rights = [System.Security.AccessControl.FileSystemRights]::FullControl
-        $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($systemSid, $rights, $inherit, $none, $allow)))
-        $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($adminSid, $rights, $inherit, $none, $allow)))
-        $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($systemSid, $rights, [System.Security.AccessControl.InheritanceFlags]::None, $none, $allow)))
-        $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($adminSid, $rights, [System.Security.AccessControl.InheritanceFlags]::None, $none, $allow)))
-        $acl.SetOwner($adminSid)
-        Set-Acl -LiteralPath $full -AclObject $acl
+        & (Join-Path $env:windir 'System32\icacls.exe') $item.FullName '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { return $false }
+        try { & (Join-Path $env:windir 'System32\icacls.exe') $item.FullName '/setowner' '*S-1-5-32-544' 2>$null | Out-Null } catch {}
         return $true
     } catch { return $false }
 }
 
 function Set-ProtectFileAcl {
     param([string]$Path)
+    try { if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { return $false } } catch { return $false }
     $full = ConvertTo-ProtectPath -Path $Path
     if ($null -eq $full) { return $false }
     try {
         $item = Get-Item -LiteralPath $full -Force -ErrorAction Stop
         if ($item.PSIsContainer) { return $false }
-        $acl = New-Object System.Security.AccessControl.FileSecurity
-        $systemSid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
-        $adminSid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
-        $none = [System.Security.AccessControl.InheritanceFlags]::None
-        $prop = [System.Security.AccessControl.PropagationFlags]::None
-        $allow = [System.Security.AccessControl.AccessControlType]::Allow
-        $rights = [System.Security.AccessControl.FileSystemRights]::FullControl
-        $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($systemSid, $rights, $none, $prop, $allow)))
-        $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($adminSid, $rights, $none, $prop, $allow)))
-        $acl.SetOwner($adminSid)
-        Set-Acl -LiteralPath $full -AclObject $acl
+        & (Join-Path $env:windir 'System32\icacls.exe') $item.FullName '/inheritance:r' '/grant:r' '*S-1-5-18:F' '*S-1-5-32-544:F' 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { return $false }
+        try { & (Join-Path $env:windir 'System32\icacls.exe') $item.FullName '/setowner' '*S-1-5-32-544' 2>$null | Out-Null } catch {}
         return $true
     } catch { return $false }
 }
@@ -567,7 +557,7 @@ function Ensure-YaraRules {
     $base = [string]$script:ProtectRulesBaseUrl
     $manifestUrl = [string]$script:ProtectRulesManifestUrl
     if ([string]::IsNullOrWhiteSpace($base)) { $base = 'https://raw.githubusercontent.com/Yara-Rules/rules/0f93570194a80d2f2032869055808b0ddcdfb360/malware' }
-    if ([string]::IsNullOrWhiteSpace($manifestUrl)) { $manifestUrl = 'https://raw.githubusercontent.com/DezFix/PotatoPC/b5b26c3/protect/rules.txt' }
+    if ([string]::IsNullOrWhiteSpace($manifestUrl)) { $manifestUrl = 'https://raw.githubusercontent.com/DezFix/PotatoPC/main/protect/rules.txt' }
     try {
         Assert-OperationActive -Control $Control
         $rd = ConvertTo-ProtectPath -Path $RulesDir -AllowMissing
@@ -588,7 +578,9 @@ function Ensure-YaraRules {
         try {
             Assert-OperationActive -Control $Control
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-             $response = Invoke-WebRequest -Uri $manifestUrl -UseBasicParsing -TimeoutSec 20 -ErrorAction Stop
+             $manifestRequestUrl = [string]$manifestUrl
+             if ($manifestRequestUrl -match '^https://raw\.githubusercontent\.com/DezFix/PotatoPC/') { $manifestRequestUrl = (($manifestRequestUrl -split '\?')[0]) + '?cachebust=' + [Guid]::NewGuid().ToString('N') }
+             $response = Invoke-WebRequest -Uri $manifestRequestUrl -UseBasicParsing -TimeoutSec 20 -ErrorAction Stop
             $content = $response.Content
             if ($content -is [byte[]]) { $content = [System.Text.Encoding]::UTF8.GetString($content) }
              $remote = ConvertFrom-ProtectYaraManifest -Content ([string]$content)
@@ -915,6 +907,129 @@ function Get-ProtectDefenderStatus {
     return $result
 }
 
+function Get-DefenderScanExecutable {
+    $candidates = New-Object System.Collections.ArrayList
+    try {
+        $cmd = Get-Command 'MpCmdRun.exe' -ErrorAction Stop
+        if ($cmd -and $cmd.Source) { [void]$candidates.Add([string]$cmd.Source) }
+    } catch {}
+    try {
+        $platformRoot = Join-Path $env:ProgramData 'Microsoft\Windows Defender\Platform'
+        foreach ($dir in @(Get-ChildItem -LiteralPath $platformRoot -Directory -Force -ErrorAction SilentlyContinue | Sort-Object Name -Descending)) {
+            [void]$candidates.Add((Join-Path $dir.FullName 'MpCmdRun.exe'))
+        }
+    } catch {}
+    [void]$candidates.Add((Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'))
+    foreach ($candidate in @($candidates)) {
+        $item = Get-ProtectFileInfo -Path ([string]$candidate)
+        if ($null -eq $item) { continue }
+        try {
+            $signature = Get-AuthenticodeSignature -LiteralPath $item.FullName -ErrorAction Stop
+            if ($signature.Status -eq 'Valid' -and [string]$signature.SignerCertificate.Subject -match '(?i)Microsoft') { return [string]$item.FullName }
+        } catch {}
+    }
+    return ''
+}
+
+function Invoke-DefenderScanEntry {
+    param([string]$Exe, [string]$Target, [hashtable]$Control, [int]$TimeoutSec = 300)
+    $exeItem = Get-ProtectFileInfo -Path $Exe
+    $targetFull = ConvertTo-ProtectPath -Path $Target
+    if ($null -eq $exeItem -or $null -eq $targetFull) { throw 'Недопустимый путь Defender' }
+    $targetItem = Get-Item -LiteralPath $targetFull -Force -ErrorAction Stop
+    if (($targetItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Reparse point Defender' }
+    Assert-OperationActive -Control $Control
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $exeItem.FullName
+    $psi.Arguments = '-Scan -ScanType 3 -ScanPath "' + $targetFull.Replace('"', '\"') + '"'
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    $process = $null
+    try { $process = [System.Diagnostics.Process]::Start($psi) } catch { throw ('Defender не запустился: ' + $_.Exception.Message) }
+    try {
+        if ($Control) { try { $Control.ChildPid = $process.Id } catch {} }
+        $outTask = $null; $errTask = $null
+        try { $outTask = $process.StandardOutput.ReadToEndAsync() } catch {}
+        try { $errTask = $process.StandardError.ReadToEndAsync() } catch {}
+        $watch = [System.Diagnostics.Stopwatch]::StartNew()
+        $timeoutMs = [Math]::Max(1000, [Math]::Min(2147483, $TimeoutSec * 1000))
+        while (-not $process.WaitForExit(250)) {
+            Assert-OperationActive -Control $Control
+            if ($watch.Elapsed.TotalMilliseconds -ge $timeoutMs) {
+                try { $process.Kill() } catch {}
+                try { $null = $process.WaitForExit(3000) } catch {}
+                return @{ TimedOut = $true; ExitCode = -1; Error = '' }
+            }
+        }
+        Assert-OperationActive -Control $Control
+        $stdout = ''; $stderr = ''
+        try { if ($outTask -and $outTask.Wait(2000)) { $stdout = [string]$outTask.Result } } catch {}
+        try { if ($errTask -and $errTask.Wait(2000)) { $stderr = [string]$errTask.Result } } catch {}
+        return @{ TimedOut = $false; ExitCode = [int]$process.ExitCode; Error = $stderr.Trim() }
+    } finally {
+        if ($Control) { try { $Control.ChildPid = 0 } catch {} }
+        try { if (-not $process.HasExited) { $process.Kill(); $null = $process.WaitForExit(3000) } } catch {}
+        try { $process.Dispose() } catch {}
+    }
+}
+
+function Start-DefenderScan {
+    if (-not $script:ProtectPanelReady -or $null -eq $protectPanel) { try { Set-LogExpanded -Expand $true } catch {}; Write-Log 'Панель защиты ещё не готова' -Color 'Yellow'; return }
+    if ($script:ScanRunning -or $script:QuarantineRunning) { Write-Log 'Дождись окончания текущей операции' -Color 'Yellow'; return }
+    if ($script:DefenderRunning) { try { Stop-Operation -Control $script:DefenderControl } catch {}; Write-Log 'Остановка Defender запрошена...' -Color 'Yellow'; return }
+    try { Set-LogExpanded -Expand $true } catch {}
+    $targets = @(Get-ProtectScanTargets)
+    if ($targets.Count -eq 0) { Write-Log 'Нет безопасных папок для Defender' -Color 'Yellow'; return }
+    $control = New-OperationControl -Kind 'defender-scan'
+    $operationId = [string]$control.OperationId
+    $script:DefenderControl = $control; $script:DefenderOperationId = $operationId; $script:DefenderRunning = $true
+    try { if ($defenderScanBtn) { $script:DefenderBtnText = [string]$defenderScanBtn.Content; $defenderScanBtn.Content = '⏹ Стоп'; $defenderScanBtn.Style = $window.FindResource('BtnDanger') } } catch {}
+    try { if ($scanBtn) { $scanBtn.IsEnabled = $false } } catch {}
+    Set-Progress
+    Set-ProtectScanStatus -Phase 'defender' -Progress -1 -Message 'Запуск Microsoft Defender…' -OperationId $operationId
+    try {
+        Start-Background {
+            $scanned = 0; $errors = 0; $timedOut = 0; $published = $false; $failure = ''; $total = @($targets).Count; $index = 0
+            try {
+                $exe = Get-DefenderScanExecutable
+                if ([string]::IsNullOrWhiteSpace($exe)) { throw 'MpCmdRun.exe не найден или не имеет доверенной подписи Microsoft' }
+                foreach ($target in @($targets)) {
+                    Assert-OperationActive -Control $Control
+                    $index++
+                    Set-ProtectScanStatus -Phase 'defender' -Index $index -Total $total -Progress (0.1 + (0.85 * ($index / [Math]::Max(1, $total)))) -Message ('Defender: ' + $target) -OperationId $Control.OperationId
+                    try {
+                        $result = Invoke-DefenderScanEntry -Exe $exe -Target $target -Control $Control -TimeoutSec 300
+                        if ($result.TimedOut) { $timedOut++; Write-Log ('Defender: таймаут — ' + $target) -Color 'Yellow' }
+                        elseif ($result.ExitCode -ne 0) { $errors++; if ($result.Error) { Write-Log ('Defender: ' + $result.Error) -Color 'Yellow' } }
+                        else { $scanned++; Write-Log ('Defender: проверено — ' + $target) -Color 'Green' }
+                    } catch {
+                        if (Test-OperationCancelled $Control) { throw }
+                        $errors++; Write-Log ('Defender: не удалось проверить ' + $target + ': ' + $_.Exception.Message) -Color 'Yellow'
+                    }
+                }
+                Set-BgResult -Key 'defenderScanResult' -Value @{ Complete = ($errors -eq 0 -and $timedOut -eq 0); Scanned = $scanned; Errors = $errors; TimedOut = $timedOut; Cancelled = $false; FailureMessage = '' }
+                $published = $true
+            } catch {
+                $failure = $_.Exception.Message
+                $cancelled = Test-OperationCancelled $Control
+                Set-ProtectScanStatus -Phase $(if ($cancelled) { 'cancelled' } else { 'error' }) -Message $(if ($cancelled) { 'Проверка Defender остановлена' } else { ('Ошибка Defender: ' + $failure) }) -Done $true -OperationId $Control.OperationId
+                if (-not $cancelled) { Write-Log ('✗ ' + $failure) -Color 'Red' }
+            } finally {
+                Clear-Progress
+                if (-not $published) { Set-BgResult -Key 'defenderScanResult' -Value @{ Complete = $false; Scanned = $scanned; Errors = ([Math]::Max(1, $errors)); TimedOut = $timedOut; Cancelled = (Test-OperationCancelled $Control); FailureMessage = $failure } }
+            }
+        } -Variables @{ targets = $targets; Control = $control }
+    } catch {
+        $script:DefenderRunning = $false; $script:DefenderControl = $null
+        try { if ($defenderScanBtn) { $defenderScanBtn.Content = $script:DefenderBtnText; $defenderScanBtn.Style = $window.FindResource('BtnPrimary'); $defenderScanBtn.IsEnabled = $true } } catch {}
+        try { if ($scanBtn) { $scanBtn.IsEnabled = $true } } catch {}
+        Set-ProtectScanStatus -Phase 'error' -Message ('Defender не запустился: ' + $_.Exception.Message) -Done $true -OperationId $operationId
+        Write-Log ('✗ Defender не запустился: ' + $_.Exception.Message) -Color 'Red'
+    }
+}
+
 function Get-ProtectQuarantineSummary {
     $result = @{ Batches = 0; Files = 0; Restorable = 0; Root = ''; Known = $false; Error = '' }
     $root = Get-ProtectQuarantineRoot
@@ -941,16 +1056,71 @@ function Get-ProtectQuarantineSummary {
     return $result
 }
 
+function Set-ProtectScanStatus {
+    param(
+        [string]$Phase,
+        [int]$Index = 0,
+        [int]$Total = 0,
+        [string]$Message = '',
+        [double]$Progress = -1,
+        [bool]$Done = $false,
+        [string]$OperationId = ''
+    )
+    if ([string]::IsNullOrWhiteSpace($OperationId)) { $OperationId = [string]$script:ScanOperationId }
+    Set-BgResult -Key 'scanStatus' -Value ([ordered]@{
+        OperationId = $OperationId
+        Phase = $Phase
+        Index = $Index
+        Total = $Total
+        Message = $Message
+        Progress = $Progress
+        Done = $Done
+        UpdatedUtc = [DateTime]::UtcNow
+    })
+}
+
+function Update-ProtectScanStatus {
+    param($Status)
+    if ($null -eq $Status) { return }
+    try {
+        $message = [string]$Status.Message
+        if ([string]::IsNullOrWhiteSpace($message)) { $message = [string]$Status.Phase }
+        if ($protectStatusText) { $protectStatusText.Text = $message; try { $protectStatusText.ToolTip = $message } catch {} }
+        if ($scanProgressText) { $scanProgressText.Text = $message; try { $scanProgressText.ToolTip = $message } catch {} }
+        if ($scanCountText -and [int]$Status.Total -gt 0) { $scanCountText.Text = ('Проверено: {0}/{1}' -f [int]$Status.Index, [int]$Status.Total) }
+        if ($scanProgressBar) {
+            $value = [double]$Status.Progress
+            if ($value -lt 0) {
+                $scanProgressBar.IsIndeterminate = $true
+                $scanProgressBar.Value = 0
+            } else {
+                $scanProgressBar.IsIndeterminate = $false
+                $scanProgressBar.Value = [Math]::Max(0.0, [Math]::Min(1.0, $value))
+            }
+        }
+    } catch {}
+}
+
+function Reset-ProtectScanStatus {
+    try {
+        if ($scanProgressBar) { $scanProgressBar.IsIndeterminate = $false; $scanProgressBar.Value = 0 }
+        if ($scanProgressText) { $scanProgressText.Text = 'Готов к проверке' }
+    } catch {}
+}
+
 function Build-ProtectPanel {
-    if ($null -eq $protectPanel) { [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
+    param([switch]$Fast)
+    if ($null -eq $protectPanel) { $script:ProtectPanelReady = $false; [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     $protectPanel.Children.Clear()
     $script:ScanCheckboxes = @{}
-    $st = Get-YaraStatus
-    $ds = $null
-    try { $ds = Get-ProtectDefenderStatus } catch {}
-    $fwOff = 0
-    try { $fwOff = @(Get-NetFirewallProfile -ErrorAction Stop | Where-Object { -not $_.Enabled }).Count } catch {}
-    $quarantine = Get-ProtectQuarantineSummary
+    $st = [pscustomobject]@{ Exe = ''; Version = ''; RulesCount = 0; RulesExpectedCount = 0; RulesReady = $false; ManifestValid = $false }
+    $ds = [pscustomobject]@{ Ok = $false; Active = $false; Mode = ''; SigAge = $null }
+    $quarantine = [pscustomobject]@{ Known = $false; Files = 0; Restorable = 0; Error = 'Ожидание фоновой проверки' }
+    if (-not $Fast) {
+        try { $st = Get-YaraStatus } catch {}
+        try { $ds = Get-ProtectDefenderStatus } catch {}
+        try { $quarantine = Get-ProtectQuarantineSummary } catch {}
+    }
     $defenderValue = 'недоступен'
     $defenderGood = $false
     if ($ds -and $ds.Ok) {
@@ -970,13 +1140,13 @@ function Build-ProtectPanel {
         @{ L = 'Движок YARA'; V = $yaraValue; Good = [bool]$st.Exe },
         @{ L = 'Правила'; V = $rulesValue; Good = [bool]$st.RulesReady },
         @{ L = 'Карантин'; V = $quarantineValue; Good = $quarantineGood },
-        @{ L = 'Брандмауэр'; V = $(if ($fwOff -eq 0) { 'включён везде' } else { "выключен: $fwOff" }); Good = ($fwOff -eq 0) }
+        @{ L = 'Область'; V = 'Temp, Загрузки, Рабочий стол, Startup'; Good = $true }
     )
     foreach ($row in $rows) {
         $card = New-Card
         $grid = [System.Windows.Controls.Grid]::new()
         $left = [System.Windows.Controls.ColumnDefinition]::new(); $left.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
-        $right = [System.Windows.Controls.ColumnDefinition]::new(); $right.Width = [System.Windows.GridLength]::new([System.Windows.GridUnitType]::Auto)
+        $right = [System.Windows.Controls.ColumnDefinition]::new(); $right.Width = [System.Windows.GridLength]::new(1.0, [System.Windows.GridUnitType]::Auto)
         $grid.ColumnDefinitions.Add($left); $grid.ColumnDefinitions.Add($right)
         $label = [System.Windows.Controls.TextBlock]::new(); $label.Text = [string]$row.L; $label.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom('#8a8aa5'); $label.FontSize = 12; $label.VerticalAlignment = 'Center'
         [System.Windows.Controls.Grid]::SetColumn($label, 0); $grid.Children.Add($label) | Out-Null
@@ -992,15 +1162,24 @@ function Build-ProtectPanel {
     if ($null -ne $script:ProtectLastScan) {
         Render-ScanHits -Items @($script:ProtectLastScan.Items) -Complete ([bool]$script:ProtectLastScan.Complete) -Errors ([int]$script:ProtectLastScan.Errors) -TimedOut ([int]$script:ProtectLastScan.TimedOut) -Cancelled ([bool]$script:ProtectLastScan.Cancelled) -FailureMessage ([string]$script:ProtectLastScan.FailureMessage)
     } else {
-        $hint = [System.Windows.Controls.TextBlock]::new(); $hint.Text = 'Пока пусто — нажми «Проверить».'; $hint.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom('#8a8ab0'); $hint.FontSize = 12; $hint.TextAlignment = 'Center'; $hint.Margin = [System.Windows.Thickness]::new(0, 20, 0, 20)
+        $hint = [System.Windows.Controls.TextBlock]::new(); $hint.Text = 'Пока пусто — запустите сканирование YARA или Defender.'; $hint.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom('#8a8ab0'); $hint.FontSize = 12; $hint.TextAlignment = 'Center'; $hint.Margin = [System.Windows.Thickness]::new(0, 20, 0, 20)
         $script:ScanResultsBox.Children.Add($hint) | Out-Null
         Update-ScanCount
     }
+    $script:ProtectPanelReady = $true
+    Reset-ProtectScanStatus
+    if ($Fast) { try { if ($protectStatusText) { $protectStatusText.Text = 'Готово к проверке: YARA и Defender готовы к запуску' } } catch {} }
 }
 
 function Render-ScanHits {
     param($Items, [bool]$Complete = $true, [int]$Errors = 0, [int]$TimedOut = 0, [bool]$Cancelled = $false, [string]$FailureMessage = '')
-    if ($null -eq $protectPanel -or $null -eq $script:ScanResultsBox) { return }
+    if ($null -eq $protectPanel -or $null -eq $script:ScanResultsBox) {
+        $script:ScanRunning = $false; $script:ScanHandle = $null
+        try { if ($scanBtn -and $script:ScanBtnText) { $scanBtn.Content = $script:ScanBtnText } } catch {}
+        try { if ($defenderScanBtn) { $defenderScanBtn.IsEnabled = $true } } catch {}
+        try { Set-BgResult -Key 'scanStatus' -Value $null } catch {}
+        return
+    }
     $list = @()
     foreach ($rawHit in @($Items)) {
         if ($null -eq $rawHit) { continue }
@@ -1012,9 +1191,14 @@ function Render-ScanHits {
         if (-not [string]::IsNullOrWhiteSpace($rule) -or -not [string]::IsNullOrWhiteSpace($file)) { $list += [pscustomobject]@{ Rule = $rule; File = $file } }
     }
     $script:ProtectLastScan = @{ Items = @($list); Complete = $Complete; Errors = $Errors; TimedOut = $TimedOut; Cancelled = $Cancelled; FailureMessage = $FailureMessage }
-    $script:ScanRunning = $false; $script:ScanHandle = $null
+    $script:ScanRunning = $false; $script:ScanHandle = $null; $script:ScanOperationId = ''
     try { if ($script:ScanBtnText) { $scanBtn.Content = $script:ScanBtnText }; $scanBtn.Style = $window.FindResource('BtnPrimary') } catch {}
-    try { if ($protectStatusText) { $protectStatusText.Text = if ($list.Count -gt 0) { ("Проверка: находок — " + $list.Count) } elseif ($Cancelled) { 'Проверка остановлена' } elseif (-not $Complete) { 'Проверка завершилась с ошибками' } else { 'Проверка завершена: находок нет' } } } catch {}
+    try { if ($defenderScanBtn) { $defenderScanBtn.IsEnabled = $true } } catch {}
+    try { if ($scanProgressBar) { $scanProgressBar.IsIndeterminate = $false; $scanProgressBar.Value = if ($Complete -and -not $Cancelled) { 1 } else { 0 } } } catch {}
+    $finalStatus = if ($list.Count -gt 0) { ("Проверка: находок — " + $list.Count) } elseif ($Cancelled) { 'Проверка остановлена' } elseif (-not $Complete) { 'Проверка завершилась с ошибками' } else { 'Проверка завершена: находок нет' }
+    try { if ($protectStatusText) { $protectStatusText.Text = $finalStatus } } catch {}
+    try { if ($scanProgressText) { $scanProgressText.Text = $finalStatus } } catch {}
+    try { Set-BgResult -Key 'scanStatus' -Value $null } catch {}
     $script:ScanResultsBox.Children.Clear(); $script:ScanCheckboxes = @{}
     if ($Cancelled) {
         $text = [System.Windows.Controls.TextBlock]::new(); $text.Text = 'Проверка остановлена пользователем.'; $text.Foreground = [Windows.Media.BrushConverter]::new().ConvertFrom('#f0c040'); $text.FontSize = 12; $text.TextAlignment = 'Center'; $text.TextWrapping = 'Wrap'; $text.Margin = [System.Windows.Thickness]::new(0, 20, 0, 20); $script:ScanResultsBox.Children.Add($text) | Out-Null
@@ -1049,11 +1233,17 @@ function Get-ProtectScanTargets {
     if ($env:USERPROFILE) { [void]$candidates.Add((Join-Path $env:USERPROFILE 'Downloads')); [void]$candidates.Add((Join-Path $env:USERPROFILE 'Desktop')) }
     if ($env:APPDATA) { [void]$candidates.Add((Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup')) }
     if ($env:ProgramData) { [void]$candidates.Add((Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\StartUp')) }
-    $work = ConvertTo-ProtectPath -Path ([string]$script:WorkFolder) -AllowMissing
+    $excluded = @()
+    foreach ($path in @([string]$script:WorkFolder, [string]$script:RepoCacheFolder, [string]$script:LocalRepoRoot)) {
+        $safe = ConvertTo-ProtectPath -Path $path -AllowMissing
+        if ($safe) { $excluded += $safe }
+    }
     foreach ($candidate in $candidates) {
         $item = Get-ProtectDirectoryInfo -Path $candidate
         if ($null -eq $item) { continue }
-        if ($work -and (Test-ProtectPathWithin -Path $item.FullName -Root $work)) { continue }
+        $skip = $false
+        foreach ($root in $excluded) { if (Test-ProtectPathWithin -Path $item.FullName -Root $root) { $skip = $true; break } }
+        if ($skip) { continue }
         if (@($output) -notcontains $item.FullName) { [void]$output.Add([string]$item.FullName) }
     }
     $result = @()
@@ -1062,7 +1252,9 @@ function Get-ProtectScanTargets {
 }
 
 function Start-YaraScan {
-    if ($script:QuarantineRunning) { Write-Log 'Карантин выполняется' -Color 'Yellow'; return }
+    if (-not $script:ProtectPanelReady -or $null -eq $protectPanel -or $null -eq $script:ScanResultsBox) { try { Set-LogExpanded -Expand $true } catch {}; Write-Log 'Панель защиты ещё не готова. Обновите репозиторий и повторите.' -Color 'Yellow'; return }
+    if ($script:QuarantineRunning -or $script:DefenderRunning) { Write-Log 'Другая проверка уже выполняется' -Color 'Yellow'; return }
+    try { Set-LogExpanded -Expand $true } catch {}
     if ($script:ScanRunning) {
         try { Stop-Operation -Control $script:ScanControl } catch {}
         try { if ($script:ScanHandle -and $script:ScanHandle.Stop) { & $script:ScanHandle.Stop } } catch {}
@@ -1073,7 +1265,7 @@ function Start-YaraScan {
     $toolsDir = Get-YaraToolsDir
     $workFolder = ConvertTo-ProtectPath -Path ([string]$script:WorkFolder) -AllowMissing
     $targets = @(Get-ProtectScanTargets)
-    if ([string]::IsNullOrWhiteSpace($rulesDir) -or [string]::IsNullOrWhiteSpace($toolsDir) -or [string]::IsNullOrWhiteSpace($workFolder) -or $targets.Count -eq 0) { $message = 'Нет безопасных папок или компонентов для проверки'; Write-Log $message -Color 'Yellow'; Render-ScanHits -Items @() -Complete $false -FailureMessage $message; return }
+    if ([string]::IsNullOrWhiteSpace($rulesDir) -or [string]::IsNullOrWhiteSpace($toolsDir) -or [string]::IsNullOrWhiteSpace($workFolder) -or $targets.Count -eq 0) { $message = 'Нет безопасных папок или компонентов для проверки'; Write-Log $message -Color 'Yellow'; Set-ProtectScanStatus -Phase 'error' -Message $message -Done $true; Render-ScanHits -Items @() -Complete $false -FailureMessage $message; return }
     $buttonText = ''
     $buttonSaved = $false
     try { $buttonText = [string]$scanBtn.Content; $script:ScanBtnText = $buttonText; $buttonSaved = $true } catch {}
@@ -1081,34 +1273,55 @@ function Start-YaraScan {
     $operationId = [string]$control.OperationId
     $script:ScanControl = $control; $script:ScanOperationId = $operationId; $script:ScanRunning = $true
     try { $scanBtn.Content = '⏹ Стоп'; $scanBtn.Style = $window.FindResource('BtnDanger') } catch {}
+    try { if ($defenderScanBtn) { $defenderScanBtn.IsEnabled = $false } } catch {}
     $script:ScanHandle = [pscustomobject]@{ Stop = { Stop-Operation -Control $control }.GetNewClosure() }
-    Write-Log '══ Проверка YARA запущена ══'; Set-Progress; try { if ($protectStatusText) { $protectStatusText.Text = 'Проверка запускается…' } } catch {}
+    Write-Log '══ Проверка YARA запущена ══'; Set-Progress
+    Set-ProtectScanStatus -Phase 'prepare' -Progress -1 -Message 'Подготовка сканера и базы YARA…' -OperationId $operationId
     try {
         Start-Background -ScriptBlock {
             $hits = @(); $seen = @{}; $errors = 0; $timedOut = 0; $published = $false; $failure = ''
             try {
                 Assert-OperationActive -Control $Control
+                Set-ProtectScanStatus -Phase 'rules' -Progress -1 -Message 'Загружаю и проверяю базу YARA…' -OperationId $Control.OperationId
                 $rulesDir = Ensure-YaraRules -RulesDir $rulesDir -Control $Control
                 if ([string]::IsNullOrWhiteSpace($rulesDir)) { throw 'Нет полного набора правил' }
+                Set-ProtectScanStatus -Phase 'engine' -Progress -1 -Message 'Проверяю движок YARA…' -OperationId $Control.OperationId
                 $exe = Ensure-YaraEngine -ToolsDir $toolsDir -Control $Control
                 if ([string]::IsNullOrWhiteSpace($exe)) { throw 'Нет движка YARA' }
+                Set-ProtectScanStatus -Phase 'rules' -Progress -1 -Message 'Объединяю проверенные правила…' -OperationId $Control.OperationId
                 $combined = Combine-YaraRules -RulesDir $rulesDir -OutFile (Join-Path $toolsDir 'potato.yar') -Control $Control
                 if ([string]::IsNullOrWhiteSpace($combined)) { throw 'Не удалось объединить правила' }
-                $total = @($targets).Count; $targetIndex = 0; $skipNames = @('opencode', 'PotatoPC')
+                $skipNames = @('opencode', 'PotatoPC')
+                $scanPlans = @()
+                $totalWorkItems = 0
                 foreach ($targetRoot in @($targets)) {
-                    Assert-OperationActive -Control $Control; $targetIndex++; Write-Log ('── ' + $targetRoot)
-                    $entries = @(); try { $entries = @(Get-ChildItem -LiteralPath $targetRoot -Force -ErrorAction SilentlyContinue) } catch { $errors++ }
-                    $entryIndex = 0; $entryTotal = [Math]::Max(1, $entries.Count)
+                    $entries = @()
+                    try { $entries = @(Get-ChildItem -LiteralPath $targetRoot -Force -ErrorAction SilentlyContinue) } catch { $errors++ }
+                    $scanPlans += [pscustomobject]@{ Root = [string]$targetRoot; Entries = @($entries) }
+                    $totalWorkItems += @($entries).Count
+                }
+                $processed = 0; $targetIndex = 0
+                foreach ($plan in @($scanPlans)) {
+                    $targetRoot = [string]$plan.Root; $entries = @($plan.Entries)
+                    Assert-OperationActive -Control $Control; $targetIndex++
+                    Set-ProtectScanStatus -Phase 'scan' -Index $processed -Total ([Math]::Max(1, $totalWorkItems)) -Progress (0.2 + (0.75 * ($processed / [Math]::Max(1, $totalWorkItems)))) -Message ('Проверяю: ' + $targetRoot) -OperationId $Control.OperationId
+                    Write-Log ('── ' + $targetRoot)
                     foreach ($entry in $entries) {
-                        Assert-OperationActive -Control $Control; $entryIndex++
+                        Assert-OperationActive -Control $Control; $processed++
                         if ($workFolder -and (Test-ProtectPathWithin -Path $entry.FullName -Root $workFolder)) { continue }
                         if ($skipNames -contains $entry.Name) { continue }
+                        if ($entry.Name -like 'PotatoPC-link-*' -or $entry.Name -like 'PotatoPC-cache-*') { continue }
                         $isReparse = $false; try { $isReparse = (($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) } catch {}
                         if ($isReparse) { Write-Log ('  Пропущена ссылка: ' + $entry.Name) -Color 'Yellow'; continue }
                         if (-not $entry.PSIsContainer) { try { if ([long]$entry.Length -gt 200MB) { Write-Log ('  Большой файл пропущен: ' + $entry.Name) -Color 'Yellow'; continue } } catch {} }
-                        Set-Progress (([double]($targetIndex - 1) + [double]$entryIndex / [double]$entryTotal) / [double]([Math]::Max(1, $total)))
+                        $position = [double]$processed / [double][Math]::Max(1, $totalWorkItems)
+                        $scanProgress = 0.2 + (0.75 * $position)
+                        Set-Progress -1
+                        Set-ProtectScanStatus -Phase 'scan' -Index $processed -Total ([Math]::Max(1, $totalWorkItems)) -Progress -1 -Message ('Проверяю: ' + $entry.FullName) -OperationId $Control.OperationId
                         try {
                             $result = Invoke-YaraEntry -Exe $exe -Rules $combined -Target $entry.FullName -Control $Control -TimeoutSec 180 -OperationId $Control.OperationId
+                            Set-Progress $scanProgress
+                            Set-ProtectScanStatus -Phase 'scan' -Index $processed -Total ([Math]::Max(1, $totalWorkItems)) -Progress $scanProgress -Message ('Проверено: ' + $entry.FullName) -OperationId $Control.OperationId
                             if ($result.TimedOut) { $timedOut++; Write-Log ('  Долго — пропускаю: ' + $entry.Name) -Color 'Yellow'; continue }
                             if ($result.ExitCode -ne 0) { $errors++; if ($result.Error) { Write-Log ('  Сканер: ' + $result.Error) -Color 'Yellow' } }
                             foreach ($line in @($result.Lines)) {
@@ -1126,11 +1339,17 @@ function Start-YaraScan {
                     }
                 }
                 Assert-OperationActive -Control $Control
+                Set-ProtectScanStatus -Phase 'finalize' -Index $totalWorkItems -Total ([Math]::Max(1, $totalWorkItems)) -Progress 1 -Message 'Завершаю проверку…' -OperationId $Control.OperationId
                 Set-BgResult -Key 'scanHits' -Value @{ Items = $hits; Complete = ($errors -eq 0 -and $timedOut -eq 0); Errors = $errors; TimedOut = $timedOut; Cancelled = $false; FailureMessage = '' }
                 $published = $true
                 if ($hits.Count -eq 0) { Write-Log 'Чисто.' -Color 'Green' } else { Write-Log ('Находок: ' + $hits.Count + ' — выбери и отправь в карантин') -Color 'Yellow' }
                 Write-Log '══════════════════════════════════════'
-            } catch { $failure = $_.Exception.Message; if (Test-OperationCancelled $Control) { Write-Log '⏹ Остановлено пользователем' -Color 'Yellow' } else { Write-Log ('✗ Проверка упала: ' + $failure) -Color 'Red' } }
+            } catch {
+                $failure = $_.Exception.Message
+                $cancelled = Test-OperationCancelled $Control
+                Set-ProtectScanStatus -Phase $(if ($cancelled) { 'cancelled' } else { 'error' }) -Progress $(if ($cancelled) { 0 } else { 0 }) -Message $(if ($cancelled) { 'Проверка остановлена' } else { ('Ошибка: ' + $failure) }) -Done $true -OperationId $Control.OperationId
+                if ($cancelled) { Write-Log '⏹ Остановлено пользователем' -Color 'Yellow' } else { Write-Log ('✗ Проверка упала: ' + $failure) -Color 'Red' }
+            }
             finally {
                 Clear-Progress
                 if (-not $published) { Set-BgResult -Key 'scanHits' -Value @{ Items = @(); Complete = $false; Errors = 1; TimedOut = 0; Cancelled = (Test-OperationCancelled $Control); FailureMessage = $failure } }
@@ -1139,7 +1358,9 @@ function Start-YaraScan {
     } catch {
         $script:ScanRunning = $false; $script:ScanHandle = $null
         try { if ($buttonSaved) { $scanBtn.Content = $buttonText }; $scanBtn.Style = $window.FindResource('BtnPrimary') } catch {}
+        try { if ($defenderScanBtn) { $defenderScanBtn.IsEnabled = $true } } catch {}
         $failureMessage = 'Проверка не запустилась: ' + $_.Exception.Message
+        Set-ProtectScanStatus -Phase 'error' -Message $failureMessage -Done $true -OperationId $operationId
         Write-Log ('✗ ' + $failureMessage) -Color 'Red'
         Render-ScanHits -Items @() -Complete $false -FailureMessage $failureMessage
     }
@@ -1150,6 +1371,7 @@ function Reset-ScanButton {
     try { if ($script:ScanBtnText) { $scanBtn.Content = $script:ScanBtnText } } catch {}
     try { $scanBtn.Style = $window.FindResource('BtnPrimary') } catch {}
     $script:ScanRunning = $false; $script:ScanHandle = $null
+    Reset-ProtectScanStatus
 }
 
 function Read-QuarantineManifest {
@@ -1202,7 +1424,8 @@ function Read-QuarantineManifest {
 }
 
 function Start-Quarantine {
-    if ($script:ScanRunning) { Write-Log 'Дождись окончания проверки' -Color 'Yellow'; return }
+    if ($script:ScanRunning -or $script:DefenderRunning) { Write-Log 'Дождись окончания проверки' -Color 'Yellow'; return }
+    try { Set-LogExpanded -Expand $true } catch {}
     if ($script:QuarantineRunning) { Write-Log 'Карантин уже выполняется' -Color 'Yellow'; return }
     $selected = @()
     try { $selected = @($script:ScanCheckboxes.GetEnumerator() | Where-Object { $_.Value -and $_.Value.Box -and $_.Value.Box.IsChecked }) } catch {}

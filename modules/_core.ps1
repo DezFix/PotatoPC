@@ -511,14 +511,14 @@ function Set-RepoCacheAcl {
         if (-not $rootItem.PSIsContainer -or (($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { return $false }
         $entries = @(Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction Stop)
         foreach ($entry in $entries) { if (($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $false } }
-        & icacls.exe $rootItem.FullName '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' 2>$null | Out-Null
+        & (Join-Path $env:windir 'System32\icacls.exe') $rootItem.FullName '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' 2>$null | Out-Null
         if ($LASTEXITCODE -ne 0) { return $false }
         foreach ($entry in $entries) {
             $flags = if ($entry.PSIsContainer) { '(OI)(CI)F' } else { 'F' }
-            & icacls.exe $entry.FullName '/inheritance:r' '/grant:r' ('*S-1-5-18:' + $flags) ('*S-1-5-32-544:' + $flags) 2>$null | Out-Null
+            & (Join-Path $env:windir 'System32\icacls.exe') $entry.FullName '/inheritance:r' '/grant:r' ('*S-1-5-18:' + $flags) ('*S-1-5-32-544:' + $flags) 2>$null | Out-Null
             if ($LASTEXITCODE -ne 0) { return $false }
         }
-        try { & icacls.exe $rootItem.FullName '/setowner' '*S-1-5-32-544' 2>$null | Out-Null } catch {}
+        try { & (Join-Path $env:windir 'System32\icacls.exe') $rootItem.FullName '/setowner' '*S-1-5-32-544' 2>$null | Out-Null } catch {}
         return $true
     } catch { return $false }
 }

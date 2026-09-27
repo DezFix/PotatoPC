@@ -24,7 +24,7 @@ try {
 $script:RepoZipUrl    = if ($env:POTATOPC_REPO_ZIP_URL) { [string]$env:POTATOPC_REPO_ZIP_URL } else { "https://codeload.github.com/DezFix/PotatoPC/zip/refs/heads/main" }
 $script:RepoZipSha256 = [string]$env:POTATOPC_REPO_SHA256
 $script:AppsJsonUrl   = "https://raw.githubusercontent.com/DezFix/PotatoPC/refs/heads/main/apps.json"
-$script:ProtectRulesManifestUrl = if ($env:POTATOPC_PROTECT_MANIFEST_URL) { [string]$env:POTATOPC_PROTECT_MANIFEST_URL } else { 'https://raw.githubusercontent.com/DezFix/PotatoPC/b5b26c3/protect/rules.txt' }
+$script:ProtectRulesManifestUrl = if ($env:POTATOPC_PROTECT_MANIFEST_URL) { [string]$env:POTATOPC_PROTECT_MANIFEST_URL } else { 'https://raw.githubusercontent.com/DezFix/PotatoPC/main/protect/rules.txt' }
 $script:ProtectRulesBaseUrl = if ($env:POTATOPC_PROTECT_BASE_URL) { [string]$env:POTATOPC_PROTECT_BASE_URL } else { 'https://raw.githubusercontent.com/Yara-Rules/rules/0f93570194a80d2f2032869055808b0ddcdfb360/malware' }
 $script:LogPath       = Join-Path $script:WorkFolder "potatopc.log"
 $script:SettingsPath  = Join-Path $script:WorkFolder "settings.json"

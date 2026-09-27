@@ -1,21 +1,19 @@
-﻿# NAME: 03 · Облегчить Defender (меньше CPU, слабее защита!)
-# DESC: Set-MpPreference: лимит CPU 20%, без скана архивов и сетевых дисков. Опасно: выше риск пропустить вирус. Есть откат
+﻿# NAME: 03 · Проверить Defender (без изменений)
+# DESC: Только читает состояние Microsoft Defender. Настройки Defender не изменяются.
 # TAGS: 3
 # ICON: 🛡️
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
-    Write-Output "[*] Облегчаю Defender..."
-    Set-MpPreference -ScanAvgCPULoadFactor 20 -ErrorAction Stop
-    Set-MpPreference -DisableArchiveScanning $true -ErrorAction Stop
-    Set-MpPreference -DisableScanningMappedNetworkDrivesForFullScan $true -ErrorAction Stop
-    Set-MpPreference -MAPSReporting Basic -ErrorAction Stop
-    Set-MpPreference -SubmitSamplesConsent 1 -ErrorAction Stop
-    Set-MpPreference -EnableLowCpuPriority $true -ErrorAction Stop
-    Write-Output "[OK] Defender облегчен. Архивы больше не сканируются - учти риск."
+    $status = Get-MpComputerStatus -ErrorAction Stop
+    $mode = [string]$status.AMRunningMode
+    $age = [int]$status.AntivirusSignatureAge
+    $realtime = [bool]$status.RealTimeProtectionEnabled
+    Write-Output ("[*] Defender: " + $mode + ", защита в реальном времени: " + $realtime + ", подпись: " + $age + " дн.")
+    Write-Output "[OK] Настройки Defender не изменялись."
     exit 0
 } catch {
-    Write-Output ("[X] Не вышло. Выключи 'Защиту от подделки' в Безопасности Windows и повтори: " + $_)
+    Write-Output ("[X] Не удалось прочитать состояние Defender: " + $_)
     exit 1
 }

@@ -456,11 +456,25 @@
             <Grid x:Name="PageProt" Visibility="Collapsed">
               <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
               <Border Grid.Row="0" Background="#1B1B25" CornerRadius="10" Padding="10,8" Margin="0,0,0,8" BorderBrush="#2A2A38" BorderThickness="1">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="ВЫБОР" Style="{StaticResource GroupLabel}"/>
-                  <Button x:Name="SelectAllScanBtn" Style="{StaticResource Small}" Margin="0,0,5,0" Content="Все"/>
-                  <Button x:Name="DeselectAllScanBtn" Style="{StaticResource Small}" Margin="0,0,0,0" Content="Снять"/>
-                </StackPanel>
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="СКАНЕР" Style="{StaticResource GroupLabel}"/>
+                      <TextBlock x:Name="ScanProgressText" Text="Готов к проверке" Foreground="#B9B9CE" FontSize="11" VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <TextBlock Text="YARA дополняет Defender; настройки Defender не меняются." Foreground="#77778f" FontSize="10" Margin="0,4,0,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                      <TextBlock Text="НАХОДКИ" Style="{StaticResource GroupLabel}"/>
+                      <Button x:Name="SelectAllScanBtn" Style="{StaticResource Small}" Margin="0,0,5,0" Content="Все"/>
+                      <Button x:Name="DeselectAllScanBtn" Style="{StaticResource Small}" Content="Снять"/>
+                    </StackPanel>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="DefenderScanBtn" Style="{StaticResource Ghost}" Margin="0,0,6,0" Padding="12,7" Content="Проверить Defender"/>
+                    <Button x:Name="RefreshProtectBtn" Style="{StaticResource Ghost}" Padding="12,7" Content="Обновить базы"/>
+                  </StackPanel>
+                </Grid>
               </Border>
               <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Background="#101014">
                 <StackPanel x:Name="ProtectPanel"/>
@@ -468,12 +482,15 @@
               <Border Grid.Row="2" Background="#15151C" BorderBrush="#23232E" BorderThickness="0,1,0,0" Padding="10,8" Margin="0,8,0,0">
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="ProtectStatusText" Style="{StaticResource ToolbarLabel}" Margin="0,0,10,0"/>
-                    <TextBlock x:Name="ScanCountText" Style="{StaticResource CountLabel}"/>
+                  <StackPanel VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock x:Name="ProtectStatusText" Style="{StaticResource ToolbarLabel}" Margin="0,0,10,0" TextTrimming="CharacterEllipsis"/>
+                      <TextBlock x:Name="ScanCountText" Style="{StaticResource CountLabel}"/>
+                    </StackPanel>
+                    <ProgressBar x:Name="ScanProgressBar" Height="4" Margin="0,6,18,0" Minimum="0" Maximum="1" Value="0" Background="Transparent" Foreground="#2DD4BF" BorderThickness="0"/>
                   </StackPanel>
                   <StackPanel Grid.Column="1" Orientation="Horizontal">
-                     <Button x:Name="ScanBtn" Style="{StaticResource Primary}" FontSize="12" Padding="16,8" MinHeight="34" Margin="0,0,6,0" Content="Проверить"/>
+                     <Button x:Name="ScanBtn" Style="{StaticResource Primary}" FontSize="12" Padding="16,8" MinHeight="34" Margin="0,0,6,0" Content="Сканировать YARA"/>
                      <Button x:Name="QuarantineBtn" Style="{StaticResource Danger}" Margin="0,0,6,0" Content="В карантин"/>
                      <Button x:Name="RestoreQuarantineBtn" Style="{StaticResource Ghost}" Content="Восстановить"/>
                   </StackPanel>

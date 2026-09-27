@@ -3,8 +3,10 @@
 # Источник: https://raw.githubusercontent.com/DezFix/PotatoPC/main/protect/rules/<имя>
 MALW_Arkei.yar
 MALW_AZORULT.yar
+MALW_AgentTesla.yar
 MALW_CAP_HookExKeylogger.yar
 MALW_Eicar.yar
+MALW_Emotet.yar
 MALW_Fareit.yar
 MALW_hancitor.yar
 MALW_Install11.yar
@@ -20,6 +22,7 @@ MALW_XMRIG_Miner.yar
 MALW_Zeus.yar
 RANSOM_Cerber.yar
 RANSOM_Locky.yar
+RANSOM_MS17-010_Wannacrypt.yar
 RANSOM_Stampado.yar
 RANSOM_TeslaCrypt.yar
 RAT_Asyncrat.yar

@@ -71,6 +71,8 @@ function Initialize-Controls {
         CleanCountText        = "CleanCountText"
         ProtectPanel          = "ProtectPanel"
         ProtectStatusText     = "ProtectStatusText"
+        ScanProgressText      = "ScanProgressText"
+        ScanProgressBar       = "ScanProgressBar"
         ScanBtn               = "ScanBtn"
         DefenderScanBtn       = "DefenderScanBtn"
         RefreshProtectBtn     = "RefreshProtectBtn"
@@ -255,7 +257,7 @@ $script:NavTitles = @(
     @{ Title = "Приложения";   Sub = "Установка через winget" },
     @{ Title = "Обновления";   Sub = "Обновление программ через winget" },
     @{ Title = "Очистка";      Sub = "Мусор и кэши" },
-    @{ Title = "Защита";       Sub = "Проверка на вирусы" },
+    @{ Title = "Защита"; Sub = "YARA, Defender и карантин" },
     @{ Title = "Тест системы"; Sub = "Диагностика в фоне" },
     @{ Title = "О системе";    Sub = "Железо, ОС, диски" },
     @{ Title = "Откаты";       Sub = "Модуль отката изменений" }
@@ -290,6 +292,7 @@ function Set-ActiveNav {
         if ($MainTabControl -and $Index -ge 0 -and $Index -lt $MainTabControl.Items.Count) {
             if ($MainTabControl.SelectedIndex -ne $Index) { $MainTabControl.SelectedIndex = $Index }
         }
+        try { Sync-V6Page } catch {}
         if ($HeaderTitleText -and $Index -ge 0 -and $Index -lt $script:NavTitles.Count) {
             $HeaderTitleText.Text = $script:NavTitles[$Index].Title
             $HeaderSubtitleText.Text = $script:NavTitles[$Index].Sub

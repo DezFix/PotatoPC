@@ -500,9 +500,9 @@ function Build-RollbackPanel {
             }
             $grid = [System.Windows.Controls.Grid]::new()
             $col1 = [System.Windows.Controls.ColumnDefinition]::new(); $col1.Width = [System.Windows.GridLength]::new(32)
-            $col2 = [System.Windows.Controls.ColumnDefinition]::new(); $col2.Width = [System.Windows.GridLength]::new([System.Windows.GridUnitType]::Auto)
+            $col2 = [System.Windows.Controls.ColumnDefinition]::new(); $col2.Width = [System.Windows.GridLength]::new(1.0, [System.Windows.GridUnitType]::Auto)
             $col3 = [System.Windows.Controls.ColumnDefinition]::new(); $col3.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
-            $col4 = [System.Windows.Controls.ColumnDefinition]::new(); $col4.Width = [System.Windows.GridLength]::new([System.Windows.GridUnitType]::Auto)
+            $col4 = [System.Windows.Controls.ColumnDefinition]::new(); $col4.Width = [System.Windows.GridLength]::new(1.0, [System.Windows.GridUnitType]::Auto)
             $grid.ColumnDefinitions.Add($col1) | Out-Null
             $grid.ColumnDefinitions.Add($col2) | Out-Null
             $grid.ColumnDefinitions.Add($col3) | Out-Null

@@ -110,7 +110,7 @@ $needNames = @("LogOutput","TaskProgressBar","ScriptsPanel","AppsPanel","SysPane
     "StartupAppsPanel","RefreshStartupBtn","DisableStartupBtn","EnableStartupBtn","SelectAllStartupBtn","DeselectAllStartupBtn",
     "StartupFilterAllBtn","StartupFilterAppBtn","StartupFilterTaskBtn","StartupCountText","StartupSelectedText",
     "StartupSearchBox","CleanPanel","CleanFilterRow","CleanScanBtn","SelectAllCleanBtn","DeselectAllCleanBtn","CleanBtn",
-    "CleanStatusText","CleanCountText","ProtectPanel","ProtectStatusText","ScanBtn","SelectAllScanBtn","DeselectAllScanBtn",
+    "CleanStatusText","CleanCountText","PageProt","ProtectPanel","ProtectStatusText","ScanProgressText","ScanProgressBar","ScanBtn","DefenderScanBtn","RefreshProtectBtn","SelectAllScanBtn","DeselectAllScanBtn",
     "QuarantineBtn","RestoreQuarantineBtn","RollbackPanel","RollbackCountText","RollbackFolderText","SelectAllRollbackBtn","DeselectAllRollbackBtn","RunRollbackBtn",
     "UsersPanel","RefreshUsersBtn","AddUserBtn","ScriptSearchBox","AppSearchBox",
     "ToolsBtn","AdminBtn","NavModulesBtn","NavStartupBtn","NavUsersBtn","NavAppsBtn","NavUpdatesBtn","NavCleanBtn",

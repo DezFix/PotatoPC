@@ -39,7 +39,7 @@ Protect-Controls @(
     'installAppsBtn','selectAllAppsBtn','deselectAllAppsBtn',
     'checkUpdatesBtn','selectAllUpdatesBtn','deselectAllUpdatesBtn','installUpdatesBtn','updateAllBtn','hiddenUpdatesBtn',
     'cleanScanBtn','selectAllCleanBtn','deselectAllCleanBtn','cleanBtn',
-    'scanBtn','selectAllScanBtn','deselectAllScanBtn','quarantineBtn','restoreQuarantineBtn',
+    'scanBtn','defenderScanBtn','refreshProtectBtn','scanProgressText','scanProgressBar','selectAllScanBtn','deselectAllScanBtn','quarantineBtn','restoreQuarantineBtn',
     'rollbackPanel','rollbackCountText','rollbackFolderText','selectAllRollbackBtn','deselectAllRollbackBtn','runRollbackBtn',
     'scriptSearchBox','scriptSearchClear','appSearchBox','appSearchClear','startupSearchBox','startupSearchClear',
     'globalSearchClear'
@@ -339,22 +339,10 @@ $restoreQuarantineBtn.Add_Click({
         }
     }
 })
-# Кнопок Defender в шапке нет (только YARA) — привязки терпят их отсутствие.
-try { if ($defenderScanBtn) { $defenderScanBtn.Add_Click({
-    Write-Log "Запускаю проверку Defender в фоне..."
-    Start-Background {
-        try {
-            $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
-            if (-not (Test-Path -LiteralPath $mp)) { throw "MpCmdRun не найден" }
-            Start-Process $mp -ArgumentList '-Scan', '-ScanType', '1' -WindowStyle Hidden -ErrorAction Stop
-            Write-Log "Проверка Defender идёт в фоне. Результат: Безопасность Windows." -Color "Green"
-        } catch {
-            Write-Log ("Не вышло запустить: " + $_) -Color "Red"
-        }
-    }
-}) } } catch {}
+try { if ($defenderScanBtn) { $defenderScanBtn.Add_Click({ Start-DefenderScan }) } } catch {}
 try { if ($refreshProtectBtn) { $refreshProtectBtn.Add_Click({
-    Write-Log "Обновляю защиту..."
+    try { Set-LogExpanded -Expand $true } catch {}
+    Write-Log "Обновляю базы Defender..."
     Start-Background {
         try { Update-MpSignature -ErrorAction Stop; Write-Log "Базы Defender обновлены." -Color "Green" }
         catch { Write-Log ("Базы не обновились: " + $_) -Color "Yellow" }
@@ -366,6 +354,7 @@ try { if ($refreshProtectBtn) { $refreshProtectBtn.Add_Click({
 function Test-BgQueue {
     Drain-BgLog
     try { Update-ProgressUI } catch {}
+    try { Update-ProtectScanStatus -Status (Get-BgResult -Key 'scanStatus') } catch {}
     # Запасной путь для дашборда: если таймер V6 мёртв, цифры применит главный поллер.
     try {
         $dsh = Get-BgResult -Key 'dashStats'
@@ -383,6 +372,8 @@ function Test-BgQueue {
                 $script:PanelsBuilt = $true
                 Write-Log ("✗ Репозиторий не инициализирован: " + $initError) -Color "Red"
                 try { if ($sideStatusText) { $sideStatusText.Text = 'Репозиторий недоступен' } } catch {}
+                try { Build-ProtectPanel -Fast } catch { Write-Log ("✗ Панель защиты: " + $_.Exception.Message) -Color "Yellow" }
+                try { Sync-V6Page } catch {}
                 return
             }
             # Панели строятся изолированно: упавшая панель пишет ошибку в лог,
@@ -407,7 +398,11 @@ function Test-BgQueue {
                 @{ N = 'Откаты';        F = { Build-RollbackPanel } }
             )) {
                 try { & $pb.F; $built += $pb.N }
-                catch { $failed += $pb.N; try { Write-Log ("✗ Вкладка '" + $pb.N + "' не построилась: " + $_.Exception.Message) -Color "Red" } catch {} }
+                catch {
+                    $failed += $pb.N
+                    if ($pb.N -eq 'Защита') { try { Build-ProtectPanel -Fast; $script:ProtectPanelReady = $true } catch {} }
+                    try { Write-Log ("✗ Вкладка '" + $pb.N + "' не построилась: " + $_.Exception.Message) -Color "Red" } catch {}
+                }
             }
             $script:PanelsBuilt = $true
             if ($failed.Count -eq 0) { Write-Log "✓ Готов к работе." -Color "Green" }
@@ -479,6 +474,19 @@ function Test-BgQueue {
         Set-BgResult -Key 'quarantineRefresh' -Value $null
         try { $restoreQuarantineBtn.IsEnabled = $true } catch {}
         try { Build-ProtectPanel } catch {}
+    }
+    $dr = Get-BgResult -Key 'defenderScanResult'
+    if ($dr -and -not $dr.Consumed) {
+        $dr.Consumed = $true
+        $script:DefenderRunning = $false; $script:DefenderControl = $null; $script:DefenderOperationId = ''
+        try { if ($defenderScanBtn) { $defenderScanBtn.Content = $script:DefenderBtnText; $defenderScanBtn.Style = $window.FindResource('BtnPrimary'); $defenderScanBtn.IsEnabled = $true } } catch {}
+        try { if ($scanBtn) { $scanBtn.IsEnabled = $true } } catch {}
+        $dmsg = if ($dr.Cancelled) { 'Проверка Defender остановлена' } elseif (-not $dr.Complete) { ('Defender завершён с ошибками: ' + $dr.Errors) } else { ('Defender завершён: проверено ' + $dr.Scanned + ' из ' + ($dr.Scanned + $dr.TimedOut)) }
+        try { if ($protectStatusText) { $protectStatusText.Text = $dmsg } } catch {}
+        try { if ($scanProgressText) { $scanProgressText.Text = $dmsg } } catch {}
+        try { if ($scanProgressBar) { $scanProgressBar.IsIndeterminate = $false; $scanProgressBar.Value = if ($dr.Complete) { 1 } else { 0 } } } catch {}
+        try { Set-BgResult -Key 'scanStatus' -Value $null } catch {}
+        Write-Log $dmsg -Color $(if ($dr.Complete) { 'Green' } else { 'Yellow' })
     }
     $sh = Get-BgResult -Key 'scanHits'
     if ($sh -and -not $sh.Consumed) {
@@ -639,6 +647,7 @@ $window.Add_Loaded({
     Write-Log "Windows $($script:WindowsMajorVersion) обнаружена"
     Write-Log "Рабочая папка: $($script:WorkFolder)"
     try { Set-ActiveNav -Index $MainTabControl.SelectedIndex } catch {}
+    try { Build-ProtectPanel -Fast } catch { Write-Log ("✗ Панель защиты: " + $_.Exception.Message) -Color "Yellow" }
     Start-BgPoller
     Start-Background {
         try { Initialize-PotatoPC }
@@ -649,6 +658,7 @@ $window.Add_Loaded({
 
 $window.Add_Closing({
     try { if ($script:ScanRunning -and $script:ScanControl) { Stop-Operation -Control $script:ScanControl } } catch {}
+    try { if ($script:DefenderRunning -and $script:DefenderControl) { Stop-Operation -Control $script:DefenderControl } } catch {}
     try { if ($script:QuarantineRunning -and $script:QuarantineControl) { Stop-Operation -Control $script:QuarantineControl } } catch {}
     try { if ($script:BatchRunning) { Stop-SelectedScripts } } catch {}
     try { if ($script:RollbackBatchRunning) { Stop-SelectedRollbackScripts | Out-Null } } catch {}
