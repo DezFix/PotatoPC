@@ -1,4 +1,4 @@
-$script:TestRoot = Split-Path -Parent $PSScriptRoot
+﻿$script:TestRoot = Split-Path -Parent $PSScriptRoot
 
 Describe 'PotatoPC security helpers' {
     BeforeAll {
@@ -104,8 +104,9 @@ Describe 'PotatoPC rollback helpers' {
 
     It 'finds rollback scripts in the dedicated source folder' {
         $paths = @(Get-RollbackScriptPaths)
-        $paths.Count | Should Be 8
+        $paths.Count | Should Be 9
         ($paths | Where-Object { (Split-Path $_ -Leaf) -eq '08_undo_updates.ps1' }).Count | Should Be 1
+        ($paths | Where-Object { (Split-Path $_ -Leaf) -eq '09_undo_autostart.ps1' }).Count | Should Be 1
     }
 
     It 'does not expose rollback scripts in the normal list' {
@@ -151,6 +152,44 @@ Describe 'PotatoPC password helper' {
     }
 }
 
+Describe 'PotatoPC cleaning guard' {
+    BeforeAll {
+        . (Join-Path $script:TestRoot 'cleaner\CleanGuard.ps1')
+    }
+
+    It 'keeps a drive root intact while normalising paths' {
+        # Обрезание слэша у "C:\" превратило корень в "C:" и ломало
+        # префиксное сравнение - чистка могла бы снести весь диск.
+        (ConvertTo-CleanFullPath 'C:\') | Should Be 'C:\'
+        (ConvertTo-CleanFullPath 'C:\Users\User\Temp\') | Should Be 'C:\Users\User\Temp'
+        (ConvertTo-CleanFullPath '') | Should Be ''
+    }
+
+    It 'protects a root and everything under it, ignoring case' {
+        Test-CleanPathWithin -Path 'C:\ProgramData\PotatoPC\cache\repo' -Root 'C:\ProgramData\PotatoPC' | Should Be $true
+        Test-CleanPathWithin -Path 'c:\programdata\potatopc' -Root 'C:\ProgramData\PotatoPC' | Should Be $true
+    }
+
+    It 'does not let a similarly named sibling through' {
+        # Префиксное сравнение без слэша считало бы PotatoPCX защищённым -
+        # лишняя блокировка была бы безобидна, обратная ошибка опасна.
+        Test-CleanPathWithin -Path 'C:\ProgramData\PotatoPCX' -Root 'C:\ProgramData\PotatoPC' | Should Be $false
+        Test-CleanPathWithin -Path 'C:\Temp2\file.txt' -Root 'C:\Temp' | Should Be $false
+        Test-CleanPathWithin -Path 'C:\Temp2' -Root 'C:\Temp' | Should Be $false
+    }
+
+    It 'refuses to judge an unparsable path as safe' {
+        Test-CleanProtectedPath -Path '' | Should Be $true
+    }
+
+    It 'refuses to walk a junction, reparse point or protected path' {
+        $fake = [PSCustomObject]@{ Attributes = [System.IO.FileAttributes]::ReparsePoint }
+        Test-CleanReparseItem -Item $fake | Should Be $true
+        $plain = [PSCustomObject]@{ Attributes = [System.IO.FileAttributes]::Directory }
+        Test-CleanReparseItem -Item $plain | Should Be $false
+    }
+}
+
 Describe 'PotatoPC static integrity' {
     It 'parses every PowerShell file without AST errors' {
         $errors = @()
@@ -167,6 +206,39 @@ Describe 'PotatoPC static integrity' {
     It 'parses project JSON files' {
         Get-Content -LiteralPath (Join-Path $script:TestRoot 'apps.json') -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop | Out-Null
         Get-Content -LiteralPath (Join-Path $script:TestRoot 'cleaner\rules.json') -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop | Out-Null
+    }
+
+    It 'ships the shared cleaning guard the cleaner script depends on' {
+        # 02 Очистка/01_clean_junk.ps1 и вкладка «Очистка» подключают этот файл.
+        # Без него оба отказываются чистить (см. остановку в 01_clean_junk.ps1),
+        # а обход защиты вернул бы удаление папок PotatoPC.
+        $guard = Join-Path $script:TestRoot 'cleaner\CleanGuard.ps1'
+        if (-not (Test-Path -LiteralPath $guard -PathType Leaf)) { throw 'cleaner/CleanGuard.ps1 не найден' }
+        $text = Get-Content -LiteralPath $guard -Raw -Encoding UTF8
+        foreach ($fn in @('Test-CleanProtectedPath','Test-CleanPathWithin','Get-CleanGuardRoots',
+                          'Measure-CleanPaths','Clear-CleanPaths','Test-CleanReparseItem')) {
+            if ($text -notmatch ('function\s+' + [regex]::Escape($fn) + '\s*\{')) { throw ('Guard missing function: ' + $fn) }
+        }
+        # Комментарии вырезаем: упоминание опасного cmdlet'а в тексте не должно
+        # считаться его использованием.
+        $code = [regex]::Replace($text, '(?s)<#.*?#>', '')
+        $code = ($code -split "`r?`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+        # Удалять содержимое папок можно только через безопасные функции.
+        if ($code -match '\bRemove-Item\b') { throw 'Guard deletes with Remove-Item instead of the guarded helpers' }
+        if ($code -match 'Remove-Item\s') { throw 'Guard pipes to Remove-Item (bypasses protection)' }
+        if ($code -match 'Get-ChildItem[^\r\n]*-Recurse') { throw 'Guard walks the tree with Get-ChildItem -Recurse (follows junctions)' }
+        if ($code -match '(?i)Get-NetNeighbor[^\r\n]*\|[^\r\n]*Remove-') { throw 'Guard pipes adapters into a removal cmdlet' }
+    }
+
+    It 'keeps the cleaner header honest about protection' {
+        $junk = Get-ChildItem -LiteralPath (Join-Path $script:TestRoot 'scripts') -Recurse -File -Filter '01_clean_junk.ps1' | Select-Object -First 1
+        $text = Get-Content -LiteralPath $junk.FullName -Raw -Encoding UTF8
+        # Скрипт обязан подключить общий движок и отказаться работать без него.
+        if ($text -notmatch 'CleanGuard\.ps1') { throw 'Чистилка не подключает cleaner/CleanGuard.ps1' }
+        if ($text -notmatch 'exit 1') { throw 'Чистилка не прерывается при отсутствии движка очистки' }
+        foreach ($legacy in @('Test-JunkProtected','Measure-Junk','Clear-Junk','Resolve-JunkPaths')) {
+            if ($text -match ('function\s+' + [regex]::Escape($legacy) + '\s*\{')) { throw ('Дубликат движка очистки: ' + $legacy) }
+        }
     }
 
     It 'parses the WPF XAML document' {

@@ -50,7 +50,10 @@ function Test-TrustedWingetAuditPath {
 
 function Get-TrustedWingetAuditPath {
     $c = @()
-    try { foreach ($p in @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller -ErrorAction Stop)) { if ($p.InstallLocation) { $c += (Join-Path ([string]$p.InstallLocation) 'winget.exe') } } } catch {}
+    # -AllUsers нужен, чтобы совпадать с блоком [2/6]: раньше здесь искали без
+    # него и получали "[!] Проверенный winget.exe не найден" сразу после того,
+    # как [2/6] показывал найденный пакет.
+    try { foreach ($p in @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller -AllUsers -ErrorAction Stop)) { if ($p.InstallLocation) { $c += (Join-Path ([string]$p.InstallLocation) 'winget.exe') } } } catch {}
     foreach ($p in $c) { if (Test-TrustedWingetAuditPath -Path $p) { return $p } }
     return ''
 }
@@ -60,8 +63,20 @@ try {
     Write-Output "[1/6] Команда:"
     try {
         $cmd = Get-Command winget -ErrorAction Stop
-        if (Test-TrustedWingetAuditPath -Path $cmd.Source) { Write-Output ("[*] Проверенный winget найден: " + $cmd.Source) }
-        else { Write-Output ("[!] PATH-ссылка не доверена: " + $cmd.Source) }
+        # Get-Command отдаёт алиас %LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe -
+        # это 0-байтовая ссылка App Execution Alias с атрибутом ReparsePoint.
+        # Проверка подписи на ней всегда падает, то есть "[!] PATH-ссылка не
+        # доверена" печаталась на каждой здоровой машине. Отличаем алиас от
+        # настоящей подмены.
+        $aliasPath = ''
+        if ($env:LOCALAPPDATA) { $aliasPath = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\winget.exe' }
+        if (Test-TrustedWingetAuditPath -Path $cmd.Source) {
+            Write-Output ("[*] Проверенный winget найден: " + $cmd.Source)
+        } elseif ($aliasPath -and $cmd.Source -and $cmd.Source.Equals($aliasPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Output ("[*] В PATH штатный алиас WindowsApps - это нормально: " + $cmd.Source)
+        } else {
+            Write-Output ("[!] PATH-ссылка не доверена: " + $cmd.Source)
+        }
     } catch { Write-Output "[!] winget НЕТ в PATH." }
 
     Write-Output "[2/6] Пакет AppX:"
@@ -129,7 +144,7 @@ try {
             } else { Write-Output ("[!] winget source list код " + $sr.Code) }
         }
     }
-    Write-Output "[OK] Аудит закончен, ничего не менялось."
+    Write-Output "[OK] Аудит закончен. Реестр и настройки PotatoPC не менялись (сам winget.exe обновил свой кэш)."
     exit 0
 } catch {
     Write-Output ("[X] Ошибка аудита: " + $_)

@@ -7,9 +7,10 @@
 $ErrorActionPreference = "Stop"
 try {
     $p = "HKCU:\Control Panel\Mouse"
-    Set-ItemProperty -Path $p -Name "MouseSpeed" -Value "0" -Type String -Force
-    Set-ItemProperty -Path $p -Name "MouseThreshold1" -Value "0" -Type String -Force
-    Set-ItemProperty -Path $p -Name "MouseThreshold2" -Value "0" -Type String -Force
+    if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
+    Set-ItemProperty -LiteralPath $p -Name "MouseSpeed" -Value "0" -Type String -Force
+    Set-ItemProperty -LiteralPath $p -Name "MouseThreshold1" -Value "0" -Type String -Force
+    Set-ItemProperty -LiteralPath $p -Name "MouseThreshold2" -Value "0" -Type String -Force
     Write-Output "[OK] Акселерация выключена. Перезайди чтобы применилось."
     exit 0
 } catch {

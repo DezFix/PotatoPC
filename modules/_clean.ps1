@@ -1,153 +1,25 @@
 ﻿$script:CleanCheckboxes = @{}
 
-function Expand-CleanEnv {
-    # Самодостаточная: ${VAR} -> пути Windows.
-    param([string]$Path)
-    $pfx86 = ${env:ProgramFiles(x86)}
-    if ([string]::IsNullOrWhiteSpace($pfx86)) { $pfx86 = $env:ProgramFiles }
-    $map = @{
-        'LOCALAPPDATA' = $env:LOCALAPPDATA; 'APPDATA' = $env:APPDATA
-        'PROGRAMDATA' = $env:PROGRAMDATA; 'WINDIR' = $env:SystemRoot
-        'SYSTEMROOT' = $env:SystemRoot; 'PROGRAMFILES' = $env:ProgramFiles
-        'PROGRAMFILES_X86' = $pfx86; 'USERPROFILE' = $env:USERPROFILE
-        'TEMP' = $env:TEMP; 'TMP' = $env:TEMP; 'SYSTEMDRIVE' = $env:SystemDrive
+# Движок очистки (правила + защита) лежит в cleaner/CleanGuard.ps1 и общий с
+# scripts/02 Очистка/01_clean_junk.ps1. Раньше здесь была вторая копия тех же
+# функций, и защита чистки в GUI расходилась с тем, что чистит скрипт.
+$script:CleanGuardPath = ''
+try {
+    $cleanRoot = if ($script:CleanRulesPath) { Split-Path $script:CleanRulesPath -Parent }
+                 elseif ($script:ModuleDir) { Join-Path (Split-Path $script:ModuleDir -Parent) 'cleaner' }
+                 else { '' }
+    if ($cleanRoot) {
+        $script:CleanGuardPath = Join-Path $cleanRoot 'CleanGuard.ps1'
+        if (Test-Path -LiteralPath $script:CleanGuardPath -PathType Leaf) { . $script:CleanGuardPath }
     }
-    return [regex]::Replace([string]$Path, '\$\{(\w+)\}', {
-        param($m)
-        $k = $m.Groups[1].Value
-        if ($map.ContainsKey($k) -and $map[$k]) { return $map[$k] }
-        return $m.Value
-    })
+} catch {}
+if (-not (Get-Command -Name Test-CleanProtectedPath -CommandType Function -ErrorAction SilentlyContinue)) {
+    $script:CleanGuardPath = ''
 }
 
-function Resolve-CleanPaths {
-    # Самодостаточная: шаблоны (* поддерживаются) -> существующие пути.
-    # ChildSubdir: для версионных папок (JetBrains/<версия>/caches): берём base/*/ChildSubdir.
-    param([string[]]$Paths, [string]$ChildSubdir = '')
-    $out = @()
-    foreach ($p in $Paths) {
-        $e = Expand-CleanEnv $p
-        if ([string]::IsNullOrWhiteSpace($e) -or $e -match '\$\{') { continue }
-        try {
-            if ([string]::IsNullOrWhiteSpace($ChildSubdir)) {
-                if (Test-Path -LiteralPath $e) { $out += $e; continue }
-                foreach ($f in @(Get-ChildItem -Path $e -Force -ErrorAction SilentlyContinue)) {
-                    $out += $f.FullName
-                }
-            } else {
-                $bases = @()
-                if (Test-Path -LiteralPath $e) { $bases += $e }
-                else { foreach ($f in @(Get-ChildItem -Path $e -Force -ErrorAction SilentlyContinue)) { $bases += $f.FullName } }
-                foreach ($b in $bases) {
-                    foreach ($d in @(Get-ChildItem -LiteralPath $b -Directory -Force -ErrorAction SilentlyContinue)) {
-                        $cand = Join-Path $d.FullName $ChildSubdir
-                        if (Test-Path -LiteralPath $cand) { $out += $cand }
-                    }
-                }
-            }
-        } catch {}
-    }
-    return $out
-}
-
-function Test-CleanProtected {
-    # Своё не трогаем: рабочая папка PotatoPC (скрипты, логи, движок YARA).
-    # Иначе чистка TEMP убивает скрипты следующих шагов пачки (код -196608).
-    param([string]$Path)
-    try {
-        if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
-        $full = [System.IO.Path]::GetFullPath($Path).TrimEnd('\','/')
-        $cands = @()
-        if ($env:TEMP) { $cands += (Join-Path $env:TEMP 'PotatoPC') }
-        if ($env:TMP -and ($env:TMP -ne $env:TEMP)) { $cands += (Join-Path $env:TMP 'PotatoPC') }
-        try { if ($script:WorkFolder) { $cands += [string]$script:WorkFolder } } catch {}
-        try { if ($script:ScriptsFolder) { $cands += [string]$script:ScriptsFolder } } catch {}
-        try {
-            if ($script:ScriptsFolder) {
-                $rt = Split-Path [string]$script:ScriptsFolder -Parent
-                if ($rt) { $cands += $rt }
-            }
-        } catch {}
-        foreach ($c in ($cands | Where-Object { $_ } | Select-Object -Unique)) {
-            try {
-                $cc = [System.IO.Path]::GetFullPath($c).TrimEnd('\','/')
-                if ($full -eq $cc -or $full.StartsWith($cc + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }
-            } catch {}
-        }
-    } catch {}
-    return $false
-}
-
-function Measure-CleanPaths {
-    # Самодостаточная: суммарный размер байт. MinAgeDays>0: считаем только файлы старше N дней.
-    param([string[]]$Resolved, [int]$MinAgeDays = 0)
-    $cutoff = $null
-    if ($MinAgeDays -gt 0) { $cutoff = (Get-Date).AddDays(-$MinAgeDays) }
-    $sum = 0L
-    foreach ($r in $Resolved) {
-        if (Test-CleanProtected -Path $r) { continue }
-        try {
-            if (Test-Path -LiteralPath $r -PathType Leaf) {
-                $it = Get-Item -LiteralPath $r -Force -ErrorAction SilentlyContinue
-                if ($it -and ($null -eq $cutoff -or $it.LastWriteTime -lt $cutoff)) { $sum += $it.Length }
-            } else {
-                $files = @(Get-ChildItem -LiteralPath $r -Recurse -File -Force -ErrorAction SilentlyContinue |
-                    Where-Object { -not (Test-CleanProtected -Path $_.FullName) })
-                if ($cutoff) { $files = @($files | Where-Object { $_.LastWriteTime -lt $cutoff }) }
-                $s = ($files | Measure-Object Length -Sum).Sum
-                if ($s) { $sum += [long]$s }
-            }
-        } catch {}
-    }
-    return $sum
-}
-
-function Clear-CleanPaths {
-    # Самодостаточная: удаляет СОДЕРЖИМОЕ папок и файлы. Возвращает число ошибок.
-    # MinAgeDays>0: свежие файлы не трогаем (идея Kudu minAgeDays для логов), пустые папки подчищаем.
-    param([string[]]$Resolved, [int]$MinAgeDays = 0)
-    $cutoff = $null
-    if ($MinAgeDays -gt 0) { $cutoff = (Get-Date).AddDays(-$MinAgeDays) }
-    $err = 0
-    foreach ($r in $Resolved) {
-        if (Test-CleanProtected -Path $r) { continue }
-        try {
-            if (Test-Path -LiteralPath $r -PathType Leaf) {
-                if ($cutoff) {
-                    try { if ((Get-Item -LiteralPath $r -Force -ErrorAction Stop).LastWriteTime -ge $cutoff) { continue } } catch {}
-                }
-                Remove-Item -LiteralPath $r -Force -ErrorAction Stop
-            } elseif ($cutoff) {
-                foreach ($f in @(Get-ChildItem -LiteralPath $r -Recurse -File -Force -ErrorAction SilentlyContinue |
-                        Where-Object { (-not (Test-CleanProtected -Path $_.FullName)) -and $_.LastWriteTime -lt $cutoff })) {
-                    try { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop }
-                    catch { $err++ }
-                }
-                foreach ($d in @(Get-ChildItem -LiteralPath $r -Recurse -Directory -Force -ErrorAction SilentlyContinue |
-                        Where-Object { -not (Test-CleanProtected -Path $_.FullName) } |
-                        Sort-Object { $_.FullName.Length } -Descending)) {
-                    try {
-                        if ((Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction Stop | Measure-Object).Count -eq 0) {
-                            Remove-Item -LiteralPath $d.FullName -Force -ErrorAction Stop
-                        }
-                    } catch {}
-                }
-            } else {
-                Get-ChildItem -LiteralPath $r -Force -ErrorAction SilentlyContinue |
-                    Where-Object { -not (Test-CleanProtected -Path $_.FullName) } |
-                    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-            }
-        } catch { $err++ }
-    }
-    return $err
-}
-
-function Format-CleanSize {
-    param([long]$Bytes)
-    if ($Bytes -le 0) { return "нет" }
-    if ($Bytes -ge 1GB) { return ("{0} ГБ" -f [math]::Round($Bytes / 1GB, 1)) }
-    if ($Bytes -ge 1MB) { return ("{0} МБ" -f [math]::Round($Bytes / 1MB, 1)) }
-    return ("{0} КБ" -f [math]::Max(1, [int]($Bytes / 1KB)))
+function Get-CleanGuardMissing {
+    # Признак для панели: чистка недоступна, кнопки надо заблокировать.
+    return [string]::IsNullOrWhiteSpace([string]$script:CleanGuardPath)
 }
 
 function Load-CleanRules {
@@ -168,28 +40,6 @@ function Update-CleanCount {
     }
     if ($cleanCountText) { $cleanCountText.Text = "Выбрано: $sel из $total ($(Format-CleanSize $selMB))" }
     try { Update-HeaderCount } catch {}
-}
-
-function Invoke-CleanAction {
-    # Самодостаточная: именованное действие сети. Возвращает строки для лога.
-    param([string]$Name)
-    $out = @()
-    try {
-        if ($Name -eq 'flushdns') {
-            $r = ipconfig /flushdns 2>&1 | Out-String
-            $out += @(($r -split "`n" | Where-Object { $_ -match '\S' } | Select-Object -First 2))
-        } elseif ($Name -eq 'arpclear') {
-            try {
-                Get-NetNeighbor -ErrorAction Stop | Remove-NetNeighbor -Confirm:$false -ErrorAction Stop
-                $out += @('ARP-кэш очищен (Remove-NetNeighbor)')
-            } catch {
-                try { $r = arp -d * 2>&1 | Out-String } catch { $r = '' }
-                $out += @(($r -split "`n" | Where-Object { $_ -match '\S' } | Select-Object -First 3))
-                if ($out.Count -eq 0) { $out += @('ARP-кэш очищен') }
-            }
-        } else { $out += @('Неизвестное действие') }
-    } catch { $out += @('Ошибка: ' + $_) }
-    return $out
 }
 
 function Apply-CleanFilter {
@@ -312,6 +162,10 @@ function Build-CleanPanel {
 }
 
 function Start-CleanScan {
+    if (Get-CleanGuardMissing) {
+        Write-Log "✗ Нет cleaner/CleanGuard.ps1 - чистка заблокирована (без защиты она снесёт рабочие папки PotatoPC)." -Color "Red"
+        return
+    }
     $jobs = @()
     $rules = Load-CleanRules
     if (-not $rules) { return }
@@ -329,6 +183,7 @@ function Start-CleanScan {
     Set-Progress
     Start-Background {
         try {
+            Clear-CleanSkipped
             $res = @()
             $n = 0
             $total = @($jobs).Count
@@ -345,8 +200,11 @@ function Start-CleanScan {
         } catch {}
     } -Variables @{ jobs = $jobs }
 }
-
 function Start-CleanSelected {
+    if (Get-CleanGuardMissing) {
+        Write-Log "✗ Нет cleaner/CleanGuard.ps1 - чистка заблокирована (без защиты она снесёт рабочие папки PotatoPC)." -Color "Red"
+        return
+    }
     $sel = @($script:CleanCheckboxes.GetEnumerator() | Where-Object { $_.Value.Box.IsChecked })
     if ($sel.Count -eq 0) { Write-Log "⚠ Ничего не выбрано" -Color "Yellow"; return }
     $rules = Load-CleanRules
@@ -371,6 +229,7 @@ function Start-CleanSelected {
             } catch { Write-Log "Без точки восстановления (продолжаю): возможно, точка уже создавалась сегодня." -Color "Yellow" }
             $freed = 0L; $errs = 0; $n = 0
             $total = @($jobs).Count
+            Clear-CleanSkipped
             foreach ($job in $jobs) {
                 $n++
                 Set-Progress ([double]$n / [double]([Math]::Max(1, $total)))
@@ -390,6 +249,10 @@ function Start-CleanSelected {
                     $errs++
                     Write-Log ("  ✗ {0}: {1}" -f $job.Name, $_) -Color "Yellow"
                 }
+            }
+            $skipped = @(Get-CleanSkippedReport)
+            if ($skipped.Count -gt 0) {
+                Write-Log ("  🛡 Защищено, не тронуто: {0} (свои папки PotatoPC, ссылки, занятые файлы)" -f $skipped.Count)
             }
             Write-Log ("Освобождено: {0} (ошибок: {1})" -f (Format-CleanSize $freed), $errs) -Color "Green"
             try {

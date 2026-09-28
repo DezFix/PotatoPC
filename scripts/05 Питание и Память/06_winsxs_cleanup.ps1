@@ -10,7 +10,9 @@ try {
     $out = & dism /Online /Cleanup-Image /StartComponentCleanup 2>&1
     $code = $LASTEXITCODE
     $text = ($out | Out-String)
-    Write-Output $text
+    # DISM отдаёт прогресс через CR без LF: в лог улетала одна строка в
+    # несколько килобайт. Разбиваем на нормальные строки.
+    Write-Output ($text -replace "`r", "`n")
     if ($code -notin @(0, 3010)) { throw ("DISM: код " + $code + "; " + $text.Trim()) }
     if ($code -eq 3010) { Write-Output "[=] WinSxS почищен, требуется перезагрузка." }
     else { Write-Output "[OK] WinSxS почищен." }

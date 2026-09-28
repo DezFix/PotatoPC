@@ -1,5 +1,5 @@
 ﻿# NAME: 13 · Запрет фоновой работы магазинных приложений (UWP)
-# DESC: Ставит GlobalUserDisabled=1: AppX не висят в фоне и не жрут память. Обычные .exe-программы не трогает
+# DESC: Ставит GlobalUserDisabled=1 и BackgroundAppGlobalToggle=0: новые UWP не стартуют в фоне. Уже запущенные закроются после перезахода. Обычные .exe не трогает
 # TAGS: 1
 # ICON: ✋
 # PRESET: potato, office, game
@@ -14,7 +14,10 @@ try {
     if (-not (Test-Path $s)) { New-Item -Path $s -Force | Out-Null }
     Set-ItemProperty -Path $s -Name "BackgroundAppGlobalToggle" -Value 0 -Type DWord -Force
 
-    Write-Output "[OK] Фоновые приложения выключены. Больше памяти для твоих программ."
+    # Скрипт меняет только разрешение на фоновый запуск. Уже работающие UWP
+    # продолжают работать до перезахода - обещать "не висят в фоне" сразу
+    # было неправдой.
+    Write-Output "[OK] Фоновый запуск UWP запрещён. Перезайди в систему, чтобы уже запущенные закрылись."
     exit 0
 } catch {
     Write-Output ("[X] Ошибка: " + $_)

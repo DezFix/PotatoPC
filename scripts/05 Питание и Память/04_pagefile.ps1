@@ -1,25 +1,33 @@
 ﻿# NAME: 04 · Файл подкачки pagefile.sys (если мало RAM)
-# DESC: Ставит фиксированный pagefile 4–6 ГБ по размеру RAM на C:. Лечит вылеты «не хватает памяти». Нужна перезагрузка
+# DESC: Ставит фиксированный pagefile 4–12 ГБ по размеру RAM на C:. Лечит вылеты «не хватает памяти». Нужна перезагрузка
 # TAGS: 2
 # ICON: 💾
 # PRESET: potato, office
 
 #Requires -RunAsAdministrator
-param([int]$SizeMB = 0)
 $ErrorActionPreference = "Stop"
 try {
     $cs = Get-CimInstance Win32_ComputerSystem
     $ramGB = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
     Write-Output ("[*] RAM: " + $ramGB + " ГБ")
 
-    # Расчет если юзер не задал вручную
-    if ($SizeMB -le 0) {
-        $ramMB = [int]($cs.TotalPhysicalMemory / 1MB)
-        if ($ramMB -le 4096) { $SizeMB = 4096 }
-        elseif ($ramMB -le 8192) { $SizeMB = 6144 }
-        else { $SizeMB = 4096 }
+    # Уже так? ничего не делаем. Проверка идёт ДО расчёта и проверки места: на
+    # забитом C: раньше готовый правильный pagefile всё равно давал "✗ Ошибка".
+    $oldAutomatic = [bool]$cs.AutomaticManagedPagefile
+    $cur = @(Get-CimInstance Win32_PageFileSetting -ErrorAction Stop | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })
+    $cur = if ($cur.Count -gt 0) { $cur[0] } else { $null }
+
+    $ramMB = [int]($cs.TotalPhysicalMemory / 1MB)
+    if ($ramMB -le 4096) { $SizeMB = 4096 }
+    elseif ($ramMB -le 8192) { $SizeMB = 6144 }
+    # Дальше растём с RAM: раньше тут стояло 4096, то есть на 32 ГБ получалось
+    # меньше подкачки, чем на 6 ГБ - вопреки и DESC, и смыслу скрипта.
+    else { $SizeMB = [math]::Min(12288, ([int]($ramMB / 2 / 1024) * 1024)) }
+
+    if ($cur -and [int]$cur.InitialSize -eq $SizeMB -and [int]$cur.MaximumSize -eq $SizeMB) {
+        Write-Output "[=] Уже настроено, ничего не меняю."
+        exit 0
     }
-    Write-Output ("[*] Ставлю файл подкачки: " + $SizeMB + " МБ")
 
     $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
     $freeMB = [int]($disk.FreeSpace / 1MB)
@@ -27,15 +35,7 @@ try {
         Write-Output ("[X] Мало места на C: свободно " + $freeMB + " МБ, надо " + ($SizeMB + 10240))
         exit 1
     }
-
-    # Уже так? ничего не делаем
-    $oldAutomatic = [bool]$cs.AutomaticManagedPagefile
-    $cur = @(Get-CimInstance Win32_PageFileSetting -ErrorAction Stop | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })
-    $cur = if ($cur.Count -gt 0) { $cur[0] } else { $null }
-    if ($cur -and [int]$cur.InitialSize -eq $SizeMB -and [int]$cur.MaximumSize -eq $SizeMB) {
-        Write-Output "[=] Уже настроено, ничего не меняю."
-        exit 0
-    }
+    Write-Output ("[*] Ставлю файл подкачки: " + $SizeMB + " МБ")
 
     try {
         if ($oldAutomatic) {

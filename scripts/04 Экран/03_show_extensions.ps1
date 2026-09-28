@@ -8,9 +8,11 @@ $ErrorActionPreference = "Stop"
 try {
     $a = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
     if (-not (Test-Path $a)) { New-Item -Path $a -Force | Out-Null }
-    Set-ItemProperty -Path $a -Name "HideFileExt" -Value 0 -Type DWord -Force
-    Set-ItemProperty -Path $a -Name "Hidden" -Value 1 -Type DWord -Force
-    Write-Output "[OK] Расширения и скрытые файлы видны. Переоткрой Проводник."
+    Set-ItemProperty -LiteralPath $a -Name "HideFileExt" -Value 0 -Type DWord -Force
+    Set-ItemProperty -LiteralPath $a -Name "Hidden" -Value 1 -Type DWord -Force
+    # Explorer читает эти ключи на лету - перезапуск Проводника не нужен,
+    # раньше сообщение о нём было лишним.
+    Write-Output "[OK] Расширения и скрытые файлы видны (применится сразу)."
     exit 0
 } catch {
     Write-Output ("[X] Ошибка: " + $_)

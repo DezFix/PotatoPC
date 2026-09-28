@@ -79,10 +79,33 @@ function Test-TrustedWingetPath {
 function Get-TrustedWingetPath {
     $candidates = @()
     try { foreach ($p in @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller -AllUsers -ErrorAction Stop)) { if ($p.InstallLocation) { $candidates += (Join-Path ([string]$p.InstallLocation) 'winget.exe') } } } catch {}
-    $candidates += "$env:ProgramFiles\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe"
+    # Шаблон по архитектуре: на ARM64 жёсткий _x64__ не совпал бы никогда.
+    $archPattern = "x64"
+    try {
+        $oa = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+        if ("$oa" -eq "Arm64") { $archPattern = "arm64" }
+    } catch { if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { $archPattern = "arm64" } }
+    $candidates += "$env:ProgramFiles\WindowsApps\Microsoft.DesktopAppInstaller_*_${archPattern}__8wekyb3d8bbwe\winget.exe"
     foreach ($candidate in $candidates) {
         if ($candidate -like '*`*') {
-            try { $found = Get-ChildItem -Path $candidate -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1; if ($found -and (Test-TrustedWingetPath -Path $found.FullName)) { return $found.FullName } } catch {}
+            # Сортировать по имени папки нельзя: строковая сортировка даёт
+            # 1.9.0 > 1.29.290, то есть на выбор попадал самый старый winget из
+            # оставшихся после обновлений AppX. Сравниваем как версии.
+            try {
+                $found = Get-ChildItem -Path $candidate -ErrorAction SilentlyContinue |
+                    Sort-Object -Property @{
+                        Expression = {
+                            $v = '0.0'
+                            try {
+                                $raw = ($_.Directory.Name -replace '^Microsoft\.DesktopAppInstaller_', '') -split '_'
+                                $v = $raw[0]
+                            } catch {}
+                            try { [version]$v } catch { [version]'0.0' }
+                        }
+                    } -Descending |
+                    Select-Object -First 1
+                if ($found -and (Test-TrustedWingetPath -Path $found.FullName)) { return $found.FullName }
+            } catch {}
         } elseif (Test-TrustedWingetPath -Path $candidate) { return $candidate }
     }
     return ''
@@ -208,7 +231,25 @@ function Write-WingetMarker {
         $key = 'HKLM:\SOFTWARE\PotatoPC'
         if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
         New-ItemProperty -LiteralPath $key -Name 'WingetInstalledByPotatoPC' -PropertyType String -Value ("$Ver|" + (Get-Date -Format "yyyy-MM-dd HH:mm")) -Force | Out-Null
-    } catch { throw ("Не удалось записать системную метку установки: " + $_) }
+    } catch {
+        # Метка нужна откату, чтобы он знал, что сносить. Отказ записи метки
+        # не повод объявлять установку неудачной - winget при этом работает.
+        Write-Output ("[!] Не удалось записать системную метку установки: " + $_.Exception.Message)
+    }
+}
+
+function Write-WingetInboxMarker {
+    # Пишем ДО сноса: было ли winget встроенным в образ. Откат обязан знать
+    # это, иначе он сносит и встроенный пакет, и систему без winget вовсе.
+    try {
+        $pre = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
+                 Where-Object { $_.DisplayName -eq "Microsoft.DesktopAppInstaller" })
+        $key = 'HKLM:\SOFTWARE\PotatoPC'
+        if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+        $v = if ($pre.Count -gt 0) { 1 } else { 0 }
+        New-ItemProperty -LiteralPath $key -Name 'WingetInboxPreexisted' -PropertyType DWord -Value $v -Force | Out-Null
+        if ($v -eq 1) { Write-Output "[*] Winget был встроенным в образ - отметил, верну при откате." }
+    } catch { Write-Output ("[!] Не удалось записать метку встроенного winget: " + $_.Exception.Message) }
 }
 
 try {
@@ -228,6 +269,7 @@ try {
         Write-Output "[*] Winget нет или висит — сношу остатки и ставлю заново..."
     }
 
+    Write-WingetInboxMarker
     Remove-WingetClean
 
     $arch = "x64"
@@ -249,9 +291,10 @@ try {
         $depUrl = ($rel.assets | Where-Object { $_.name -eq "DesktopAppInstaller_Dependencies.zip" } | Select-Object -First 1).browser_download_url
     } catch { Write-Output ("[!] API GitHub недоступен (лимит?): " + $_.Exception.Message) }
     if ([string]::IsNullOrWhiteSpace($url)) {
-        $url = "https://github.com/microsoft/winget-cli/releases/download/v1.29.290/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-        $depUrl = "https://github.com/microsoft/winget-cli/releases/download/v1.29.290/DesktopAppInstaller_Dependencies.zip"
-        Write-Output "[*] Беру запасную версию v1.29.290 напрямую."
+        # releases/latest всегда отдаёт свежий релиз, версия не протухает.
+        $url = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+        $depUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/DesktopAppInstaller_Dependencies.zip"
+        Write-Output "[*] Беру последний релиз напрямую с GitHub."
     }
     $depOk = $false
     try {
@@ -262,14 +305,23 @@ try {
         Expand-Archive -LiteralPath $depZip -DestinationPath $depDir -Force -ErrorAction Stop
         $archDir = Join-Path $depDir $arch
         if (-not (Test-Path -LiteralPath $archDir)) { $archDir = $depDir }
+        $depGot = 0
         foreach ($a in @(Get-ChildItem -LiteralPath $archDir -Filter "*.appx" -File -ErrorAction SilentlyContinue | Sort-Object Name)) {
             try {
                 Install-AppxWithTimeout -Path $a.FullName -TimeoutSec 180
                 Write-Output ("[*] Зависимость встала: " + $a.Name)
-            } catch { Write-Output ("[!] Зависимость " + $a.Name + ": " + $_) }
+                $depOk = $true
+                $depGot++
+            } catch {
+                if ("$_" -match '0x80073CFF|0x80073D02|уже установ') { $depOk = $true; $depGot++ }
+                else { Write-Output ("[!] Зависимость " + $a.Name + ": " + $_) }
+            }
         }
-        $depOk = $true
-    } catch { Write-Output ("[!] Официальный пак не встал: " + $_.Exception.Message) }
+        # Раньше $depOk ставился в $true по факту распаковки архива, и запасной
+        # путь (прямые ссылки на XAML/VCLibs) пропускался именно тогда, когда он
+        # был нужен, а Add-AppxPackage падал с 0x80073D02 без внятной причины.
+        if ($depGot -eq 0) { $depOk = $false; Write-Output "[!] Ни одна зависимость не встала." }
+    } catch { Write-Output ("[!] Зависимости не скачались/не встали: " + $_.Exception.Message); $depOk = $false }
     if (-not $depOk) {
         Write-Output "[*] Пробую старые прямые ссылки (XAML + VCLibs)..."
         $xaml = Join-Path $tmp "ui.xaml.appx"
@@ -310,7 +362,13 @@ try {
     }
     Write-WingetMarker -Ver $okV
     Write-Output "[7/7] Настраиваю источники..."
-    try { [void](Repair-WingetSources -Wg ([string]$finalTrust.Path)) } catch {}
+    # Шаг 7 раньше проглатывался catch'ем, и "[OK] Winget готов" печатался даже
+    # при сломанных источниках - то есть при любой установке пакета.
+    $srcOk = $false
+    try { $srcOk = [bool](Repair-WingetSources -Wg ([string]$finalTrust.Path)) } catch { $srcOk = $false }
+    if (-not $srcOk) {
+        throw "Winget установлен (" + $okV + "), но источники не чинятся - установка пакетов будет падать. Запусти скрипт ещё раз."
+    }
     Write-Output ("[OK] Winget готов: " + $okV)
     exit 0
 } catch {

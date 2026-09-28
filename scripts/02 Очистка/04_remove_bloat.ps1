@@ -1,5 +1,5 @@
 ﻿# NAME: 04 · Удалить встроенные приложения (Bloatware)
-# DESC: Сносит ~28 AppX через Remove-AppxPackage: Solitaire, Советы, Новости, Skype и т.п. + убирает из образа системы
+# DESC: Сносит 24 AppX через Remove-AppxPackage: Solitaire, Советы, Новости, Skype и т.п. + убирает из образа системы
 # TAGS: 2
 # ICON: 🗑️
 # PRESET: potato, office
@@ -7,19 +7,21 @@
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
+    # Xbox и Copilot здесь не трогаем: у них свои скрипты (08_remove_xbox.ps1 и
+    # 05_remove_copilot.ps1). Удаление XboxGamingOverlay из образа молча ломало
+    # Game Bar, а про обратное в откате не было ни слова.
     $apps = @(
-        "Microsoft.3DBuilder","Microsoft.XboxApp","Microsoft.GetHelp",
+        "Microsoft.3DBuilder","Microsoft.GetHelp",
         "Microsoft.ZuneMusic","Microsoft.ZuneVideo","Microsoft.windowscommunicationsapps",
         "Microsoft.BingWeather","Microsoft.Getstarted","Microsoft.Microsoft3DViewer",
         "Microsoft.MicrosoftOfficeHub","Microsoft.MicrosoftSolitaireCollection",
         "Microsoft.MixedReality.Portal","Microsoft.Office.OneNote","Microsoft.OutlookForWindows",
         "Microsoft.People","Microsoft.ScreenSketch","Microsoft.SkypeApp","Microsoft.Wallet",
         "Microsoft.WindowsAlarms","Microsoft.WindowsFeedbackHub","Microsoft.WindowsMaps",
-        "Microsoft.WindowsSoundRecorder","Microsoft.XboxGameOverlay","Microsoft.XboxGamingOverlay",
-        "Microsoft.YourPhone","Microsoft.GamingApp","Microsoft.Copilot",
+        "Microsoft.WindowsSoundRecorder","Microsoft.YourPhone",
         "Microsoft.BingNews","Microsoft.NewsAndInterests","Microsoft.549981C3F5F10"
     )
-    $n = 0
+    $n = 0; $nProv = 0
     $errors = 0
     $provisioned = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop)
     foreach ($app in $apps) {
@@ -41,17 +43,20 @@ try {
                 Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop | Out-Null
                 $remaining = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.PackageName -eq $prov.PackageName })
                 if ($remaining.Count -gt 0) { throw "пакет остался в образе" }
+                $nProv++
             } catch {
                 $errors++
                 Write-Output ("[!] " + $app + " (образ): " + $_)
             }
         }
     }
+    $summary = "[OK] Удалено приложений: " + $n + "; из образа: " + $nProv
     if ($errors -gt 0) {
-        Write-Output ("[X] Удалено приложений: " + $n + "; ошибок: " + $errors)
-        exit 1
+        # Часть пакетов занята работающими программами - это не провал всей
+        # операции, раньше из-за одного такого пакета скрипт светил "✗ Ошибка".
+        $summary += "; не удалось: " + $errors + " (занято программами - закрой их и прогони ещё раз)"
     }
-    Write-Output ("[OK] Удалено приложений: " + $n)
+    Write-Output $summary
     exit 0
 } catch {
     Write-Output ("[X] Ошибка: " + $_)

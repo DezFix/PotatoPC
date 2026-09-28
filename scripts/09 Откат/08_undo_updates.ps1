@@ -12,6 +12,9 @@ try {
     }
     Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
     Start-Service wuauserv -ErrorAction SilentlyContinue
+    if ((Get-Service -Name wuauserv -ErrorAction SilentlyContinue) -and (Get-Service -Name wuauserv).Status -ne 'Running') {
+        Write-Output "[!] Служба wuauserv не запустилась - обновления не придут, проверь её вручную."
+    }
     Write-Output "[*] Блок больших версий снят."
 
     $marker = $null
@@ -20,9 +23,24 @@ try {
         if (Test-Path -LiteralPath $key) { $marker = Get-ItemProperty -LiteralPath $key -Name 'WingetInstalledByPotatoPC' -ErrorAction SilentlyContinue }
     } catch {}
     $hasPotatoMarker = ($null -ne $marker -and -not [string]::IsNullOrWhiteSpace([string]$marker.WingetInstalledByPotatoPC))
+    $inbox = 0
+    try {
+        $key = 'HKLM:\SOFTWARE\PotatoPC'
+        if (Test-Path -LiteralPath $key) {
+            $ib = Get-ItemProperty -LiteralPath $key -Name 'WingetInboxPreexisted' -ErrorAction SilentlyContinue
+            if ($null -ne $ib) { $inbox = [int]$ib.WingetInboxPreexisted }
+        }
+    } catch {}
     $appxFailed = $false
     if ($hasPotatoMarker) {
-        Write-Output "[*] Winget ставил PotatoPC — сношу начисто..."
+        if ($inbox -eq 1) {
+            # Winget был встроен в образ: снести его - значит оставить машину
+            # вовсе без winget, то есть хуже исходного состояния. В этом случае
+            # сносим только ту копию, что ставил PotatoPC.
+            Write-Output "[*] Winget был встроенным - уберу только копию PotatoPC, из образа не трогаю."
+        } else {
+            Write-Output "[*] Winget ставил PotatoPC — сношу начисто..."
+        }
         $removed = $false
         try {
             $pkgs = @(Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -AllUsers -ErrorAction Stop)
@@ -48,28 +66,35 @@ try {
             $provs = @()
             Write-Output ("[!] Пакеты образа не прочитались: " + $_)
         }
-        foreach ($prov in $provs) {
-            try {
-                Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop
-                Write-Output "[*] Убран из образа системы."
-                $removed = $true
-            } catch {
-                $appxFailed = $true
-                Write-Output ("[!] Из образа не убрался: " + $_)
+        if ($inbox -eq 1) {
+            if ($provs.Count -gt 0) { Write-Output "[*] Пакет встроен в образ - оставляю, winget останется доступен." }
+        } else {
+            foreach ($prov in $provs) {
+                try {
+                    Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop
+                    Write-Output "[*] Убран из образа системы."
+                    $removed = $true
+                } catch {
+                    $appxFailed = $true
+                    Write-Output ("[!] Из образа не убрался: " + $_)
+                }
             }
         }
         try {
             $remaining = @(Get-AppxPackage -Name "Microsoft.DesktopAppInstaller" -AllUsers -ErrorAction Stop)
-            $remaining += @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq "Microsoft.DesktopAppInstaller" })
-            if ($remaining.Count -gt 0) { throw "часть пакетов AppX осталась" }
+            if ($inbox -ne 1) {
+                $remaining += @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq "Microsoft.DesktopAppInstaller" })
+            }
+            if ($remaining.Count -gt 0 -and $inbox -ne 1) { throw "часть пакетов AppX осталась" }
+            if ($inbox -eq 1 -and $remaining.Count -eq 0) { Write-Output "[!] Встроенный winget не вернулся - возможно, нужен перезапуск виндоуса." }
         } catch {
             $appxFailed = $true
             Write-Output ("[!] Проверка AppX не пройдена: " + $_)
         }
         if (-not $removed) { Write-Output "[=] Пакета уже нет (снесён вручную?)." }
         if (-not $appxFailed) {
-            try { Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\PotatoPC' -Name 'WingetInstalledByPotatoPC' -Force -ErrorAction Stop }
-            catch { $appxFailed = $true; Write-Output ("[!] Системную метку не удалил: " + $_) }
+            try { Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\PotatoPC' -Name 'WingetInstalledByPotatoPC' -Force -ErrorAction Stop } catch {}
+            try { Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\PotatoPC' -Name 'WingetInboxPreexisted' -Force -ErrorAction Stop } catch {}
         }
     } else {
         Write-Output "[=] Winget ставил не PotatoPC (встроен или вручную) — не трогаю."

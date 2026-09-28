@@ -243,9 +243,19 @@ $script:AsyncLogWriter = {
 function Get-ScriptTimeout {
     param([string]$FilePath)
     # Зависший плагин: 2 попытки по 60с, дальше скип (см. Run-SelectedScripts).
-    # Исключения — WinSxS/DISM и winget (снос+установка): честные десятки минут, не вешать на них 60с.
+    # Исключения — операции с DISM/Appx/winget и массовая чистка: честные минуты,
+    # не вешать на них 60с. Иначе движок убивает дерево на середине и запускает
+    # скрипт заново, оставляя систему наполовину изменённой.
     if ($FilePath -like '*winsxs*') { return 1800 }
     if ($FilePath -like '*winget*') { return 3600 }
+    if ($FilePath -like '*undo_updates*') { return 3600 }
+    if ($FilePath -like '*undo_cleanup*') { return 1800 }
+    # Снос встроенных приложений: ~150 вызовов Appx/DISM, 60с не берёт.
+    if ($FilePath -like '*remove_bloat*') { return 1200 }
+    # Disable-WindowsOptionalFeature (Features-on-Demand) - десятки секунд.
+    if ($FilePath -like '*strong_net*') { return 600 }
+    # Обход дерева Temp + логов: своего обхода много, Remove-Item больше не тормозит.
+    if ($FilePath -like '*clean_junk*') { return 600 }
     return 60
 }
 
@@ -835,7 +845,7 @@ public static class PSAsyncHelper {
 }
 
 $script:BgISS = $null
-$script:BgConfigNames = @('ModuleDir','WorkFolder','RepoCacheFolder','LocalRepoRoot','ScriptsFolder','AppsJsonPath','AppsJsonUrl','ProtectRulesManifestUrl','ProtectRulesBaseUrl','RepoZipUrl','RepoZipSha256','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion','CleanRulesPath','YaraEngineZipSha256','YaraEngineExeSha256','YaraRulesManifestSha256')
+$script:BgConfigNames = @('ModuleDir','WorkFolder','RepoCacheFolder','LocalRepoRoot','ScriptsFolder','AppsJsonPath','AppsJsonUrl','ProtectRulesManifestUrl','ProtectRulesBaseUrl','RepoZipUrl','RepoZipSha256','LogPath','SettingsPath','UIStatePath','WindowsMajorVersion','CleanRulesPath','CleanGuardRepoRoot','YaraEngineZipSha256','YaraEngineExeSha256','YaraRulesManifestSha256')
 
 function Get-BgSessionState {
     # Снимок всех пользовательских функций один раз (после загрузки модулей).

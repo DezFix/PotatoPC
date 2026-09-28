@@ -1,140 +1,41 @@
 ﻿# NAME: 01 · Чистка временных файлов (Temp, кэши, логи)
-# DESC: Удаляет только мусор по cleaner/rules.json: Temp, кэши браузеров/игр, DNS-кэш. Программы и данные не трогает
+# DESC: Удаляет только мусор по cleaner/rules.json: Temp, кэши браузеров/игр, DNS-кэш. Свои папки PotatoPC и данные пользователя защищены
 # TAGS: 1
 # ICON: 🧹
 # PRESET: potato, office, game
 
 $ErrorActionPreference = "Stop"
 
-function Expand-JunkEnv {
-    param([string]$Path)
-    $pfx86 = ${env:ProgramFiles(x86)}
-    if ([string]::IsNullOrWhiteSpace($pfx86)) { $pfx86 = $env:ProgramFiles }
-    $map = @{
-        'LOCALAPPDATA' = $env:LOCALAPPDATA; 'APPDATA' = $env:APPDATA
-        'PROGRAMDATA' = $env:PROGRAMDATA; 'WINDIR' = $env:SystemRoot
-        'SYSTEMROOT' = $env:SystemRoot; 'PROGRAMFILES' = $env:ProgramFiles
-        'PROGRAMFILES_X86' = $pfx86; 'USERPROFILE' = $env:USERPROFILE
-        'TEMP' = $env:TEMP; 'TMP' = $env:TEMP; 'SYSTEMDRIVE' = $env:SystemDrive
-    }
-    return [regex]::Replace([string]$Path, '\$\{(\w+)\}', {
-        param($m)
-        $k = $m.Groups[1].Value
-        if ($map.ContainsKey($k) -and $map[$k]) { return $map[$k] }
-        return $m.Value
-    })
+# Движок очистки один на всё приложение: cleaner/CleanGuard.ps1 обслуживает и
+# вкладку «Очистка», и этот скрипт. Копия функций здесь означала бы, что
+# защита чистки может разойтись с тем, что реально чистит GUI.
+$guardPath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'cleaner\CleanGuard.ps1'
+if (-not (Test-Path -LiteralPath $guardPath -PathType Leaf)) {
+    Write-Output ("[X] Не найден движок очистки: " + $guardPath)
+    Write-Output "    Файл cleaner/CleanGuard.ps1 обязателен. Без него чистка не запускается: без защиты легко снести свои же папки."
+    exit 1
+}
+. $guardPath
+if (-not (Get-Command -Name Test-CleanProtectedPath -CommandType Function -ErrorAction SilentlyContinue)) {
+    Write-Output "[X] cleaner/CleanGuard.ps1 не загрузился (нет функции защиты). Чистка прервана."
+    exit 1
 }
 
-function Resolve-JunkPaths {
-    param([string[]]$Paths, [string]$ChildSubdir = '')
-    $out = @()
-    foreach ($p in $Paths) {
-        $e = Expand-JunkEnv $p
-        if ([string]::IsNullOrWhiteSpace($e) -or $e -match '\$\{') { continue }
-        try {
-            if ([string]::IsNullOrWhiteSpace($ChildSubdir)) {
-                if (Test-Path -LiteralPath $e) { $out += $e; continue }
-                foreach ($f in @(Get-ChildItem -Path $e -Force -ErrorAction SilentlyContinue)) {
-                    $out += $f.FullName
-                }
-            } else {
-                $bases = @()
-                if (Test-Path -LiteralPath $e) { $bases += $e }
-                else { foreach ($f in @(Get-ChildItem -Path $e -Force -ErrorAction SilentlyContinue)) { $bases += $f.FullName } }
-                foreach ($b in $bases) {
-                    foreach ($d in @(Get-ChildItem -LiteralPath $b -Directory -Force -ErrorAction SilentlyContinue)) {
-                        $cand = Join-Path $d.FullName $ChildSubdir
-                        if (Test-Path -LiteralPath $cand) { $out += $cand }
-                    }
-                }
-            }
-        } catch {}
+# Кто мы: папка этого скрипта, все её родители до корня репозитория и сам файл.
+# Репозиторий лежит в %TEMP%\PotatoPC или в кэше ProgramData — и то, и другое
+# защищено, но явная регистрация страхует от смены пути развёртывания.
+$scriptRoots = @()
+try { $scriptRoots += $PSCommandPath } catch {}
+try {
+    $walk = (ConvertTo-CleanFullPath $PSScriptRoot)
+    while (-not [string]::IsNullOrWhiteSpace($walk)) {
+        $scriptRoots += $walk
+        $parent = [System.IO.Path]::GetDirectoryName($walk)
+        if ([string]::IsNullOrEmpty($parent) -or $parent -eq $walk) { break }
+        $walk = $parent
     }
-    return $out
-}
-
-function Test-JunkProtected {
-    # Своё не трогаем: рабочая папка PotatoPC (скрипты, логи, движок YARA).
-    # Иначе чистка TEMP убивает скрипты следующих шагов пачки (код -196608).
-    param([string]$Path)
-    try {
-        if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
-        $full = [System.IO.Path]::GetFullPath($Path).TrimEnd('\','/')
-        $cands = @()
-        if ($env:TEMP) { $cands += (Join-Path $env:TEMP 'PotatoPC') }
-        if ($env:TMP -and ($env:TMP -ne $env:TEMP)) { $cands += (Join-Path $env:TMP 'PotatoPC') }
-        try { if ($script:WorkFolder) { $cands += [string]$script:WorkFolder } } catch {}
-        try { if ($PSScriptRoot) { $cands += [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')) } } catch {}
-        foreach ($c in ($cands | Where-Object { $_ } | Select-Object -Unique)) {
-            try {
-                $cc = [System.IO.Path]::GetFullPath($c).TrimEnd('\','/')
-                if ($full -eq $cc -or $full.StartsWith($cc + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }
-            } catch {}
-        }
-    } catch {}
-    return $false
-}
-
-function Measure-Junk {
-    param([string[]]$Resolved, [int]$MinAgeDays = 0)
-    $cutoff = $null
-    if ($MinAgeDays -gt 0) { $cutoff = (Get-Date).AddDays(-$MinAgeDays) }
-    $sum = 0L
-    foreach ($r in $Resolved) {
-        if (Test-JunkProtected -Path $r) { continue }
-        try {
-            if (Test-Path -LiteralPath $r -PathType Leaf) {
-                $it = Get-Item -LiteralPath $r -Force -ErrorAction SilentlyContinue
-                if ($it -and ($null -eq $cutoff -or $it.LastWriteTime -lt $cutoff)) { $sum += $it.Length }
-            } else {
-                $files = @(Get-ChildItem -LiteralPath $r -Recurse -File -Force -ErrorAction SilentlyContinue |
-                    Where-Object { -not (Test-JunkProtected -Path $_.FullName) })
-                if ($cutoff) { $files = @($files | Where-Object { $_.LastWriteTime -lt $cutoff }) }
-                $s = ($files | Measure-Object Length -Sum).Sum
-                if ($s) { $sum += [long]$s }
-            }
-        } catch {}
-    }
-    return $sum
-}
-
-function Clear-Junk {
-    param([string[]]$Resolved, [int]$MinAgeDays = 0)
-    $cutoff = $null
-    if ($MinAgeDays -gt 0) { $cutoff = (Get-Date).AddDays(-$MinAgeDays) }
-    $err = 0
-    foreach ($r in $Resolved) {
-        if (Test-JunkProtected -Path $r) { continue }
-        try {
-            if (Test-Path -LiteralPath $r -PathType Leaf) {
-                if ($cutoff) {
-                    try { if ((Get-Item -LiteralPath $r -Force -ErrorAction Stop).LastWriteTime -ge $cutoff) { continue } } catch {}
-                }
-                Remove-Item -LiteralPath $r -Force -ErrorAction Stop
-            } elseif ($cutoff) {
-                foreach ($f in @(Get-ChildItem -LiteralPath $r -Recurse -File -Force -ErrorAction SilentlyContinue |
-                        Where-Object { (-not (Test-JunkProtected -Path $_.FullName)) -and $_.LastWriteTime -lt $cutoff })) {
-                    try { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop }
-                    catch { $err++ }
-                }
-                foreach ($d in @(Get-ChildItem -LiteralPath $r -Recurse -Directory -Force -ErrorAction SilentlyContinue |
-                        Where-Object { -not (Test-JunkProtected -Path $_.FullName) } |
-                        Sort-Object { $_.FullName.Length } -Descending)) {
-                    try {
-                        if ((Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction Stop | Measure-Object).Count -eq 0) {
-                            Remove-Item -LiteralPath $d.FullName -Force -ErrorAction Stop
-                        }
-                    } catch {}
-                }
-            } else {
-                Get-ChildItem -LiteralPath $r -Force -ErrorAction SilentlyContinue |
-                    Where-Object { -not (Test-JunkProtected -Path $_.FullName) } |
-                    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-            }
-        } catch { $err++ }
-    }
-    return $err
-}
+} catch {}
+Add-CleanGuardRoot -Path $scriptRoots
 
 try {
     $repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
@@ -152,26 +53,32 @@ try {
         foreach ($item in $g.Items) {
             $iname = [string]$item.Name
             if ([string]$item.Action -eq 'flushdns') {
-                try { ipconfig /flushdns 2>&1 | Out-Null } catch {}
-                Write-Output "[*] DNS-кэш сброшен."
+                foreach ($ln in (Invoke-CleanAction -Name 'flushdns')) { Write-Output ("[*] " + $ln) }
                 continue
             }
             if ([string]$item.Action -eq 'arpclear') {
-                try { Get-NetNeighbor -ErrorAction Stop | Remove-NetNeighbor -Confirm:$false -ErrorAction Stop }
-                catch { try { arp -d * 2>&1 | Out-Null } catch {} }
-                Write-Output "[*] ARP-кэш очищен."
+                foreach ($ln in (Invoke-CleanAction -Name 'arpclear')) { Write-Output ("[*] " + $ln) }
                 continue
             }
-            $rp = @(Resolve-JunkPaths -Paths @($item.Paths) -ChildSubdir ([string]$item.ChildSubdir))
+            $rp = @(Resolve-CleanPaths -Paths @($item.Paths) -ChildSubdir ([string]$item.ChildSubdir))
             if ($rp.Count -eq 0) { continue }
-            $before = [long](Measure-Junk -Resolved $rp -MinAgeDays ([int]$item.MinAgeDays))
-            $errs += [int](Clear-Junk -Resolved $rp -MinAgeDays ([int]$item.MinAgeDays))
+            $before = [long](Measure-CleanPaths -Resolved $rp -MinAgeDays ([int]$item.MinAgeDays))
+            if ($before -le 0) { continue }
+            $errs += [int](Clear-CleanPaths -Resolved $rp -MinAgeDays ([int]$item.MinAgeDays))
             $freed += $before
             $n++
-            if ($before -ge 1MB) { Write-Output ("[*] {0}: ~{1} МБ" -f $iname, [math]::Round($before / 1MB, 1)) }
+            Write-Output ("[*] {0}: ~{1} МБ" -f $iname, [math]::Round($before / 1MB, 1))
         }
     }
-    Write-Output ("[OK] Почищено пунктов: {0}, освобождено ~{1} МБ, ошибок: {2}" -f $n, [math]::Round($freed / 1MB, 1), $errs)
+    $skipped = @(Get-CleanSkippedReport)
+    if ($skipped.Count -gt 0) {
+        Write-Output ("[*] Защищено, не тронуто: " + $skipped.Count + " (свои папки PotatoPC, ссылки, занятые файлы)")
+    }
+    if ($errs -gt 0) {
+        Write-Output ("[OK] Почищено пунктов: {0}, освобождено ~{1} МБ. Не удалось удалить: {2} (занято другими программами)" -f $n, [math]::Round($freed / 1MB, 1), $errs)
+    } else {
+        Write-Output ("[OK] Почищено пунктов: {0}, освобождено ~{1} МБ, ошибок: 0" -f $n, [math]::Round($freed / 1MB, 1))
+    }
     exit 0
 } catch {
     Write-Output ("[X] Ошибка: " + $_)
