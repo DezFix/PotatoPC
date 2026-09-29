@@ -760,7 +760,7 @@ function Get-SystemInfo {
             OS     = "$($os.Caption) Build $($os.BuildNumber)"
             CPU    = $cpu.Trim()
             RAM    = "$([math]::Round($ramB/1GB,1)) ГБ"
-            Disk   = "C: $([math]::Round($disk.FreeSpace/1GB,1)) ГБ своб. / $([math]::Round($disk.Size/1GB,1)) ГБ"
+            Disk   = "C: $([math]::Round($disk.FreeSpace/1GB,1)) / $([math]::Round($disk.Size/1GB,1)) ГБ"
             Uptime = $upStr
         }
     } catch {
