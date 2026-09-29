@@ -11,8 +11,11 @@
     ЗАЩИТА. Модуль ничего не удаляет, пока не доказано обратное:
       - свои папки PotatoPC (рабочая, кэш репозитория, карантин, YARA-тулы) и
         корень репозитория, из которого запущен скрипт, защищены всегда;
-      - пользовательские данные (Рабочий стол, Документы, Загрузки...) защищены;
-      - системные корни не удаляются, даже если их подсунут в правила;
+      - папки пользователя с данными (Рабочий стол, Документы, Загрузки...)
+        защищены целиком - правила туда не ходят;
+      - системные корни защищены только сами (равенство, не префикс): C:\Windows
+        как цель чистить нельзя, а %WINDIR%\Temp - можно и нужно. Иначе защита
+        видела бы всё и проверка возвращала бы 0;
       - junction/symlink (reparse point) не обходится и не удаляется вообще -
         за ссылкой может лежать что угодно, а чистка не должна решать за
         пользователя, что удалять;
@@ -30,9 +33,10 @@ $script:CleanGuardRepoRoot = ''
 try { $script:CleanGuardRepoRoot = [System.IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent)).TrimEnd('\','/') } catch {}
 $script:CleanGuardExtraRoots = @()
 $script:CleanGuardSkipped = @()
-# Список защищённых префиксов строится один раз на ранспейс: он не меняется, а
-# проверка идёт на каждый файл в Temp (десятки тысяч раз за проход).
+# Списки защиты строятся один раз на ранспейс: они не меняются, а проверка
+# идёт на каждый файл в Temp (десятки тысяч раз за проход).
 $script:CleanGuardPrefixes = $null
+$script:CleanGuardExactCache = $null
 
 function ConvertTo-CleanFullPath {
     param([string]$Path)
@@ -59,13 +63,18 @@ function Test-CleanPathWithin {
 
 function Add-CleanGuardRoot {
     # Дополнительные защищённые корни от вызывающего (папка скрипта, его файл).
+    # Корень диска не принимаем: как точечный корень он отравил бы всю защиту
+    # (под него подпадает вообще всё) и чистка не тронула бы ни одного файла.
     param([string[]]$Path)
     foreach ($p in @($Path)) {
         $f = ConvertTo-CleanFullPath $p
-        if ($f) { $script:CleanGuardExtraRoots += $f }
+        if (-not $f) { continue }
+        if ($f -match '^[A-Za-z]:\\?$') { continue }
+        $script:CleanGuardExtraRoots += $f
     }
     $script:CleanGuardExtraRoots = @($script:CleanGuardExtraRoots | Select-Object -Unique)
     $script:CleanGuardPrefixes = $null
+    $script:CleanGuardExactCache = $null
 }
 
 function Get-CleanGuardAppPath {
@@ -137,20 +146,19 @@ function Get-CleanGuardRoots {
         }
     }
 
-    # 3. Системные корни и ветки, потеря которых ломает Windows.
+    # 3. Точки, под которыми лежит незаменимое, защищаем точечно.
+    # Сюда НЕЛЬЗЯ класть C:\Windows, C:\Users, Program Files и ProgramData как
+    # "всё внутри": правила чистки легитимно ходят по их подпапкам
+    # (%WINDIR%\Temp, Steam под Program Files (x86), GOG под ProgramData) -
+    # иначе проверка видела бы всё защищённым и возвращала 0.
     $sys = @()
-    if ($env:SystemRoot) { $sys += $env:SystemRoot }
-    if ($env:ProgramData) { $sys += $env:ProgramData }
-    if ($env:SystemDrive) {
-        $sys += (Join-Path $env:SystemDrive 'Users')
-        $sys += (Join-Path $env:SystemDrive 'Program Files')
-        $sys += (Join-Path $env:SystemDrive 'Program Files (x86)')
-        $sys += (Join-Path $env:SystemDrive '$Recycle.Bin')
-        $sys += (Join-Path $env:SystemDrive 'System Volume Information')
-    }
     if ($env:SystemRoot) {
         $sys += (Join-Path $env:SystemRoot 'System32\config')   # кусты реестра SAM/SYSTEM
         $sys += (Join-Path $env:SystemRoot 'System32\DriverStore')
+    }
+    if ($env:SystemDrive) {
+        $sys += (Join-Path $env:SystemDrive '$Recycle.Bin')
+        $sys += (Join-Path $env:SystemDrive 'System Volume Information')
     }
     $roots += $sys
 
@@ -160,6 +168,28 @@ function Get-CleanGuardRoots {
         if ($f) { $out += $f }
     }
     return @($out | Select-Object -Unique)
+}
+
+function Get-CleanGuardExactRoots {
+    # Папки, которые нельзя чистить САМИ (как цель), но по чьим подпапкам
+    # правила ходят легитимно. Проверка здесь - на равенство, а не префикс.
+    if ($null -ne $script:CleanGuardExactCache) { return $script:CleanGuardExactCache }
+    $roots = @()
+    if ($env:SystemRoot) { $roots += $env:SystemRoot }
+    if ($env:ProgramData) { $roots += $env:ProgramData }
+    if ($env:USERPROFILE) { $roots += $env:USERPROFILE }
+    if ($env:SystemDrive) {
+        $roots += (Join-Path $env:SystemDrive 'Users')
+        $roots += (Join-Path $env:SystemDrive 'Program Files')
+        $roots += (Join-Path $env:SystemDrive 'Program Files (x86)')
+    }
+    $out = @()
+    foreach ($r in @($roots)) {
+        $f = ConvertTo-CleanFullPath $r
+        if ($f) { $out += $f }
+    }
+    $script:CleanGuardExactCache = @($out | Select-Object -Unique)
+    return $script:CleanGuardExactCache
 }
 
 function Get-CleanGuardPrefixList {
@@ -176,11 +206,17 @@ function Get-CleanGuardPrefixList {
 }
 
 function Test-CleanProtectedPath {
-    # Сам путь или любой его родитель защищён? Пустой/неразобранный - считаем опасным.
+    # Сам путь или любой его родитель под точечной защитой? Пустой/
+    # неразобранный - считаем опасным. Папки из "точного" списка запрещены
+    # только сами: их подпапки чистят правила.
     param([string]$Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return $true }
     $p = ConvertTo-CleanFullPath $Path
     if (-not $p) { return $true }
+    if ($p -match '^[A-Za-z]:\\?$') { return $true }
+    foreach ($e in (Get-CleanGuardExactRoots)) {
+        if ($p.Equals($e, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
     foreach ($pre in (Get-CleanGuardPrefixList)) {
         if ($p.StartsWith($pre, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
     }

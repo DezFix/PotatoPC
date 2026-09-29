@@ -182,6 +182,14 @@ Describe 'PotatoPC cleaning guard' {
         Test-CleanProtectedPath -Path '' | Should Be $true
     }
 
+    It 'blocks a system folder itself but lets its cleanable subfolders through' {
+        # Регрессия: системные корни лежали в точечной защите префиксом, и проверка
+        # видела защищённым вообще всё - раздел очистки показывал "(нет)".
+        Test-CleanProtectedPath -Path $env:SystemRoot | Should Be $true
+        Test-CleanProtectedPath -Path (Join-Path $env:SystemRoot 'Temp') | Should Be $false
+        Test-CleanProtectedPath -Path (Join-Path $env:LOCALAPPDATA 'Temp') | Should Be $false
+    }
+
     It 'refuses to walk a junction, reparse point or protected path' {
         $fake = [PSCustomObject]@{ Attributes = [System.IO.FileAttributes]::ReparsePoint }
         Test-CleanReparseItem -Item $fake | Should Be $true

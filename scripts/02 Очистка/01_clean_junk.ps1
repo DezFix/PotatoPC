@@ -21,15 +21,20 @@ if (-not (Get-Command -Name Test-CleanProtectedPath -CommandType Function -Error
     exit 1
 }
 
-# Кто мы: папка этого скрипта, все её родители до корня репозитория и сам файл.
+# Кто мы: папка этого скрипта, её родители до корня репозитория и сам файл.
 # Репозиторий лежит в %TEMP%\PotatoPC или в кэше ProgramData — и то, и другое
 # защищено, но явная регистрация страхует от смены пути развёртывания.
+# Обход останавливаем СТРОГО на корне репозитория: если уйти выше, вплоть до
+# корня диска, защита начнёт считать защищённым вообще всё, и чистка не
+# тронет ни одного файла.
+$repoRootEarly = ConvertTo-CleanFullPath (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
 $scriptRoots = @()
 try { $scriptRoots += $PSCommandPath } catch {}
 try {
     $walk = (ConvertTo-CleanFullPath $PSScriptRoot)
     while (-not [string]::IsNullOrWhiteSpace($walk)) {
         $scriptRoots += $walk
+        if ($repoRootEarly -and $walk.Equals($repoRootEarly, [System.StringComparison]::OrdinalIgnoreCase)) { break }
         $parent = [System.IO.Path]::GetDirectoryName($walk)
         if ([string]::IsNullOrEmpty($parent) -or $parent -eq $walk) { break }
         $walk = $parent
