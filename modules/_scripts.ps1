@@ -1,4 +1,6 @@
 ﻿$script:ScriptCheckboxes = @{}
+$script:ScriptsCache = $null
+$script:ScriptsCacheFolder = ''
 $script:RollbackCheckboxes = @{}
 $script:BatchRunning = $false
 $script:BatchControl = $null
@@ -143,6 +145,7 @@ function Read-ScriptHeader {
 }
 
 function Load-Scripts {
+    if ($script:ScriptsCache -and $script:ScriptsCacheFolder -eq $script:ScriptsFolder) { return $script:ScriptsCache }
     $result = @()
     $files = Get-ChildItem -Path $script:ScriptsFolder -Filter "*.ps1" -Recurse -ErrorAction SilentlyContinue | Sort-Object Name | Where-Object { -not (Is-RollbackPath -Path $_.FullName) }
     foreach ($file in $files) {
@@ -171,6 +174,8 @@ function Load-Scripts {
         }
         $result += $meta
     }
+    $script:ScriptsCacheFolder = $script:ScriptsFolder
+    $script:ScriptsCache = $result
     return $result
 }
 

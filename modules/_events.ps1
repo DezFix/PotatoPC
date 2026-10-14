@@ -386,23 +386,9 @@ function Test-BgQueue {
             }
             try { if ($scriptsFolderText) { $scriptsFolderText.Text = $script:ScriptsFolder } } catch {}
             $built = @(); $failed = @()
-            foreach ($pb in @(
-                @{ N = 'Модули';        F = { Build-ScriptsPanel } },
-                @{ N = 'Приложения';    F = { Build-AppsPanel } },
-                @{ N = 'О системе';     F = { Build-SysPanel } },
-                @{ N = 'Тесты';         F = { Build-DiagPanel } },
-                @{ N = 'Автозагрузка';  F = { Build-StartupPanel } },
-                @{ N = 'Пользователи';  F = { Build-UsersPanel } },
-                @{ N = 'Очистка';       F = { Build-CleanPanel } },
-                @{ N = 'Защита';        F = { Build-ProtectPanel } },
-                @{ N = 'Откаты';        F = { Build-RollbackPanel } }
-            )) {
-                try { & $pb.F; $built += $pb.N }
-                catch {
-                    $failed += $pb.N
-                    if ($pb.N -eq 'Защита') { try { Build-ProtectPanel -Fast; $script:ProtectPanelReady = $true } catch {} }
-                    try { Write-Log ("✗ Вкладка '" + $pb.N + "' не построилась: " + $_.Exception.Message) -Color "Red" } catch {}
-                }
+            # Лениво: при старте строим только Модули; остальные — при переходе на вкладку.
+            foreach ($idx in @([int]$MainTabControl.SelectedIndex, 0)) {
+                try { if ($idx -ge 0 -and $idx -le 9) { Ensure-PanelBuilt -Index $idx; $built += [string]$idx } } catch {}
             }
             $script:PanelsBuilt = $true
             if ($failed.Count -eq 0) { Write-Log "✓ Готов к работе." -Color "Green" }
@@ -630,6 +616,31 @@ function Test-BgQueue {
         try { Build-RollbackPanel } catch { try { Write-Log ("✗ Откаты не перестроились: " + $_.Exception.Message) -Color "Red" } catch {} }
         try { if ($refreshBtn) { $refreshBtn.IsEnabled = $true } } catch {}
         Write-Log "✓ Список скриптов обновлён"
+    }
+}
+
+$script:BuiltPanels = @{}
+$script:PanelBuilders = @{
+    0 = { Build-ScriptsPanel }
+    1 = { Build-StartupPanel }
+    2 = { Build-UsersPanel }
+    3 = { Build-AppsPanel }
+    4 = { Build-UpdatesPanel }
+    5 = { Build-CleanPanel }
+    6 = { Build-ProtectPanel -Fast }
+    7 = { Build-DiagPanel }
+    8 = { Build-SysPanel }
+    9 = { Build-RollbackPanel }
+}
+function Ensure-PanelBuilt {
+    param([int]$Index)
+    if ($script:BuiltPanels[$Index]) { return }
+    if (-not $script:PanelBuilders.ContainsKey($Index)) { return }
+    try {
+        & $script:PanelBuilders[$Index]
+        $script:BuiltPanels[$Index] = $true
+    } catch {
+        try { Write-Log ("✗ Вкладка $Index не построилась: " + $_.Exception.Message) -Color "Red" } catch {}
     }
 }
 

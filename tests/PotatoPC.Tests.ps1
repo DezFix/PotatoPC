@@ -216,6 +216,21 @@ Describe 'PotatoPC static integrity' {
         Get-Content -LiteralPath (Join-Path $script:TestRoot 'cleaner\rules.json') -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop | Out-Null
     }
 
+    It 'uses only known preset names in script headers' {
+        $allowed = @('potato','office','game')
+        $bad = @()
+        Get-ChildItem -LiteralPath (Join-Path $script:TestRoot 'scripts') -Recurse -File -Filter '*.ps1' | ForEach-Object {
+            foreach ($line in (Get-Content $_.FullName -TotalCount 12)) {
+                if ($line -match '^\s*#\s*PRESET:\s*(.+)$') {
+                    foreach ($p in ($Matches[1] -split ',')) {
+                        if ($p.Trim() -and $allowed -notcontains $p.Trim().ToLower()) { $bad += $_.Name }
+                    }
+                }
+            }
+        }
+        $bad.Count | Should Be 0
+    }
+
     It 'ships the shared cleaning guard the cleaner script depends on' {
         # 02 Очистка/01_clean_junk.ps1 и вкладка «Очистка» подключают этот файл.
         # Без него оба отказываются чистить (см. остановку в 01_clean_junk.ps1),
