@@ -2,7 +2,7 @@
 # DESC: Ставит XblAuthManager, XblGameSave, XboxNetApiSvc и др. в Startup=Disabled. НЕ ставить геймерам — сломает Game Pass и Game Bar
 # TAGS: 2
 # ICON: 🎮
-# PRESET: potato, office
+# PRESET: potato, game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

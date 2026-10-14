@@ -641,7 +641,7 @@ $window.Add_Loaded({
             $window.TaskbarItemInfo = New-Object System.Windows.Shell.TaskbarItemInfo
         }
     } catch {}
-    $scriptsFolderText.Text = $script:ScriptsFolder
+    try { $scriptsFolderText.Text = $script:ScriptsFolder } catch {}
     Write-Log ("PotatoPC Optimizer v6.0 запущен (build " + $script:BuildTag + "; menu " + $(if ($script:MenuTag) { $script:MenuTag } else { '?' }) + ")")
     Write-Log "Система: $((Get-SystemInfo).OS)"
     Write-Log "Windows $($script:WindowsMajorVersion) обнаружена"

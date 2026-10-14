@@ -2,7 +2,7 @@
 # DESC: Отключает в реестре (Run/RunOnce + StartupApproved) известный мусор автозагрузки и битые записи. Значения НЕ удаляет — есть откат 09 Откат/09
 # TAGS: 2
 # ICON: 🔌
-# PRESET: potato, office
+# PRESET: potato, office, game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

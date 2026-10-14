@@ -2,7 +2,7 @@
 # DESC: Сносит 24 AppX через Remove-AppxPackage: Solitaire, Советы, Новости, Skype и т.п. + убирает из образа системы
 # TAGS: 2
 # ICON: 🗑️
-# PRESET: potato, office
+# PRESET: potato, office, game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

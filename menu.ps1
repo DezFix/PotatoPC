@@ -176,21 +176,10 @@ Set-LogExpanded -Expand $script:LogState -Instant
 try { if ($logSplitter) { $logSplitter.Add_DragDelta({ if ($logRow.Height.Value -gt 32) { $script:LogHeight = $logRow.Height.Value } }) } } catch {}
 
 # --- Window entrance animation ---
-$window.Opacity = 0
-$contentTf = [System.Windows.Media.TranslateTransform]::new(0, 10)
-$window.Content.RenderTransform = $contentTf
-$script:FadedIn = $false
-$window.Add_ContentRendered({
-    if ($script:FadedIn) { return }
-    $script:FadedIn = $true
-    try {
-        $dur = [System.Windows.Duration]::new([TimeSpan]::FromMilliseconds(220))
-        $oa = [System.Windows.Media.Animation.DoubleAnimation]::new(0, 1, $dur)
-        $ta = [System.Windows.Media.Animation.DoubleAnimation]::new(10, 0, $dur)
-        $window.BeginAnimation([System.Windows.Window]::OpacityProperty, $oa)
-        $contentTf.BeginAnimation([System.Windows.Media.TranslateTransform]::YProperty, $ta)
-    } catch { $window.Opacity = 1; $contentTf.Y = 0 }
-})
+$window.Opacity = 1
+try { $contentTf = [System.Windows.Media.TranslateTransform]::new(0, 0) } catch { $contentTf = $null }
+if ($contentTf) { try { $window.Content.RenderTransform = $contentTf } catch {} }
+$script:FadedIn = $true
 
 $window.Add_Closing({ Save-UIState })
 

@@ -447,7 +447,8 @@ function Invoke-CleanAction {
             else { $out += @(('DNS-кэш не сброшен (ipconfig код ' + $code + ')')) }
         } elseif ($Name -eq 'arpclear') {
             try {
-                Get-NetNeighbor -ErrorAction Stop | Remove-NetNeighbor -Confirm:$false -ErrorAction Stop
+                $neighborObjects = @(Get-NetNeighbor -ErrorAction Stop)
+                if ($neighborObjects.Count -gt 0) { Remove-NetNeighbor -InputObject $neighborObjects -Confirm:$false -ErrorAction Stop }
                 $out += @('ARP-кэш очищен (Remove-NetNeighbor)')
             } catch {
                 $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
