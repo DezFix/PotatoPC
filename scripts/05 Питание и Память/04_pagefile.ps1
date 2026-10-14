@@ -42,9 +42,9 @@ try {
             Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $false } -ErrorAction Stop
         }
         if ($cur) {
-            Set-CimInstance -InputObject $cur -Property @{ InitialSize = $SizeMB; MaximumSize = $SizeMB } -ErrorAction Stop
+            Set-CimInstance -InputObject $cur -Property @{ InitialSize = [uint32]$SizeMB; MaximumSize = [uint32]$SizeMB } -ErrorAction Stop
         } else {
-            New-CimInstance -ClassName Win32_PageFileSetting -Property @{ Name = "C:\pagefile.sys"; InitialSize = $SizeMB; MaximumSize = $SizeMB } -ErrorAction Stop | Out-Null
+            New-CimInstance -ClassName Win32_PageFileSetting -Property @{ Name = "C:\pagefile.sys"; InitialSize = [uint32]$SizeMB; MaximumSize = [uint32]$SizeMB } -ErrorAction Stop | Out-Null
         }
         $after = @(Get-CimInstance Win32_PageFileSetting -ErrorAction Stop | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })
         if ($after.Count -ne 1 -or [int]$after[0].InitialSize -ne $SizeMB -or [int]$after[0].MaximumSize -ne $SizeMB) {
@@ -61,9 +61,9 @@ try {
                 $current = @($now | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })
                 if ($cur) {
                     if ($current.Count -gt 0) {
-                        Set-CimInstance -InputObject $current[0] -Property @{ InitialSize = [int]$cur.InitialSize; MaximumSize = [int]$cur.MaximumSize } -ErrorAction Stop
+                        Set-CimInstance -InputObject $current[0] -Property @{ InitialSize = [uint32]$cur.InitialSize; MaximumSize = [uint32]$cur.MaximumSize } -ErrorAction Stop
                     } else {
-                        New-CimInstance -ClassName Win32_PageFileSetting -Property @{ Name = "C:\pagefile.sys"; InitialSize = [int]$cur.InitialSize; MaximumSize = [int]$cur.MaximumSize } -ErrorAction Stop | Out-Null
+                        New-CimInstance -ClassName Win32_PageFileSetting -Property @{ Name = "C:\pagefile.sys"; InitialSize = [uint32]$cur.InitialSize; MaximumSize = [uint32]$cur.MaximumSize } -ErrorAction Stop | Out-Null
                     }
                 } else {
                     foreach ($item in $current) { Remove-CimInstance -InputObject $item -ErrorAction Stop }
