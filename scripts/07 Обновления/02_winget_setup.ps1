@@ -2,7 +2,7 @@
 # DESC: Убивает процессы, сносит пакет/образ/данные, ставит заново с GitHub. Каждый шаг с таймаутом — не виснет. Нужен вкладке «Приложения»
 # TAGS: 2
 # ICON: 📦
-# PRESET: potato, office, game
+
 
 $ErrorActionPreference = "Stop"
 

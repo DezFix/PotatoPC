@@ -1,6 +1,6 @@
 ﻿# NAME: 03 · Проверить Defender (без изменений)
 # DESC: Только читает состояние Microsoft Defender. Настройки Defender не изменяются.
-# TAGS: 3
+# TAGS: 1
 # ICON: 🛡️
 
 #Requires -RunAsAdministrator
