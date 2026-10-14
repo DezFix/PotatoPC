@@ -1,7 +1,7 @@
 ﻿# NAME: 12 отключает виджеты и Новости и интересы (TaskbarDa + AllowNewsAndInterests)
 # DESC: Отключает TaskbarDa + AllowNewsAndInterests. Работает на Win10 и Win11.
 # TAGS: 1
-# ICON: ??
+# ICON: 📰
 # PRESET: potato, office, game
 
 #Requires -RunAsAdministrator
