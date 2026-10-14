@@ -22,23 +22,23 @@ if (-not $isAdmin) {
     exit
 }
 
-# Обычно скрипт стартует с -ExecutionPolicy Bypass, и Set-ExecutionPolicy
-# тут просто тратит время на загрузку движка политик. Проверяем текущую
-# политику и дёргаем движок только когда это реально нужно.
-try {
-    $curPolicy = Get-ExecutionPolicy -Scope Process -ErrorAction SilentlyContinue
-    if ($curPolicy -eq 'Restricted') { Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue }
-} catch {}
+# IMPORTANT: Set-ExecutionPolicy runs UNCONDITIONALLY and BEFORE any file work.
+# An earlier attempt to save time here (check if policy is not Restricted) broke
+# the link launch: files unpacked from a ZIP carry Mark-of-the-Web, and the
+# default policy on Windows 11 is RemoteSigned, not Restricted. The check
+# silently skipped the fix, dot-source threw PSSecurityException, and the app
+# dumped red errors instead of starting. Do not optimize this.
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue
 
 # Menu build tag (ASCII-only file!): printed to the log at startup next to the
 # modules build tag, so a version mix (old menu + new modules) is visible.
 $script:MenuTag = '2026-10-14-r7'
 
-# Тяжёлые модули (CimCmdlets, ScheduledTasks, LocalAccounts, Archive,
-# PrintManagement) намеренно НЕ импортируются: Windows PowerShell 5.1
-# подгружает их автозагрузкой при первом реальном вызове, то есть лениво и
-# в фоновом ранспейсе. На слабом ПК предварительный импорт семи модулей
-# стоил ~0.5 с до появления окна.
+# Heavy modules (CimCmdlets, ScheduledTasks, LocalAccounts, Archive,
+# PrintManagement) are deliberately NOT imported: Windows PowerShell 5.1
+# autoloads them on first real use, i.e. lazily and
+# inside a background runspace. On a weak PC pre-importing seven modules
+# cost ~0.5 s before the window appeared.
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
@@ -67,10 +67,19 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
                 [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, (Split-Path $zipPath -Parent))
             }
             Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+            # Clear Mark-of-the-Web from the WHOLE unpacked tree, not just
+            # top-level *.ps1. Files from the internet carry the zone mark, and
+            # under RemoteSigned (Windows 11 default) PowerShell refuses to load them.
+            $unblocked = 0
             try {
-                Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter '*.ps1' -Recurse -Force -ErrorAction SilentlyContinue |
-                    Unblock-File -ErrorAction SilentlyContinue
+                $unblocked = @(Get-ChildItem -Path (Split-Path $zipPath -Parent) -Recurse -Force -ErrorAction SilentlyContinue |
+                    Where-Object { -not $_.PSIsContainer } |
+                    Unblock-File -ErrorAction SilentlyContinue).Count
             } catch {}
+            if ($unblocked -eq 0) {
+                Write-Host "[!] Could not clear the zone mark (Mark-of-the-Web). If scripts refuse to run, execute:" -ForegroundColor Yellow
+                Write-Host "    Unblock-File -Path '$($downloadRoot)' -Recurse" -ForegroundColor Yellow
+            }
             $cand = Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory |
                     Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if (-not $cand) { throw "Failed to download repository" }
@@ -94,10 +103,25 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
 }
 
 $loadOrder = @("_config.ps1", "_core.ps1", "_theme.ps1", "_icons.ps1", "_ui.ps1", "_xaml.ps1")
+$loadFailed = @()
 foreach ($module in $loadOrder) {
     $modulePath = Join-Path $script:ModuleDir $module
     if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
-    . $modulePath
+    # Dot-sourcing used to be unguarded: under a blocking execution policy it
+    # threw PSSecurityException and the user got 20 lines of red output
+    # instead of one clear explanation, and the app still did not start.
+    try {
+        . $modulePath
+    } catch {
+        $loadFailed += $module
+    }
+}
+if ($loadFailed.Count -gt 0) {
+    $why = ''
+    if (@($loadFailed | Where-Object { $_ -eq '_core.ps1' }).Count -gt 0) {
+        $why = "`n`nMost likely cause: the PowerShell execution policy blocks downloaded .ps1 files.`nRun it in one of these ways:`n  powershell -STA -NoProfile -ExecutionPolicy Bypass -File `"$([System.IO.Path]::GetFullPath($PSCommandPath))`"`n  or: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force"
+    }
+    throw ("Modules failed to load: " + ($loadFailed -join ', ') + $why)
 }
 $reader = [System.Xml.XmlNodeReader]::new($xaml)
 $window = [Windows.Markup.XamlReader]::Load($reader)
@@ -189,21 +213,21 @@ $script:FadedIn = $true
 
 $window.Add_Closing({ Save-UIState })
 
-# Только модули, нужные ДО первого клика. Остальные 8 (~375 КБ) догружает
-# Ensure-ModuleLoaded при первом открытии своей вкладки.
+# Only the modules needed BEFORE the first click. The other 8 (~375 KB)
+# are loaded by Ensure-ModuleLoaded on first open of their tab.
 $uiModules = @("_scripts.ps1", "_search.ps1", "_events.ps1")
 foreach ($module in $uiModules) {
     $modulePath = Join-Path $script:ModuleDir $module
     if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
     . $modulePath
 }
-# Базовые модули загружены - фон может работать, первый снимок полный.
+# Base modules are loaded - background may run, first snapshot is complete.
 $script:V6ModulesReady = $true
 try { Update-DashStats } catch { }
 
-# Гейт проверяет только то, что реально загружено сейчас. Остальные функции
-# проверяются по факту догрузки своего модуля: если модуль не поднялся,
-# Ensure-PanelBuilt напишет «Вкладка N не построилась» с причиной.
+# The gate checks only what is actually loaded right now. The remaining
+# functions are verified when their module loads; if a module fails to come
+# up, Ensure-PanelBuilt logs "tab N failed to build" with the reason.
 $requiredCommands = @(
     "Run-SelectedScripts", "Stop-SelectedScripts", "Reset-RunButton", "Select-ScriptPreset",
     "Build-ScriptsPanel", "Build-RollbackPanel",
