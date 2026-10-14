@@ -85,7 +85,10 @@ function Sync-V6Page {
             $sw = $window.FindName("SearchBoxWrap")
             if ($sw) { $sw.Visibility = if ($idx -eq 0 -or $idx -eq 1 -or $idx -eq 3) { 'Visible' } else { 'Collapsed' } }
         } catch {}
-        try { if (Get-Command Ensure-PanelBuilt -ErrorAction SilentlyContinue) { Ensure-PanelBuilt -Index $idx } } catch {}
+        try {
+            if (Get-Command Ensure-TabReady -ErrorAction SilentlyContinue) { Ensure-TabReady -Index $idx }
+            elseif (Get-Command Ensure-PanelBuilt -ErrorAction SilentlyContinue) { Ensure-PanelBuilt -Index $idx }
+        } catch {}
         if ($idx -eq 10) { try { Update-DashStats } catch {} }
     } catch {}
 }

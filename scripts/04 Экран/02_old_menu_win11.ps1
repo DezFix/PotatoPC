@@ -2,7 +2,7 @@
 # DESC: Возвращает полное контекстное меню через CLSID {86ca1aa0…}. Без пункта «Показать доп. параметры». Перезапусти Проводник
 # TAGS: 1,win11
 # ICON: 🖱️
-# PRESET: potato, office, game
+# PRESET:
 
 $ErrorActionPreference = "Stop"
 try {

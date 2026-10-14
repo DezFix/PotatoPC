@@ -2,7 +2,7 @@
 # DESC: Запускает OneDriveSetup /uninstall + политика DisableFileSyncNGSC. Файлы в облаке и локальные копии не удаляет
 # TAGS: 2
 # ICON: ☁️
-# PRESET: potato, game
+# PRESET:
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

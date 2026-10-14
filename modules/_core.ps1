@@ -293,6 +293,7 @@ function Start-BgPoller {
     $script:BgTimer.Add_Tick({
         if ($script:BgTickBusy) { return }
         $script:BgTickBusy = $true
+        try { Complete-BgPipelines } catch {}
         try { Test-BgQueue } catch { Write-Log "Ошибка очереди фона: $_" -Color "Red" }
         $script:BgTickBusy = $false
     })
@@ -534,17 +535,19 @@ function Set-RepoCacheAcl {
 }
 
 function Initialize-RepoCache {
-    $token = [Guid]::NewGuid().ToString('N').Substring(0, 12)
-    $base = if (-not [string]::IsNullOrWhiteSpace($env:ProgramData)) { Join-Path $env:ProgramData ('PotatoPC-' + $token) } else { Join-Path ([string]$script:WorkFolder) ('PotatoPC-cache-' + $token) }
-    $cache = Join-Path $base 'cache'
+    # Каталог кэша ДЕТЕРМИНИРОВАННЫЙ. Раньше сюда подставлялся случайный GUID
+    # на каждый вызов, из-за чего Get-RepoDirectories всегда находил пустоту и
+    # репозиторий скачивался заново при каждом запуске, а в ProgramData копились
+    # осиротевшие папки по ~20 МБ (и CleanGuard их защищал от удаления).
+    $base = if (-not [string]::IsNullOrWhiteSpace($env:ProgramData)) { Join-Path $env:ProgramData 'PotatoPC\cache' } else { Join-Path ([string]$script:WorkFolder) 'PotatoPC-cache' }
+    $cache = $base
     try {
         if (-not (Test-Path -LiteralPath $base)) { New-Item -ItemType Directory -Path $base -Force -ErrorAction Stop | Out-Null }
-        if (-not (Test-Path -LiteralPath $cache)) { New-Item -ItemType Directory -Path $cache -Force -ErrorAction Stop | Out-Null }
     } catch { Write-Log ('Не удалось создать каталог кэша: ' + $_.Exception.Message) -Color 'Red'; return '' }
-    $secure = (Set-RepoCacheAcl -Path $base) -and (Set-RepoCacheAcl -Path $cache)
+    $secure = Set-RepoCacheAcl -Path $base
     if ($secure) {
         try {
-            $probe = Join-Path $cache '.write-probe'
+            $probe = Join-Path $base '.write-probe'
             [System.IO.File]::WriteAllText($probe, 'ok')
             Remove-Item -LiteralPath $probe -Force -ErrorAction Stop
         } catch { $secure = $false }
@@ -552,29 +555,46 @@ function Initialize-RepoCache {
     if ($secure) {
         $script:RepoCacheSecure = $true
         $script:RepoCacheFolder = $cache
+        Remove-StaleRepoSnapshots -Root $cache
         return $cache
     }
-    $fallbackBase = Join-Path ([string]$script:WorkFolder) ('PotatoPC-cache-' + $token)
-    $fallbackCache = Join-Path $fallbackBase 'cache'
+    $fallbackBase = Join-Path ([string]$script:WorkFolder) 'PotatoPC-cache'
+    $fallbackCache = $fallbackBase
     try {
         if (-not (Test-Path -LiteralPath $fallbackBase)) { New-Item -ItemType Directory -Path $fallbackBase -Force -ErrorAction Stop | Out-Null }
-        if (-not (Test-Path -LiteralPath $fallbackCache)) { New-Item -ItemType Directory -Path $fallbackCache -Force -ErrorAction Stop | Out-Null }
         $probe = Join-Path $fallbackCache '.write-probe'
         [System.IO.File]::WriteAllText($probe, 'ok')
         Remove-Item -LiteralPath $probe -Force -ErrorAction Stop
     } catch { Write-Log ('Не удалось подготовить временный кэш: ' + $_.Exception.Message) -Color 'Red'; return '' }
-    Write-Log 'Защищённый ProgramData-кэш недоступен; используется проверенный временный кэш текущего запуска' -Color 'Yellow'
+    Write-Log 'Защищённый ProgramData-кэш недоступен; используется временный кэш текущего запуска' -Color 'Yellow'
     $script:RepoCacheSecure = $false
     $script:RepoCacheFolder = $fallbackCache
     return $fallbackCache
+}
+
+function Remove-StaleRepoSnapshots {
+    # В кэше остаются только последние 2 снапшота репозитория: старые весили
+    # по ~20 МБ каждый и никогда не удалялись.
+    param([string]$Root)
+    try {
+        if (-not $Root -or -not (Test-Path -LiteralPath $Root -PathType Container)) { return }
+        $snaps = @(Get-RepoDirectories -Root $Root | Sort-Object LastWriteTime -Descending)
+        $stale = @($snaps | Select-Object -Skip 2)
+        foreach ($s in $stale) {
+            if (-not $s) { continue }
+            try { Remove-Item -LiteralPath $s.FullName -Recurse -Force -ErrorAction Stop } catch {}
+        }
+    } catch {}
 }
 
 function Get-RepoDirectories {
     param([string]$Root = $script:RepoCacheFolder)
     if ([string]::IsNullOrWhiteSpace($Root) -or -not (Test-Path -LiteralPath $Root -PathType Container)) { return @() }
     try {
+        # Только каталоги, которые сами создаёт Download-Repo. Прежний шаблон
+        # '*-main' ловил любую папку, заканчивающуюся на '-main'.
         return @(Get-ChildItem -LiteralPath $Root -Directory -Force -ErrorAction Stop |
-            Where-Object { $_.Name -eq 'PotatoPC-main' -or $_.Name -like 'PotatoPC-main-*' -or $_.Name -like '*-main' } |
+            Where-Object { $_.Name -eq 'PotatoPC-main' -or $_.Name -like 'PotatoPC-main-*' } |
             Sort-Object LastWriteTime -Descending)
     } catch { return @() }
 }
@@ -746,6 +766,17 @@ function Invoke-WingetCommand {
 }
 
 function Get-SystemInfo {
+    # 4 запроса CIM/WMI = 0.5-5 секунд на слабом ПК. Кэш на 60 секунд, чтобы
+    # дашборд, вкладка «О системе» и строка старта не поднимали WMI трижды.
+    $hit = $null
+    try {
+        $c = $global:BgResults
+        if ($c -and $c.ContainsKey('sysInfo') -and $c['sysInfo']) {
+            $s = $c['sysInfo']
+            if (([datetime]$s.Time) -gt (Get-Date).AddSeconds(-60)) { return $s.Data }
+        }
+    } catch {}
+    $data = $null
     try {
         $os    = Get-CimInstance Win32_OperatingSystem
         $cpu   = (Get-CimInstance Win32_Processor -ErrorAction Stop | Select-Object -First 1).Name
@@ -756,7 +787,7 @@ function Get-SystemInfo {
         $upStr = if ($upMin -ge 1440) { "$([int]($upMin/1440))д $([int](($upMin%1440)/60))ч $(($upMin%60))м" }
                  elseif ($upMin -ge 60) { "$([int]($upMin/60))ч $(($upMin%60))м" }
                  else { "$upMin мин" }
-        return @{
+        $data = @{
             OS     = "$($os.Caption) Build $($os.BuildNumber)"
             CPU    = $cpu.Trim()
             RAM    = "$([math]::Round($ramB/1GB,1)) ГБ"
@@ -764,25 +795,33 @@ function Get-SystemInfo {
             Uptime = $upStr
         }
     } catch {
-        return @{ OS="Неизвестно"; CPU="Неизвестно"; RAM="Неизвестно"; Disk="Неизвестно"; Uptime="Неизвестно" }
+        $data = @{ OS="Неизвестно"; CPU="Неизвестно"; RAM="Неизвестно"; Disk="Неизвестно"; Uptime="Неизвестно" }
     }
+    try { $global:BgResults['sysInfo'] = @{ Time = (Get-Date); Data = $data } } catch {}
+    return $data
 }
 
 function Create-RestorePoint {
     Write-Log "Создание точки восстановления системы..."
     try {
-        Enable-ComputerRestore -Drive "C:\" -ErrorAction SilentlyContinue
-        Checkpoint-Computer -Description "PotatoPC Optimizer Backup" -RestorePointType "MODIFY_SETTINGS"
+        # Диск системный, а не C:\ — на нестандартной разметке точка ушла бы не туда.
+        $sysDrive = $env:SystemDrive
+        if ([string]::IsNullOrWhiteSpace($sysDrive)) { $sysDrive = 'C:' }
+        try { Enable-ComputerRestore -Drive $sysDrive -ErrorAction SilentlyContinue } catch {}
+        # -ErrorAction Stop обязателен: без него non-terminating ошибка выглядит
+        # как успех, и пользователь видит зелёное "Точка создана!" при её отсутствии.
+        Checkpoint-Computer -Description "PotatoPC Optimizer Backup" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
         Write-Log "Точка восстановления успешно создана!" -Color "Green"
         return $true
     } catch {
-        Write-Log "Ошибка создания точки восстановления: $_" -Color "Red"
+        Write-Log "Точка восстановления НЕ создана: $($_.Exception.Message)" -Color "Red"
         return $false
     }
 }
 
 function Set-StartupApprovedState {
     param([string]$RegKey, [string]$ValueName, [bool]$Enable, [string]$ApprovedSubOverride = "")
+    $approvedKey = $null
     try {
         $isHKCU      = $RegKey -like "HKEY_CURRENT_USER*"
         $isRunOnce   = $RegKey -like "*RunOnce*"
@@ -808,40 +847,14 @@ function Set-StartupApprovedState {
         }
         $data[0] = if ($Enable) { [byte]0x02 } else { [byte]0x03 }
         $approvedKey.SetValue($ValueName, [byte[]]$data, [Microsoft.Win32.RegistryValueKind]::Binary)
-        $approvedKey.Dispose()
         return $true
     } catch {
         Write-Log "StartupApproved для '$ValueName': $_" -Color "Red"
         return $false
+    } finally {
+        # Без finally HKEY утекал на каждом из 40+ элементов автозагрузки.
+        try { if ($approvedKey) { $approvedKey.Dispose() } } catch {}
     }
-}
-
-if (-not ("PSAsyncHelper" -as [type])) {
-    Add-Type -TypeDefinition @"
-using System;
-using System.Management.Automation;
-using System.Management.Automation.Runspaces;
-public static class PSAsyncHelper {
-    public static Action MakeCompletion(PowerShell ps, IAsyncResult iar, Action<string> completion, Runspace bgRunspace, Runspace callerRunspace) {
-        return () => {
-            Exception err = null;
-            try { ps.EndInvoke(iar); }
-            catch (Exception e) { err = e; }
-            try { ps.Dispose(); } catch {}
-            try { if (bgRunspace != null) bgRunspace.Dispose(); } catch {}
-            try { if (callerRunspace != null) { callerRunspace.SessionStateProxy.SetVariable("AsyncLastError", err == null ? null : err.Message); } } catch {}
-            try { if (callerRunspace != null) { Runspace.DefaultRunspace = callerRunspace; } } catch {}
-            if (completion != null) { try { completion(err == null ? null : err.Message); } catch {} }
-        };
-    }
-    public static Action MakeRunAction(Action body, Runspace callerRunspace) {
-        return () => {
-            try { if (callerRunspace != null) Runspace.DefaultRunspace = callerRunspace; } catch {}
-            if (body != null) { try { body(); } catch {} }
-        };
-    }
-}
-"@
 }
 
 $script:BgISS = $null
@@ -872,12 +885,85 @@ function Get-BgSessionState {
     }
 }
 
+# ── Реестр фоновых конвейеров ──
+# Раньше завершение фоновой задачи обслуживал скомпилированный на старте
+# C#-хелпер PSAsyncHelper (Add-Type + csc.exe на КАЖДЫЙ запуск приложения).
+# Делегат ScriptBlock→Action не переживает запуск на потоке пула в PS 5.1,
+# поэтому хелпер был необходим. Теперь используется нативный
+# PowerShell.BeginInvoke: конвейер создаётся дёшево (Open ~7 мс, BeginInvoke
+# ~1 мс), а разбор результата делает тикер UI-потока — без потоков и без C#.
+$script:BgPending = $null
+
+function Add-BgPipeline {
+    param($Ps, $Rs, $Iar, [string]$LogPath, $LogQueue, $Results, [hashtable]$FailureResults = @{}, $OnComplete = $null, $CallRunspace = $null)
+    if ($null -eq $script:BgPending) { $script:BgPending = New-Object System.Collections.Queue }
+    $script:BgPending.Enqueue(@{
+        Ps = $Ps; Rs = $Rs; Iar = $Iar; Log = $LogPath; Q = $LogQueue
+        R = $Results; F = $FailureResults; Done = $OnComplete; Caller = $CallRunspace
+    })
+}
+
+function Write-BgFailure {
+    param($Item, [string]$Message)
+    $emsg = "[BG] " + $Message
+    try { [System.IO.File]::AppendAllText([string]$Item.Log, (Get-Date).ToString("HH:mm:ss") + " " + $emsg + "`r`n") } catch {}
+    try {
+        if ($Item.Q) {
+            if ($Item.Q.Count -gt 5000) { try { $Item.Q.Dequeue() | Out-Null } catch {} }
+            $Item.Q.Enqueue(@{ T = $emsg; C = 'Red' })
+        }
+    } catch {}
+}
+
+function Complete-BgPipelines {
+    # Вызывается тикером UI-потока: забирает завершившиеся фоновые конвейеры,
+    # публикует их ошибки в лог и освобождает ранспейсы.
+    try {
+        if (-not $script:BgPending -or $script:BgPending.Count -eq 0) { return }
+        while ($script:BgPending.Count -gt 0) {
+            $item = $script:BgPending.Peek()
+            $done = $false
+            try { $done = [bool]$item.Iar.IsCompleted } catch { $done = $true }
+            if (-not $done) { return }
+            $script:BgPending.Dequeue()
+            $threw = $false
+            $thrownMsg = ''
+            try { $item.Ps.EndInvoke($item.Iar) } catch { $threw = $true; $thrownMsg = $_.Exception.Message }
+            try {
+                foreach ($e in @($item.Ps.Streams.Error)) {
+                    try { Write-BgFailure -Item $item -Message ([string]$e) } catch {}
+                }
+            } catch {}
+            if ($threw) {
+                try { Write-BgFailure -Item $item -Message ("[fatal] " + $thrownMsg) } catch {}
+                # Публикуем заявленные откатные значения - иначе UI ждёт вечно.
+                try {
+                    if ($item.R -and $item.F) {
+                        foreach ($k in @($item.F.Keys)) { try { $item.R[$k] = $item.F[$k] } catch {} }
+                    }
+                } catch {}
+                if ($item.Caller) { try { $item.Caller.SessionStateProxy.SetVariable("AsyncLastError", $thrownMsg) } catch {} }
+            }
+            if ($item.Done) { try { $item.Done.Invoke() } catch {} }
+            try { $item.Ps.Dispose() } catch {}
+            try { $item.Rs.Dispose() } catch {}
+        }
+    } catch {}
+}
+
 function Start-Background {
-    param([scriptblock]$ScriptBlock, [hashtable]$Variables = @{})
+    # FailureResults: ключи, которые обязаны появиться в шине даже если ранспейс
+    # не поднялся или тело упало. Без этого UI ждёт результат вечно и оставляет
+    # кнопку в состоянии "Выполняется..." до перезапуска приложения.
+    param([scriptblock]$ScriptBlock, [hashtable]$Variables = @{}, [hashtable]$FailureResults = @{})
     # Всё тяжёлое предвычисляем здесь, в UI-потоке: объект ISS, init-скрипт,
-    # исходник тела, живые ссылки. Пул-поток делает только .NET-обвязку
-    # ранспейса (без единого cmdlet) и выполняет тело в полной изоляции.
+    # исходник тела, живые ссылки. Тело выполняется в изолированном ранспейсе.
     $iss = Get-BgSessionState
+    if (-not $iss) {
+        try { Write-Log "Фон недоступен: не удалось снять набор функций" -Color "Red" } catch {}
+        try { if ($global:BgResults -and $FailureResults) { foreach ($k in @($FailureResults.Keys)) { $global:BgResults[$k] = $FailureResults[$k] } } } catch {}
+        return
+    }
     $bodySrc = $ScriptBlock.ToString()
     $initLines = @()
     foreach ($n in $script:BgConfigNames) {
@@ -895,61 +981,33 @@ function Start-Background {
     try { if ($global:BgLogQueue) { $liveVars['bgLogQueue'] = $global:BgLogQueue } } catch {}
     foreach ($kv in $Variables.GetEnumerator()) { $liveVars[$kv.Key] = $kv.Value }
     $logPathStr = [string]$script:LogPath
-    $runner = {
-        try {
-            if ($iss) { $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss) }
-            else { $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace() }
-            $rs.ApartmentState = "STA"
-            $rs.ThreadOptions = "ReuseThread"
-            $rs.Open()
-            try {
-                foreach ($kv in $liveVars.GetEnumerator()) {
-                    try { $rs.SessionStateProxy.SetVariable($kv.Key, $kv.Value) } catch {}
-                }
-                $ps = [System.Management.Automation.PowerShell]::Create()
-                $ps.Runspace = $rs
-                try {
-                    if (-not [string]::IsNullOrWhiteSpace($initScript)) { [void]$ps.AddScript($initScript) }
-                    [void]$ps.AddScript($bodySrc)
-                    [void]$ps.Invoke()
-                    foreach ($e in @($ps.Streams.Error)) {
-                        # Ошибка фона — и в файл, и в UI-очередь: молчащих кнопок больше нет.
-                        try {
-                            $emsg = "[BG] " + $e.ToString()
-                            $t = [DateTime]::Now.ToString("HH:mm:ss") + " " + $emsg + "`r`n"
-                            [System.IO.File]::AppendAllText($logPathStr, $t)
-                            try {
-                                $q = $null
-                                try { $q = $liveVars['bgLogQueue'] } catch {}
-                                if ($q) {
-                                    if ($q.Count -gt 5000) { try { $q.Dequeue() | Out-Null } catch {} }
-                                    $q.Enqueue(@{ T = $emsg; C = 'Red' })
-                                }
-                            } catch {}
-                        } catch {}
-                    }
-                } finally { try { $ps.Dispose() } catch {} }
-            } finally { try { $rs.Dispose() } catch {} }
-        } catch {
-            try {
-                $emsg = "[BG bootstrap] " + $_.Exception.Message
-                $t = [DateTime]::Now.ToString("HH:mm:ss") + " " + $emsg + "`r`n"
-                [System.IO.File]::AppendAllText($logPathStr, $t)
-                try {
-                    $q = $null
-                    try { $q = $liveVars['bgLogQueue'] } catch {}
-                    if ($q) {
-                        if ($q.Count -gt 5000) { try { $q.Dequeue() | Out-Null } catch {} }
-                        $q.Enqueue(@{ T = $emsg; C = 'Red' })
-                    }
-                } catch {}
-            } catch {}
+    $logQueue = $null; try { $logQueue = $liveVars['bgLogQueue'] } catch {}
+    $results  = $null; try { $results  = $liveVars['bgResults'] } catch {}
+    $ps = $null; $rs = $null
+    try {
+        $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss)
+        $rs.ApartmentState = "STA"
+        $rs.ThreadOptions = "ReuseThread"
+        $rs.Open()
+        foreach ($kv in $liveVars.GetEnumerator()) {
+            try { $rs.SessionStateProxy.SetVariable($kv.Key, $kv.Value) } catch {}
         }
-    }.GetNewClosure()
-    $callerRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
-    $action = [PSAsyncHelper]::MakeRunAction([Action]$runner, $callerRunspace)
-    [System.Threading.Tasks.Task]::Run($action) | Out-Null
+        $ps = [System.Management.Automation.PowerShell]::Create()
+        $ps.Runspace = $rs
+        if (-not [string]::IsNullOrWhiteSpace($initScript)) { [void]$ps.AddScript($initScript) }
+        [void]$ps.AddScript($bodySrc)
+        $iar = $ps.BeginInvoke()
+        Add-BgPipeline -Ps $ps -Rs $rs -Iar $iar -LogPath $logPathStr -LogQueue $logQueue -Results $results -FailureResults $FailureResults
+    } catch {
+        $emsg = "[BG bootstrap] " + $_.Exception.Message
+        try { [System.IO.File]::AppendAllText($logPathStr, (Get-Date).ToString("HH:mm:ss") + " " + $emsg + "`r`n") } catch {}
+        try { if ($logQueue) { $logQueue.Enqueue(@{ T = $emsg; C = 'Red' }) } } catch {}
+        try { if ($results -and $FailureResults) { foreach ($k in @($FailureResults.Keys)) { $results[$k] = $FailureResults[$k] } } } catch {}
+        try { if ($ps) { $ps.Dispose() } } catch {}
+        try { if ($rs) { $rs.Dispose() } } catch {}
+    }
 }
+
 
 function Invoke-Async {
     param(
@@ -1004,16 +1062,13 @@ function Invoke-Async {
     $ps.AddScript($ScriptBlock) | Out-Null
     $iar = $ps.BeginInvoke()
     $callerRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
-    $completion = [Action]$OnComplete
-    $completionWithError = [Action[string]]{
-        param([string]$message)
-        if (-not [string]::IsNullOrWhiteSpace($message)) {
-            try { Write-Log ("Фоновая операция завершилась с ошибкой: " + $message) -Color "Red" } catch {}
-        }
-        if ($completion) { try { $completion.Invoke() } catch {} }
-    }.GetNewClosure()
-    $action = [PSAsyncHelper]::MakeCompletion($ps, $iar, $completionWithError, $rs, $callerRunspace)
-    [System.Threading.Tasks.Task]::Run($action) | Out-Null
+    # Разбор завершения делает тикер UI-потока (Complete-BgPipelines) - так же,
+    # как для Start-Background. Никаких Task.Run и C#-делегатов.
+    $done = $null
+    if ($OnComplete) { $done = [Action]$OnComplete }
+    $logQueue = $null; try { $logQueue = $global:BgLogQueue } catch {}
+    $results  = $null; try { $results  = $global:BgResults } catch {}
+    Add-BgPipeline -Ps $ps -Rs $rs -Iar $iar -LogPath ([string]$script:LogPath) -LogQueue $logQueue -Results $results -OnComplete $done -CallRunspace $callerRunspace
     # Handle для внешней остановки: Stop() тормозит конвейер, завершение подчистит ранспейс.
     # Остальные вызовы возвращаемое значение игнорируют — безопасно.
     $handlePs = $ps
@@ -1060,63 +1115,6 @@ function Save-UIState {
     } catch {}
 }
 
-# ── Плавное сворачивание/разворачивание лога ──
-if (-not ('PotatoPC.GridLengthAnimation' -as [type])) {
-    try {
-        Add-Type -ReferencedAssemblies @('PresentationFramework', 'PresentationCore', 'WindowsBase') -TypeDefinition @"
-using System;
-using System.Windows;
-using System.Windows.Media.Animation;
-
-namespace PotatoPC
-{
-    public class GridLengthAnimation : AnimationTimeline
-    {
-        public static readonly DependencyProperty FromProperty =
-            DependencyProperty.Register("From", typeof(GridLength?), typeof(GridLengthAnimation));
-        public static readonly DependencyProperty ToProperty =
-            DependencyProperty.Register("To", typeof(GridLength?), typeof(GridLengthAnimation));
-
-        public GridLength? From
-        {
-            get { return (GridLength?)GetValue(FromProperty); }
-            set { SetValue(FromProperty, value); }
-        }
-        public GridLength? To
-        {
-            get { return (GridLength?)GetValue(ToProperty); }
-            set { SetValue(ToProperty, value); }
-        }
-
-        public override Type TargetPropertyType
-        {
-            get { return typeof(GridLength); }
-        }
-
-        protected override Freezable CreateInstanceCore()
-        {
-            return new GridLengthAnimation();
-        }
-
-        public override object GetCurrentValue(object defaultOriginValue, object defaultDestinationValue, AnimationClock animationClock)
-        {
-            double fromVal = ((GridLength)defaultOriginValue).Value;
-            double toVal   = ((GridLength)defaultDestinationValue).Value;
-            if (From.HasValue) { fromVal = From.Value.Value; }
-            if (To.HasValue)   { toVal   = To.Value.Value; }
-            if (animationClock.CurrentProgress.HasValue)
-            {
-                double p = animationClock.CurrentProgress.Value;
-                return new GridLength(fromVal + (toVal - fromVal) * p);
-            }
-            return new GridLength(toVal);
-        }
-    }
-}
-"@
-    } catch {}
-}
-
 function Set-LogExpanded {
     param([bool]$Expand, [switch]$Instant)
     try {
@@ -1146,24 +1144,11 @@ function Set-LogExpanded {
         $from = $logRow.Height.Value
         if ([Math]::Abs($target - $from) -lt 1) { return }
         $heightProp = [System.Windows.Controls.RowDefinition]::HeightProperty
-        if ($Instant) {
-            try { $logRow.ApplyAnimationClock($heightProp, $null) } catch {}
-            $logRow.SetValue($heightProp, [System.Windows.GridLength]::new($target))
-            return
-        }
-        try {
-            # базовое значение сразу = цель: после завершения часов значение останется верным
-            $logRow.SetValue($heightProp, [System.Windows.GridLength]::new($target))
-            $anim = New-Object PotatoPC.GridLengthAnimation
-            $anim.From     = [System.Windows.GridLength]::new($from)
-            $anim.To       = [System.Windows.GridLength]::new($target)
-            $anim.Duration = [System.Windows.Duration]::new([TimeSpan]::FromMilliseconds(160))
-            $clock = $anim.CreateClock()
-            $clock.Completed.Add({ $logRow.ApplyAnimationClock($heightProp, $null) }.GetNewClosure())
-            $logRow.ApplyAnimationClock($heightProp, $clock)
-        } catch {
-            $logRow.SetValue($heightProp, [System.Windows.GridLength]::new($target))
-        }
+        # Анимации GridLength больше нет: она требовала компиляции C# через
+        # Add-Type с тремя WPF-сборками (~0.1-0.5 с на слабом ПК) КАЖДЫЙ запуск,
+        # ради эффекта в 160 мс. Переключение мгновенное.
+        try { $logRow.ApplyAnimationClock($heightProp, $null) } catch {}
+        try { $logRow.SetValue($heightProp, [System.Windows.GridLength]::new($target)) } catch {}
     } catch {}
 }
 
@@ -1212,22 +1197,21 @@ function Get-RelativeTime {
 }
 
 # Тёмный системный титлбар (Win10 20H1+). На старых сборках молча ничего не делает.
-if (-not ('PotatoPC.Dwm' -as [type])) {
+# Компиляция ленивая: Add-Type с csc.exe стоит ~0.1-0.5 с на слабом ПК, а окно
+# появляется раньше, чем до этой строки дело доходит.
+function Enable-DarkTitleBar {
+    param($Window)
     try {
-        Add-Type -TypeDefinition @'
+        if (-not ('PotatoPC_Dwm' -as [type])) {
+            Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class PotatoPC_Dwm {
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 }
-'@
-    } catch {}
-}
-
-function Enable-DarkTitleBar {
-    param($Window)
-    try {
+'@ -ErrorAction Stop
+        }
         $helper = [System.Windows.Interop.WindowInteropHelper]::new($Window)
         $hwnd = $helper.Handle
         if ($hwnd -eq [IntPtr]::Zero) { $hwnd = $helper.EnsureHandle() }

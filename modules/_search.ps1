@@ -85,6 +85,9 @@ if ($startupSearchBox) { $startupSearchBox.Add_TextChanged({
     $q = $startupSearchBox.Text.Trim()
     try { $startupSearchHint.Visibility  = if ($q -eq "") { "Visible" } else { "Collapsed" } } catch {}
     try { $startupSearchClear.Visibility = if ($q -eq "") { "Collapsed" } else { "Visible" } } catch {}
-    Apply-StartupFilter
+    # Apply-StartupFilter живёт в лениво загружаемом _startup.ps1 - поле поиска
+    # находится на вкладке «Автозагрузка», модуль к этому моменту уже догружен,
+    # но подстраховка от порядка вызовов не помешает.
+    if (Get-Command Apply-StartupFilter -ErrorAction SilentlyContinue) { try { Apply-StartupFilter } catch {} }
 })}
 if ($startupSearchClear) { $startupSearchClear.Add_Click({ $startupSearchBox.Text = "" }) }

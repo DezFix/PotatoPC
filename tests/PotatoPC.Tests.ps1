@@ -271,3 +271,65 @@ Describe 'PotatoPC static integrity' {
         }
     }
 }
+
+Describe 'PotatoPC release manifest' {
+    # Тест ловит ровно тот класс расхождений, из-за которого установщик
+    # блокировал запуск: генератор манифеста нормализует CRLF -> LF, а
+    # проверяющая сторона обязана считать хэш ТОЧНО ТАК ЖЕ. Сейчас обе стороны
+    # (tools/New-ReleaseHashes.ps1, modules/_core.ps1, Install-PotatoPC.ps1)
+    # держат один алгоритм, и манифест совпадает с фактическими файлами.
+    It 'hashes text files with the same normalization the generator uses' {
+        $sums = Join-Path $script:TestRoot 'SHA256SUMS'
+        if (-not (Test-Path -LiteralPath $sums -PathType Leaf)) { throw 'SHA256SUMS не найден' }
+        $expected = @{}
+        foreach ($line in [System.IO.File]::ReadAllLines($sums, [System.Text.Encoding]::UTF8)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line -notmatch '^([0-9A-Fa-f]{64})  (.+)$') { throw ('Некорректная строка манифеста: ' + $line); continue }
+            $expected[$Matches[2].ToUpperInvariant()] = $Matches[1].ToUpperInvariant()
+        }
+        if ($expected.Count -eq 0) { throw 'Манифест пуст' }
+
+        function Get-ManifestHash {
+            param([string]$Path)
+            $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
+            $nm  = [System.IO.Path]::GetFileName($Path).ToLowerInvariant()
+            $isText = (@('.bat','.cfg','.cmd','.conf','.css','.csv','.editorconfig','.gitattributes','.gitignore','.htm','.html','.ini','.js','.json','.md','.ps1','.psd1','.toml','.txt','.svg','.xml','.xaml','.yaml','.yml','.yar','.yara') -contains $ext) -or ($nm -match '^(license|notice|copying|readme)$')
+            if ($isText) {
+                $text = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($Path))
+                $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+                $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
+                $sha = [System.Security.Cryptography.SHA256]::Create()
+                try { return ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '') } finally { $sha.Dispose() }
+            }
+            return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
+        }
+
+        $mismatch = @()
+        foreach ($rel in $expected.Keys) {
+            $full = Join-Path $script:TestRoot ($rel -replace '/', '\')
+            if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { $mismatch += ('нет файла: ' + $rel); continue }
+            if ((Get-ManifestHash -Path $full) -ne $expected[$rel]) { $mismatch += ('хэш: ' + $rel) }
+        }
+        if ($mismatch.Count -gt 0) {
+            throw ("Манифест разошёлся с файлами (" + $mismatch.Count + "): " + (($mismatch | Select-Object -First 10) -join '; '))
+        }
+    }
+
+    It 'covers every tracked file with the manifest' {
+        $sums = Join-Path $script:TestRoot 'SHA256SUMS'
+        $inManifest = New-Object 'System.Collections.Generic.HashSet[string]'
+        foreach ($line in [System.IO.File]::ReadAllLines($sums, [System.Text.Encoding]::UTF8)) {
+            if ($line -match '^([0-9A-Fa-f]{64})  (.+)$') { [void]$inManifest.Add($Matches[2].ToUpperInvariant()) }
+        }
+        $rootLen = $script:TestRoot.Length
+        $uncovered = @()
+        foreach ($f in @(Get-ChildItem -LiteralPath $script:TestRoot -Recurse -File -Force |
+                        Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' -and $_.Name -ne 'SHA256SUMS' })) {
+            $rel = $f.FullName.Substring($rootLen).TrimStart('\','/').Replace('\','/').ToUpperInvariant()
+            if (-not $inManifest.Contains($rel)) { $uncovered += $rel }
+        }
+        if ($uncovered.Count -gt 0) {
+            throw ("Файлы вне манифеста (" + $uncovered.Count + "): " + (($uncovered | Select-Object -First 10) -join '; '))
+        }
+    }
+}

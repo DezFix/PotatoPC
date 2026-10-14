@@ -40,4 +40,4 @@ function Get-WindowsMajorVersion {
 $script:WindowsMajorVersion = Get-WindowsMajorVersion
 # Метка сборки: bump вручную при релизных правках, видна в первой строке лога.
 # Позволяет отличить запущенную версию (локально/по ссылке/кэш) без гаданий.
-$script:BuildTag = '2026-09-14-r6'
+$script:BuildTag = '2026-10-14-r7'

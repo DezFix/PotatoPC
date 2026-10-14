@@ -2,7 +2,7 @@
 # DESC: Укорачивает квант активного окна (Win32PrioritySeparation=24). Нужна перезагрузка
 # TAGS: 1
 # ICON: ⚡
-# PRESET: potato, office, game
+# PRESET:
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

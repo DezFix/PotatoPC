@@ -19,6 +19,9 @@ if (-not $Root) {
     if ($PSCommandPath) { $Root = Split-Path (Split-Path $PSCommandPath -Parent) -Parent }
     else { $Root = (Get-Location).Path }
 }
+# Хвостовой слеш ломал бы относительные пути: все последующие Substring($Root.Length)
+# отрезали бы лишний символ и манифест стал бы нечитаемым.
+$Root = ([System.IO.Path]::GetFullPath($Root)).TrimEnd('\','/')
 $out = Join-Path $Root 'SHA256SUMS'
 $allFiles = @(Get-ChildItem -LiteralPath $Root -Recurse -File -Force -ErrorAction Stop |
     Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' -and $_.Name -ne 'SHA256SUMS' })
@@ -83,7 +86,8 @@ foreach ($f in $files) {
     $h = Get-RepoManifestHash -Path $f.FullName
     $lines += ("$h  $rel")
 }
-[System.IO.File]::WriteAllLines($out, $lines, [System.Text.UTF8Encoding]::new($false))
+# LF, а не CRLF: с CRLF `sha256sum -c` в WSL/Linux не проходил из-за \r в конце строки.
+[System.IO.File]::WriteAllText($out, (($lines -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
 Write-Host ("SHA256SUMS: файлов=" + $lines.Count + " -> " + $out) -ForegroundColor Green
 
 $menu = Join-Path $Root 'menu.ps1'

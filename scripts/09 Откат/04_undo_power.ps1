@@ -35,19 +35,54 @@ try {
 
     Write-Output "[*] Файл подкачки..."
     $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
-    # Возвращаем автоуправление только если оно и было. У пользователя с
-    # ручным pagefile (AutomaticManagedPagefile = false) безусловое $true
-    # уничтожало его настройку безвозвратно.
-    if (-not [bool]$cs.AutomaticManagedPagefile) {
-        Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $true } -ErrorAction Stop
-        foreach ($pf in @(Get-CimInstance Win32_PageFileSetting -ErrorAction SilentlyContinue | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })) {
-            try { Remove-CimInstance -InputObject $pf -ErrorAction SilentlyContinue } catch {}
+    # Сначала возвращаем РУЧНЫЕ размеры из снимка, который 04_pagefile.ps1
+    # сохраняет перед изменением. Раньше откат умел только вернуть системный
+    # авто-режим, и ручные настройки пользователя терялись безвозвратно.
+    $restored = $false
+    $backupDir = Join-Path $env:ProgramData 'PotatoPC\backups'
+    try {
+        $snap = @(Get-ChildItem -LiteralPath $backupDir -Filter 'pagefile-*.json' -ErrorAction SilentlyContinue |
+                  Sort-Object LastWriteTime -Descending | Select-Object -First 1)
+        if ($snap.Count -gt 0) {
+            $data = Get-Content -LiteralPath $snap[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+            $entries = @($data.Entries)
+            if ($entries.Count -gt 0) {
+                if ([bool]$data.Automatic) {
+                    Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $true } -ErrorAction Stop
+                    foreach ($pf in @(Get-CimInstance Win32_PageFileSetting -ErrorAction SilentlyContinue | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })) {
+                        try { Remove-CimInstance -InputObject $pf -ErrorAction SilentlyContinue } catch {}
+                    }
+                } else {
+                    if ([bool]$cs.AutomaticManagedPagefile) { Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $false } -ErrorAction Stop }
+                    foreach ($pf in @(Get-CimInstance Win32_PageFileSetting -ErrorAction SilentlyContinue | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })) {
+                        try { Remove-CimInstance -InputObject $pf -ErrorAction SilentlyContinue } catch {}
+                    }
+                    foreach ($e in $entries) {
+                        New-CimInstance -ClassName Win32_PageFileSetting -ErrorAction Stop -Property @{
+                            Name = [string]$e.Name; InitialSize = [uint32]$e.InitialSize; MaximumSize = [uint32]$e.MaximumSize
+                        } | Out-Null
+                    }
+                }
+                Write-Output ("[*] Pagefile возвращён по снимку " + $snap[0].Name + ".")
+                $restored = $true
+            }
         }
-        $after = Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
-        if (-not [bool]$after.AutomaticManagedPagefile) { throw "Автоматическое управление pagefile не восстановлено" }
-        Write-Output "[*] Pagefile: фиксированный размер возвращён под управление системы."
-    } else {
-        Write-Output "[=] Pagefile уже под управлением системы - не трогаю."
+    } catch {
+        Write-Output ("[!] Снимок pagefile не применился: " + $_.Exception.Message + " — перехожу к авторежиму")
+    }
+    if (-not $restored) {
+        # Запасной путь: автоуправление, как было раньше.
+        if (-not [bool]$cs.AutomaticManagedPagefile) {
+            Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $true } -ErrorAction Stop
+            foreach ($pf in @(Get-CimInstance Win32_PageFileSetting -ErrorAction SilentlyContinue | Where-Object { $_.Name -ieq 'C:\pagefile.sys' })) {
+                try { Remove-CimInstance -InputObject $pf -ErrorAction SilentlyContinue } catch {}
+            }
+            $after = Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
+            if (-not [bool]$after.AutomaticManagedPagefile) { throw "Автоматическое управление pagefile не восстановлено" }
+            Write-Output "[*] Pagefile: фиксированный размер возвращён под управление системы."
+        } else {
+            Write-Output "[=] Pagefile уже под управлением системы - не трогаю."
+        }
     }
 
     Write-Output "[*] Выключаю автоочистку..."

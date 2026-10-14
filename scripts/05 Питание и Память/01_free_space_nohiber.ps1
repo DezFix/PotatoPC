@@ -2,7 +2,7 @@
 # DESC: Команда powercfg /hibernate off: удаляет hiberfil.sys (~40% RAM). Пропадут гибернация и быстрый запуск
 # TAGS: 2
 # ICON: 💽
-# PRESET: potato
+# PRESET:
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
@@ -20,8 +20,20 @@ try {
     }
     # Если гибернация уже выключена, powercfg вернёт 0 и скрипт рапортовал бы
     # "Место освобождено", хотя диск не изменился.
-    $was = (Invoke-Powercfg /a).Text
-    $wasOn = ($was -match '(?i)Hibernate\s+The following sleep states are available') -or ($was -match '(?i)Гибернация')
+    #
+    # Надёжный признак - сам файл hiberfil.sys, а не разбор локализованного
+    # вывода `powercfg /a`: прежняя проверка по регулярке не срабатывала на
+    # английской Windows (порядок слов в строке другой), и скрипт после
+    # успешного удаления печатал "гибернация уже была выключена".
+    $hibFile = Join-Path $env:SystemDrive 'hiberfil.sys'
+    $wasOn = $false
+    try { $wasOn = [System.IO.File]::Exists($hibFile) } catch { $wasOn = $false }
+    if (-not $wasOn) {
+        $was = (Invoke-Powercfg /a).Text
+        # Запасной признак по выводу - на случай, если файл уже удалён вручную.
+        $wasOn = ($was -match '(?i)Hibernate\s+available') -or ($was -match '(?i)Гибернация\s+доступна') -or ($was -match '(?i)^\s*hibernate\s+available')
+        if ($wasOn) { $wasOn = $false }
+    }
     $r = Invoke-Powercfg /hibernate off
     if ($r.Code -ne 0) { throw ("powercfg /hibernate off: код " + $r.Code + "; " + $r.Text) }
     if (-not $wasOn) {

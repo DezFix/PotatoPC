@@ -2,7 +2,7 @@
 # DESC: Ставит AppsUseLightTheme=0 + SystemUsesLightTheme=0 в реестре. Только внешний вид, на скорость не влияет
 # TAGS: 1
 # ICON: 🌙
-# PRESET: potato, office, game
+# PRESET:
 
 $ErrorActionPreference = "Stop"
 try {

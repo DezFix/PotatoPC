@@ -33,6 +33,11 @@ $script:CleanGuardRepoRoot = ''
 try { $script:CleanGuardRepoRoot = [System.IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent)).TrimEnd('\','/') } catch {}
 $script:CleanGuardExtraRoots = @()
 $script:CleanGuardSkipped = @()
+# Журнал удалённого: чистка необратима (корзина не используется), пользователь
+# обязан видеть, что именно исчезло. Кэш счётчиков - чтобы не растить
+# список из сотен тысяч записей на большом Temp.
+$script:CleanGuardRemoved = @{}
+$script:CleanGuardRemovedBytes = [long]0
 # Списки защиты строятся один раз на ранспейс: они не меняются, а проверка
 # идёт на каждый файл в Temp (десятки тысяч раз за проход).
 $script:CleanGuardPrefixes = $null
@@ -124,14 +129,15 @@ function Get-CleanGuardRoots {
     # 1. Наше собственное. Имена папок не выдумываем - ищем на диске.
     foreach ($base in @($env:TEMP, $env:TMP, $env:LOCALAPPDATA, $env:APPDATA, $env:ProgramData)) {
         if ([string]::IsNullOrWhiteSpace($base)) { continue }
-        foreach ($name in @('PotatoPC', 'PotatoPC-*')) {
-            $p = Join-Path $base $name
-            try {
-                if (Test-Path -LiteralPath $p) {
-                    $roots += (Get-ChildItem -LiteralPath $p -Force -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
-                } else { $roots += $p }
-            } catch { $roots += $p }
-        }
+        # Шаблонные имена ('PotatoPC-*') разворачивает ТОЛЬКО -Path.
+        # С -LiteralPath '*' остаётся буквальной звёздочкой, в защиту попадал
+        # путь, который не совпадал ни с одним реальным путём на диске.
+        $direct = Join-Path $base 'PotatoPC'
+        $roots += $direct
+        try {
+            $kids = @(Get-ChildItem -Path (Join-Path $base 'PotatoPC-*') -Force -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+        } catch { $kids = @() }
+        $roots += $kids
     }
     # Пути, названные самим приложением, плюс корень репозитория с правилами.
     foreach ($p in (Get-CleanGuardAppPath)) {
@@ -347,16 +353,49 @@ function Remove-CleanFileSafe {
     # секунды. Удаление всё равно идёт по одному файлу, поэтому защита выше
     # успевает отработать для каждого.
     param([string]$Path)
+    $size = [long]0
+    try { $size = [long]([System.IO.FileInfo]::new($Path)).Length } catch {}
     try {
         $attr = [System.IO.File]::GetAttributes($Path)
         if (($attr -band [System.IO.FileAttributes]::ReadOnly) -ne 0) {
             [System.IO.File]::SetAttributes($Path, ($attr -band (-bnot [System.IO.FileAttributes]::ReadOnly)))
         }
         [System.IO.File]::Delete($Path)
+        Add-CleanRemovedRecord -Path $Path -Bytes $size
     } catch {
         $script:CleanGuardSkipped += ([string]$Path + ' (занят)')
         throw
     }
+}
+
+function Add-CleanRemovedRecord {
+    # Компактный журнал: хранится до 200 уникальных путей + полные счётчики.
+    param([string]$Path, [long]$Bytes = 0)
+    try {
+        $script:CleanGuardRemovedBytes += $Bytes
+        if ($script:CleanGuardRemoved.ContainsKey($Path)) {
+            $script:CleanGuardRemoved[$Path] = [long]$script:CleanGuardRemoved[$Path] + 1
+        } elseif ($script:CleanGuardRemoved.Count -lt 200) {
+            $script:CleanGuardRemoved[$Path] = [long]1
+        }
+    } catch {}
+}
+
+function Get-CleanRemovedReport {
+    # Возвращает @{ Count; Bytes; Items } для вывода в лог/интерфейс.
+    $count = [long]0
+    try { foreach ($v in $script:CleanGuardRemoved.Values) { $count += [long]$v } } catch {}
+    # Счётчик хранит только первые 200 уникальных путей, поэтому Files > Count
+    # означает "ещё были файлы сверх лимита" - сообщаем честно.
+    return @{
+        Count = $count
+        Bytes = [long]$script:CleanGuardRemovedBytes
+        Items = @($script:CleanGuardRemoved.Keys)
+    }
+}
+
+function Reset-CleanRemovedReport {
+    try { $script:CleanGuardRemoved = @{}; $script:CleanGuardRemovedBytes = [long]0 } catch {}
 }
 
 function Remove-CleanTreeContent {
@@ -446,16 +485,30 @@ function Invoke-CleanAction {
             if ($code -eq 0) { $out += @('DNS-кэш сброшен') }
             else { $out += @(('DNS-кэш не сброшен (ipconfig код ' + $code + ')')) }
         } elseif ($Name -eq 'arpclear') {
+            # Чистим только НЕИСПОЛЬЗУЕМЫЕ записи. Раньше удалялись все подряд,
+            # включая Reachable/Unicast для живых соседей — рвались активные
+            # TCP-соединения и сессии.
             try {
-                $neighborObjects = @(Get-NetNeighbor -ErrorAction Stop)
-                if ($neighborObjects.Count -gt 0) { Remove-NetNeighbor -InputObject $neighborObjects -Confirm:$false -ErrorAction Stop }
-                $out += @('ARP-кэш очищен (Remove-NetNeighbor)')
+                $stale = @(Get-NetNeighbor -ErrorAction Stop | Where-Object {
+                    $_.State -in @('Unreachable','Stale','Delay','Probe','Permanent') -and
+                    $_.PolicyStore -ne 'Persistent'
+                })
+                $removed = 0
+                if ($stale.Count -gt 0) {
+                    $stale | Remove-NetNeighbor -Confirm:$false -ErrorAction SilentlyContinue
+                    $removed = $stale.Count
+                }
+                $total = @(Get-NetNeighbor -ErrorAction SilentlyContinue).Count
+                $out += @(("ARP-кэш: удалено устаревших записей — $removed, осталось активных — $total"))
             } catch {
                 $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-                try { $r = arp -d * 2>&1 | Out-String } catch { $r = '' } finally { $ErrorActionPreference = $prev }
-                $code = $LASTEXITCODE
-                $out += @(($r -split "`n" | Where-Object { $_ -match '\S' } | Select-Object -First 3))
-                if ($code -eq 0) { $out += @('ARP-кэш очищен (arp -d)') }
+                $r = ''; $code = 1
+                try { $r = arp -d * 2>&1 | Out-String; $code = $LASTEXITCODE } catch { $r = '' } finally { $ErrorActionPreference = $prev }
+                if ($code -eq 0) {
+                    $out += @('ARP-кэш очищен (arp -d)')
+                } else {
+                    $out += @(('ARP-кэш не очищен: ' + (($r -split "`n" | Where-Object { $_ -match '\S' } | Select-Object -First 2) -join ' ')))
+                }
             }
         } else { $out += @('Неизвестное действие') }
     } catch { $out += @('Ошибка: ' + $_) }

@@ -210,26 +210,49 @@ function Start-CleanSelected {
     $rules = Load-CleanRules
     if (-not $rules) { return }
     $jobs = @()
+    $risky = @()
     foreach ($kv in $sel) {
         $e = $kv.Value
         try {
             $rule = $rules.Groups[$e.Gi].Items[$e.Ii]
             $jobs += @{ Key = $kv.Key; Name = [string]$rule.Name; Paths = @($rule.Paths); Action = [string]$rule.Action; ChildSubdir = [string]$rule.ChildSubdir; MinAgeDays = [int]$rule.MinAgeDays }
+            # Confirm-правила (кэши разработчика) требуют явного согласия.
+            if ($rule.PSObject.Properties['Confirm'] -and $rule.Confirm) { $risky += [string]$rule.Name }
         } catch {}
     }
     if ($jobs.Count -eq 0) { return }
     Write-Log "══ Чистка: $($jobs.Count) пунктов ══"
+    # Чистка необратима: подтверждаем один раз до старта, дальше состав известен.
+    try {
+        if ($risky.Count -gt 0) {
+            $ask = [System.Windows.MessageBox]::Show(
+                ("Будут удалены БЕЗ корзины:`n`n" + (($risky | ForEach-Object { "  • " + $_ }) -join "`n") + "`n`nЭто кэши/хранилища пакетов разработчика. Без интернета они не восстановятся.`n`nТочно продолжить?"),
+                "PotatoPC - Очистка (опасные пункты)",
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Warning)
+        } else {
+            $ask = [System.Windows.MessageBox]::Show(
+                "Будет удалено содержимое выбранных папок БЕЗ корзины.`nОтменить будет нельзя — сначала создай точку восстановления.`n`nТочно продолжить?",
+                "PotatoPC - Очистка",
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Warning)
+        }
+        if ($ask -ne [System.Windows.MessageBoxResult]::Yes) { Write-Log "Чистка отменена." -Color "Yellow"; return }
+    } catch { Write-Log "Не удалось показать подтверждение, продолжаю." -Color "Yellow" }
     Set-Progress 0
     Start-Background {
         try {
             try {
-                Enable-ComputerRestore -Drive "C:\" -ErrorAction SilentlyContinue
+                $sysDrive = $env:SystemDrive
+                if ([string]::IsNullOrWhiteSpace($sysDrive)) { $sysDrive = 'C:' }
+                Enable-ComputerRestore -Drive $sysDrive -ErrorAction SilentlyContinue
                 Checkpoint-Computer -Description "PotatoPC перед чисткой" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
                 Write-Log "Точка восстановления создана." -Color "Green"
-            } catch { Write-Log "Без точки восстановления (продолжаю): возможно, точка уже создавалась сегодня." -Color "Yellow" }
+            } catch { Write-Log "Без точки восстановления (продолжаю): возможно, точка уже создавалась сегодня или отключено восстановление." -Color "Yellow" }
             $freed = 0L; $errs = 0; $n = 0
             $total = @($jobs).Count
             Clear-CleanSkipped
+            Reset-CleanRemovedReport
             foreach ($job in $jobs) {
                 $n++
                 Set-Progress ([double]$n / [double]([Math]::Max(1, $total)))
@@ -253,6 +276,19 @@ function Start-CleanSelected {
             $skipped = @(Get-CleanSkippedReport)
             if ($skipped.Count -gt 0) {
                 Write-Log ("  🛡 Защищено, не тронуто: {0} (свои папки PotatoPC, ссылки, занятые файлы)" -f $skipped.Count)
+            }
+            $removed = Get-CleanRemovedReport
+            if ($removed.Count -gt 0) {
+                Write-Log ("  🗑 Удалено файлов: {0}, реально освобождено: {1}" -f $removed.Count, (Format-CleanSize $removed.Bytes)) -Color "Gray"
+                foreach ($p in @($removed.Items | Select-Object -First 10)) { Write-Log ("     - " + $p) -Color "Gray" }
+                if (@($removed.Items).Count -ge 10) { Write-Log "     … полный список в clean-removed.log" -Color "Gray" }
+                try {
+                    $logDir = Join-Path $script:WorkFolder 'clean-logs'
+                    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+                    $stamp = (Get-Date -Format 'yyyyMMdd-HHmmss')
+                    $rPath = Join-Path $logDir ("removed-$stamp.log")
+                    @($removed.Items) | Out-File -FilePath $rPath -Encoding UTF8 -Force
+                } catch {}
             }
             Write-Log ("Освобождено: {0} (ошибок: {1})" -f (Format-CleanSize $freed), $errs) -Color "Green"
             try {

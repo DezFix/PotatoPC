@@ -139,8 +139,13 @@ $disableStartupBtn.Add_Click({
         if ($tag.Location -like "Папка*") {
             try {
                 $src = $tag.Command
-                Rename-Item -LiteralPath $src -NewName ([System.IO.Path]::GetFileName($src + ".disabled")) -Force -ErrorAction Stop
-                Write-Log "⏸ Отключено (папка): $($tag.Name)" -Color "Green"; $total++
+                # Идемпотентность: повторное «Отключить» больше не даёт .disabled.disabled
+                if ($src.EndsWith('.disabled', [System.StringComparison]::OrdinalIgnoreCase)) {
+                    Write-Log "⏸ Уже отключено (папка): $($tag.Name)" -Color "Gray"
+                } else {
+                    Rename-Item -LiteralPath $src -NewName ([System.IO.Path]::GetFileName($src + ".disabled")) -Force -ErrorAction Stop
+                    Write-Log "⏸ Отключено (папка): $($tag.Name)" -Color "Green"; $total++
+                }
             } catch { Write-Log "✗ $($tag.Name): $_" -Color "Red" }
         } else {
             $ok = Set-StartupApprovedState -RegKey $tag.RegKey -ValueName $tag.Name -Enable $false
@@ -372,7 +377,7 @@ function Test-BgQueue {
                 $script:PanelsBuilt = $true
                 Write-Log ("✗ Репозиторий не инициализирован: " + $initError) -Color "Red"
                 try { if ($sideStatusText) { $sideStatusText.Text = 'Репозиторий недоступен' } } catch {}
-                try { Build-ProtectPanel -Fast } catch { Write-Log ("✗ Панель защиты: " + $_.Exception.Message) -Color "Yellow" }
+                try { Ensure-TabReady -Index 6 } catch {}
                 try { Sync-V6Page } catch {}
                 return
             }
@@ -386,9 +391,11 @@ function Test-BgQueue {
             }
             try { if ($scriptsFolderText) { $scriptsFolderText.Text = $script:ScriptsFolder } } catch {}
             $built = @(); $failed = @()
-            # Лениво: при старте строим только Модули; остальные — при переходе на вкладку.
+            # Лениво: строим активную вкладку и «Модули». Остальные — при переходе.
             foreach ($idx in @([int]$MainTabControl.SelectedIndex, 0)) {
-                try { if ($idx -ge 0 -and $idx -le 9) { Ensure-PanelBuilt -Index $idx; $built += [string]$idx } } catch {}
+                if ($idx -ge 0 -and $idx -le 10) {
+                    if (Ensure-TabReady -Index $idx) { $built += [string]$idx } else { $failed += [string]$idx }
+                }
             }
             $script:PanelsBuilt = $true
             if ($failed.Count -eq 0) { Write-Log "✓ Готов к работе." -Color "Green" }
@@ -401,12 +408,9 @@ function Test-BgQueue {
                 }
                 Update-HeaderCount
             } catch {}
-            $restoreResult=[System.Windows.MessageBox]::Show(
-                "Рекомендуется создать точку восстановления системы перед внесением изменений.`n`nСоздать точку восстановления сейчас?",
-                "PotatoPC Optimizer",
-                [System.Windows.MessageBoxButton]::YesNo,
-                [System.Windows.MessageBoxImage]::Question)
-            if ($restoreResult -eq "Yes") { Start-Background { Create-RestorePoint } }
+            # Модальное окно прямо в тике таймера блокировало UI на слабом ПК.
+            # Подсказка в логе + кнопка «Точка восстановления» во вкладке «Очистка».
+            Write-Log "Перед изменениями нажми «Точка восстановления» на вкладке «Очистка»." -Color "Gray"
         }
         return
     }
@@ -452,9 +456,19 @@ function Test-BgQueue {
         Set-BgResult -Key 'appsRefresh' -Value $null
         try { Build-AppsPanel } catch {}
     }
+    if (Get-BgResult -Key 'sysPanelDirty') {
+        # Обязательно сбрасываем флаг, иначе панель перестраивалась бы каждый тик.
+        Set-BgResult -Key 'sysPanelDirty' -Value $null
+        try { if ($script:BuiltPanels[8]) { Build-SysPanel } } catch {}
+    }
     if (Get-BgResult -Key 'protectRefresh') {
         Set-BgResult -Key 'protectRefresh' -Value $null
         try { Build-ProtectPanel } catch {}
+    }
+    if (Get-BgResult -Key 'protectStatusRebuild') {
+        Set-BgResult -Key 'protectStatusRebuild' -Value $null
+        # Перестраиваем панель из готового снимка; -Fast не запускает новый сбор.
+        try { if ($script:ProtectPanelReady) { Build-ProtectPanel -Fast } } catch {}
     }
     if (Get-BgResult -Key 'quarantineRefresh') {
         Set-BgResult -Key 'quarantineRefresh' -Value $null
@@ -612,7 +626,7 @@ function Test-BgQueue {
         }
         try { if ($scriptsFolderText) { $scriptsFolderText.Text = $script:ScriptsFolder } } catch {}
         try { Build-ScriptsPanel } catch { try { Write-Log ("✗ Модули не перестроились: " + $_.Exception.Message) -Color "Red" } catch {} }
-        try { Build-AppsPanel } catch { try { Write-Log ("✗ Приложения не перестроились: " + $_.Exception.Message) -Color "Red" } catch {} }
+        try { Ensure-ModuleLoaded -Names @('_apps.ps1'); Build-AppsPanel } catch { try { Write-Log ("✗ Приложения не перестроились: " + $_.Exception.Message) -Color "Red" } catch {} }
         try { Build-RollbackPanel } catch { try { Write-Log ("✗ Откаты не перестроились: " + $_.Exception.Message) -Color "Red" } catch {} }
         try { if ($refreshBtn) { $refreshBtn.IsEnabled = $true } } catch {}
         Write-Log "✓ Список скриптов обновлён"
@@ -627,20 +641,91 @@ $script:PanelBuilders = @{
     3 = { Build-AppsPanel }
     4 = { Build-UpdatesPanel }
     5 = { Build-CleanPanel }
-    6 = { Build-ProtectPanel -Fast }
+    6 = { Build-ProtectPanel -Fast; Start-ProtectStatusRefresh }
     7 = { Build-DiagPanel }
     8 = { Build-SysPanel }
     9 = { Build-RollbackPanel }
 }
-function Ensure-PanelBuilt {
+
+# ── Ленивая догрузка модулей ──
+# 11 UI-модулей весили ~480 КБ и компилировались синхронно ДО появления окна.
+# Из них 8 нужны только своей вкладке: на слабом ПК это 1.5-3.5 с ожидания.
+# Модули состоят только из определений функций (верхнеуровневого кода нет),
+# поэтому догрузка на лету безопасна. Обязательное условие: после догрузки
+# сбрасывается кэш ISS, иначе фоновые задачи не увидят новые функции.
+$script:LoadedModules = @{}
+$script:TabModules = @{
+    0  = @('_scripts.ps1')
+    1  = @('_startup.ps1')
+    2  = @('_users.ps1')
+    3  = @('_apps.ps1')
+    4  = @('_updates.ps1')
+    5  = @('_clean.ps1')
+    6  = @('_protect.ps1')
+    7  = @('_audit.ps1', '_sysdiag.ps1')
+    8  = @('_sysdiag.ps1')
+    9  = @('_scripts.ps1')
+    10 = @('_apps.ps1')
+}
+
+function Ensure-ModuleLoaded {
+    # Догружает модуль при первом обращении. Ошибка не поднимается наружу:
+    # вызывающий код сам сообщит о непостроенной панели.
+    param([string[]]$Names)
+    if (-not $Names) { return }
+    foreach ($n in $Names) {
+        if ($script:LoadedModules[$n]) { continue }
+        $script:LoadedModules[$n] = $true
+        $p = $null
+        try { $p = Join-Path $script:ModuleDir $n } catch {}
+        if (-not $p -or -not (Test-Path -LiteralPath $p)) { continue }
+        try {
+            $before = New-Object 'System.Collections.Generic.HashSet[string]'
+            foreach ($f in @(Get-ChildItem -Path function:)) { [void]$before.Add($f.Name) }
+            . $p
+            # Точка-источник ВНУТРИ функции определяет функции в её собственной
+            # области: на выходе из Ensure-ModuleLoaded они исчезают (проверено).
+            # Поэтому новые функции поднимаем в область скрипта вручную - иначе
+            # вкладка собралась бы из пустоты, а фон их бы не видел.
+            foreach ($f in @(Get-ChildItem -Path function:)) {
+                if ($before.Contains($f.Name)) { continue }
+                try { Set-Item -Path ("function:script:" + $f.Name) -Value $f.ScriptBlock } catch {}
+            }
+            # Новые функции должны попасть в снимок для фоновых ранспейсов.
+            try { $script:BgISS = $null } catch {}
+            try { $script:V6ModulesReady = $true } catch {}
+        } catch {
+            try { Write-Log ("✗ Модуль не загрузился: $n — " + $_.Exception.Message) -Color "Red" } catch {}
+        }
+    }
+}
+
+function Ensure-TabReady {
+    # Единая точка входа для вкладки: догружает её модули и строит панель.
+    # Индекс 10 (дашборд) панели не имеет, но пресеты приложений на нём есть.
     param([int]$Index)
-    if ($script:BuiltPanels[$Index]) { return }
-    if (-not $script:PanelBuilders.ContainsKey($Index)) { return }
+    try {
+        $mods = $null
+        try { $mods = $script:TabModules[$Index] } catch {}
+        if ($mods) { Ensure-ModuleLoaded -Names $mods }
+    } catch {}
+    if ($Index -ge 0 -and $Index -le 9) { return (Ensure-PanelBuilt -Index $Index) }
+    return $true
+}
+
+function Ensure-PanelBuilt {
+    # Возвращает $true/$false: вызывающий код обязан знать, построена ли панель,
+    # иначе отчёт «частично готов» всегда показывал «готово».
+    param([int]$Index)
+    if ($script:BuiltPanels[$Index]) { return $true }
+    if (-not $script:PanelBuilders.ContainsKey($Index)) { return $false }
     try {
         & $script:PanelBuilders[$Index]
         $script:BuiltPanels[$Index] = $true
+        return $true
     } catch {
         try { Write-Log ("✗ Вкладка $Index не построилась: " + $_.Exception.Message) -Color "Red" } catch {}
+        return $false
     }
 }
 
@@ -654,11 +739,17 @@ $window.Add_Loaded({
     } catch {}
     try { $scriptsFolderText.Text = $script:ScriptsFolder } catch {}
     Write-Log ("PotatoPC Optimizer v6.0 запущен (build " + $script:BuildTag + "; menu " + $(if ($script:MenuTag) { $script:MenuTag } else { '?' }) + ")")
-    Write-Log "Система: $((Get-SystemInfo).OS)"
+    # Описание ОС = 4 запроса CIM/WMI. На слабом ПК это 0.5-5 сек замороженного
+    # окна прямо в Add_Loaded, поэтому уходит в фон.
+    Start-Background {
+        try { Write-Log "Система: $((Get-SystemInfo).OS)" }
+        catch { Write-Log "Система: не удалось определить ($($_.Exception.Message))" -Color "Yellow" }
+    }
     Write-Log "Windows $($script:WindowsMajorVersion) обнаружена"
     Write-Log "Рабочая папка: $($script:WorkFolder)"
     try { Set-ActiveNav -Index $MainTabControl.SelectedIndex } catch {}
-    try { Build-ProtectPanel -Fast } catch { Write-Log ("✗ Панель защиты: " + $_.Exception.Message) -Color "Yellow" }
+    # Панель «Защита» больше не строится на старте: её модуль (~105 КБ)
+    # догрузится при первом открытии вкладки вместе с самой панелью.
     Start-BgPoller
     Start-Background {
         try { Initialize-PotatoPC }

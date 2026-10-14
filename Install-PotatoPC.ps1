@@ -46,6 +46,30 @@ function Resolve-ExtractedPath {
     } catch { return $null }
 }
 
+function Test-RepoManifestTextFile {
+    # Тот же список, что в tools/New-ReleaseHashes.ps1 и modules/_core.ps1.
+    param([string]$Path)
+    $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
+    $name = [System.IO.Path]::GetFileName($Path).ToLowerInvariant()
+    return (@('.bat', '.cfg', '.cmd', '.conf', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.toml', '.txt', '.svg', '.xml', '.xaml', '.yaml', '.yml', '.yar', '.yara') -contains $ext) -or ($name -match '^(license|notice|copying|readme)$')
+}
+
+function Get-RepoManifestHash {
+    # ВАЖНО: хеш обязан считаться ТОЧНО так же, как в генераторе манифеста.
+    # Текстовые файлы нормализуются CRLF -> LF. Раньше установщик брал сырые
+    # байты, и на локальном клоне с core.autocrlf=true 106 из 193 файлов давали
+    # «битый хэш» — установка блокировалась на совершенно целом архиве.
+    param([string]$Path)
+    if (Test-RepoManifestTextFile -Path $Path) {
+        $text = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($Path))
+        $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try { return ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '') } finally { $sha.Dispose() }
+    }
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256 -ErrorAction Stop).Hash
+}
+
 function Test-ZipHashes {
     param([string]$ExtractRoot)
     $root = $null
@@ -80,7 +104,7 @@ function Test-ZipHashes {
     }
     foreach ($line in $lines) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
-        $m = [regex]::Match($line, '^\s*([0-9a-fA-F]{64})\s+\*?(.+?)\s*$')
+        $m = [regex]::Match($line, '^([0-9a-fA-F]{64})  (.+)$')
         if (-not $m.Success) { [void]$bad.Add('Некорректная строка манифеста'); continue }
         $rel = $m.Groups[2].Value.Trim()
         $key = $rel.ToUpperInvariant()
@@ -92,7 +116,7 @@ function Test-ZipHashes {
         try {
             $item = Get-Item -LiteralPath $full -Force -ErrorAction Stop
             if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { [void]$bad.Add('Reparse path: ' + $rel); continue }
-            $actual = (Get-FileHash -LiteralPath $full -Algorithm SHA256 -ErrorAction Stop).Hash
+            $actual = Get-RepoManifestHash -Path $full
             if ($actual -eq $m.Groups[1].Value.ToUpperInvariant()) { $ok++ } else { [void]$bad.Add('Хэш: ' + $rel) }
         } catch { [void]$bad.Add('Ошибка чтения: ' + $rel) }
     }

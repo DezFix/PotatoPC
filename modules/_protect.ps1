@@ -1020,7 +1020,9 @@ function Start-DefenderScan {
                 Clear-Progress
                 if (-not $published) { Set-BgResult -Key 'defenderScanResult' -Value @{ Complete = $false; Scanned = $scanned; Errors = ([Math]::Max(1, $errors)); TimedOut = $timedOut; Cancelled = (Test-OperationCancelled $Control); FailureMessage = $failure } }
             }
-        } -Variables @{ targets = $targets; Control = $control }
+        } -Variables @{ targets = $targets; Control = $control } -FailureResults @{
+            'defenderScanResult' = @{ Complete = $false; Scanned = 0; Errors = 1; TimedOut = 0; Cancelled = $true; FailureMessage = 'Фоновая задача не запустилась' }
+        }
     } catch {
         $script:DefenderRunning = $false; $script:DefenderControl = $null
         try { if ($defenderScanBtn) { $defenderScanBtn.Content = $script:DefenderBtnText; $defenderScanBtn.Style = $window.FindResource('BtnPrimary'); $defenderScanBtn.IsEnabled = $true } } catch {}
@@ -1108,19 +1110,57 @@ function Reset-ProtectScanStatus {
     } catch {}
 }
 
+function Get-ProtectStatusPlaceholder {
+    # Заглушка на время, пока фоновый снимок статуса ещё не готов.
+    return [pscustomobject]@{ Exe = ''; Version = ''; RulesCount = 0; RulesExpectedCount = 0; RulesReady = $false; ManifestValid = $false }
+}
+
+function New-ProtectDefenderPlaceholder {
+    return [pscustomobject]@{ Ok = $false; Active = $false; Mode = ''; SigAge = $null }
+}
+
+function New-ProtectQuarantinePlaceholder {
+    param([string]$Error = 'Ожидание фоновой проверки')
+    return [pscustomobject]@{ Known = $false; Files = 0; Restorable = 0; Error = $Error }
+}
+
+function Start-ProtectStatusRefresh {
+    # Статус защиты собирается ТОЛЬКО в фоне: Get-YaraStatus поднимает icacls.exe
+    # дважды на каждое из ~30 правил, Get-YaraVersion ждёт процесс — в UI-потоке
+    # это 10-35 секунд замороженного окна. UI рисует последний готовый снимок.
+    try {
+        Start-Background {
+            $st = Get-ProtectStatusPlaceholder
+            $ds = New-ProtectDefenderPlaceholder
+            $q  = New-ProtectQuarantinePlaceholder
+            try { $st = Get-YaraStatus } catch { $st = $st }
+            try { $ds = Get-ProtectDefenderStatus } catch { $ds = $ds }
+            try { $q  = Get-ProtectQuarantineSummary } catch { $q  = $q }
+            Set-BgResult -Key 'protectStatus' -Value @{ St = $st; Ds = $ds; Q = $q; Time = (Get-Date) }
+            Set-BgResult -Key 'protectStatusRebuild' -Value $true
+        }
+    } catch {
+        Write-Log ("Фоновая проверка статуса не запустилась: " + $_.Exception.Message) -Color "Yellow"
+    }
+}
+
 function Build-ProtectPanel {
     param([switch]$Fast)
     if ($null -eq $protectPanel) { $script:ProtectPanelReady = $false; [Console]::WriteLine('PotatoPC: этот файл — часть приложения. Запускай menu.ps1'); return }
     $protectPanel.Children.Clear()
     $script:ScanCheckboxes = @{}
-    $st = [pscustomobject]@{ Exe = ''; Version = ''; RulesCount = 0; RulesExpectedCount = 0; RulesReady = $false; ManifestValid = $false }
-    $ds = [pscustomobject]@{ Ok = $false; Active = $false; Mode = ''; SigAge = $null }
-    $quarantine = [pscustomobject]@{ Known = $false; Files = 0; Restorable = 0; Error = 'Ожидание фоновой проверки' }
-    if (-not $Fast) {
-        try { $st = Get-YaraStatus } catch {}
-        try { $ds = Get-ProtectDefenderStatus } catch {}
-        try { $quarantine = Get-ProtectQuarantineSummary } catch {}
+    # Статус берём из готового снимка, а не считаем в UI-потоке. Без -Fast
+    # просто просим фон пересчитать (вызов кнопок «Обновить»).
+    $snap = $null
+    try { $snap = Get-BgResult -Key 'protectStatus' } catch {}
+    if (-not $snap) {
+        $st = Get-ProtectStatusPlaceholder
+        $ds = New-ProtectDefenderPlaceholder
+        $quarantine = New-ProtectQuarantinePlaceholder
+    } else {
+        $st = $snap.St; $ds = $snap.Ds; $quarantine = $snap.Q
     }
+    if (-not $Fast) { Start-ProtectStatusRefresh }
     $defenderValue = 'недоступен'
     $defenderGood = $false
     if ($ds -and $ds.Ok) {
@@ -1128,6 +1168,8 @@ function Build-ProtectPanel {
         $signature = if ($null -ne $ds.SigAge) { "подпись $([int]$ds.SigAge) дн." } else { 'подпись неизвестна' }
         $defenderValue = "$mode, $signature"
         $defenderGood = [bool]($ds.Active -and $null -ne $ds.SigAge -and [int]$ds.SigAge -le 7)
+    } elseif (-not $snap) {
+        $defenderValue = 'проверяется в фоне'
     }
     $yaraValue = if ($st.Exe -and $st.Version) { "есть ($($st.Version))" } elseif ($st.Exe) { 'есть, версия недоступна' } else { 'скачается при проверке' }
     $rulesValue = if ($st.RulesReady) { "$($st.RulesCount) файлов" } elseif ($st.ManifestValid -and $st.RulesExpectedCount -gt 0) { "$($st.RulesCount) из $($st.RulesExpectedCount), неполно" } else { 'нет полного набора' }
@@ -1354,7 +1396,9 @@ function Start-YaraScan {
                 Clear-Progress
                 if (-not $published) { Set-BgResult -Key 'scanHits' -Value @{ Items = @(); Complete = $false; Errors = 1; TimedOut = 0; Cancelled = (Test-OperationCancelled $Control); FailureMessage = $failure } }
             }
-        } -Variables @{ rulesDir = $rulesDir; toolsDir = $toolsDir; workFolder = $workFolder; targets = $targets; Control = $control; YaraRuleHashes = $script:YaraRuleHashes }
+        } -Variables @{ rulesDir = $rulesDir; toolsDir = $toolsDir; workFolder = $workFolder; targets = $targets; Control = $control; YaraRuleHashes = $script:YaraRuleHashes } -FailureResults @{
+            'scanHits' = @{ Items = @(); Complete = $false; Errors = 1; TimedOut = 0; Cancelled = $true; FailureMessage = 'Фоновая задача не запустилась' }
+        }
     } catch {
         $script:ScanRunning = $false; $script:ScanHandle = $null
         try { if ($buttonSaved) { $scanBtn.Content = $buttonText }; $scanBtn.Style = $window.FindResource('BtnPrimary') } catch {}

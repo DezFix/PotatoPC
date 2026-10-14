@@ -22,20 +22,26 @@ if (-not $isAdmin) {
     exit
 }
 
-Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue
+# Обычно скрипт стартует с -ExecutionPolicy Bypass, и Set-ExecutionPolicy
+# тут просто тратит время на загрузку движка политик. Проверяем текущую
+# политику и дёргаем движок только когда это реально нужно.
+try {
+    $curPolicy = Get-ExecutionPolicy -Scope Process -ErrorAction SilentlyContinue
+    if ($curPolicy -eq 'Restricted') { Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue }
+} catch {}
 
 # Menu build tag (ASCII-only file!): printed to the log at startup next to the
 # modules build tag, so a version mix (old menu + new modules) is visible.
-$script:MenuTag = '2026-09-14-r6'
+$script:MenuTag = '2026-10-14-r7'
 
-foreach ($m in @('Microsoft.PowerShell.Management','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Archive','CimCmdlets','ScheduledTasks','Microsoft.PowerShell.LocalAccounts','PrintManagement')) {
-    try { Import-Module $m -ErrorAction SilentlyContinue } catch {}
-}
-
+# Тяжёлые модули (CimCmdlets, ScheduledTasks, LocalAccounts, Archive,
+# PrintManagement) намеренно НЕ импортируются: Windows PowerShell 5.1
+# подгружает их автозагрузкой при первом реальном вызове, то есть лениво и
+# в фоновом ранспейсе. На слабом ПК предварительный импорт семи модулей
+# стоил ~0.5 с до появления окна.
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
-Add-Type -AssemblyName System.Windows.Forms
 
 if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
     $script:ModuleDir = Join-Path (Split-Path $PSCommandPath -Parent) "modules"
@@ -183,31 +189,32 @@ $script:FadedIn = $true
 
 $window.Add_Closing({ Save-UIState })
 
-$uiModules = @(
-    "_scripts.ps1", "_apps.ps1", "_audit.ps1", "_sysdiag.ps1", "_updates.ps1",
-    "_startup.ps1", "_users.ps1", "_search.ps1", "_clean.ps1", "_protect.ps1", "_events.ps1"
-)
+# Только модули, нужные ДО первого клика. Остальные 8 (~375 КБ) догружает
+# Ensure-ModuleLoaded при первом открытии своей вкладки.
+$uiModules = @("_scripts.ps1", "_search.ps1", "_events.ps1")
 foreach ($module in $uiModules) {
     $modulePath = Join-Path $script:ModuleDir $module
     if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
     . $modulePath
 }
-# All modules loaded - background may run, first snapshot will be complete.
+# Базовые модули загружены - фон может работать, первый снимок полный.
 $script:V6ModulesReady = $true
 try { Update-DashStats } catch { }
 
+# Гейт проверяет только то, что реально загружено сейчас. Остальные функции
+# проверяются по факту догрузки своего модуля: если модуль не поднялся,
+# Ensure-PanelBuilt напишет «Вкладка N не построилась» с причиной.
 $requiredCommands = @(
     "Run-SelectedScripts", "Stop-SelectedScripts", "Reset-RunButton", "Select-ScriptPreset",
-    "Build-ScriptsPanel", "Build-AppsPanel", "Build-SysPanel", "Build-DiagPanel",
-    "Build-UpdatesPanel",     "Build-StartupPanel", "Build-UsersPanel", "Build-CleanPanel", "Build-ProtectPanel", "Build-RollbackPanel",
-    "Run-SelectedRollbackScripts", "Restore-QuarantinedFiles",
+    "Build-ScriptsPanel", "Build-RollbackPanel",
+    "Run-SelectedRollbackScripts",
     "New-Card", "New-CategoryHeader", "Set-LogExpanded", "Update-HeaderCount",
     "Get-IconImage", "Get-IconSource", "Initialize-WindowIcons", "New-SectionHeader",
     "Invoke-Async", "Invoke-OnUI", "Set-BgResult", "Get-BgResult",
-    "Start-BgPoller", "Stop-BgPoller", "Test-BgQueue",
-    "Start-Background", "Invoke-ScriptFileWithRetry", "Get-ScriptTimeout", "Get-WingetPath",
+    "Start-BgPoller", "Stop-BgPoller", "Test-BgQueue", "Complete-BgPipelines",
+    "Start-Background", "Invoke-ScriptFileWithRetry", "Get-ScriptTimeout",
     "Set-Progress", "Clear-Progress", "Update-ProgressUI", "Get-LogAutoColor", "Get-LogHexColor",
-    "Sync-V6Page", "Update-DashStats"
+    "Sync-V6Page", "Update-DashStats", "Ensure-PanelBuilt", "Ensure-TabReady", "Ensure-ModuleLoaded"
 )
 $missingCommands = @(Test-RequiredCommands -Names $requiredCommands)
 if ($missingCommands.Count -gt 0) {

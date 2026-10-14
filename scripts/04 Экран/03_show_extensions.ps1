@@ -2,7 +2,7 @@
 # DESC: Ставит HideFileExt=0 + Hidden=1: видно .exe/.txt и скрытые папки. Системные файлы остаются скрыты
 # TAGS: 1
 # ICON: 👁️
-# PRESET: potato, office, game
+# PRESET:
 
 $ErrorActionPreference = "Stop"
 try {

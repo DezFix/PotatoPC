@@ -135,13 +135,37 @@ function Stop-SelectedScripts {
 }
 
 function Read-ScriptHeader {
+    # Читаем ТОЛЬКО начало файла (8 КБ хватает на 20 строк заголовка).
+    # Раньше здесь был ReadAllText на каждом из 46 скриптов - на HDD с
+    # антивирусом это 0.2-1 секунды впустую.
     param([string]$Path)
+    $lines = New-Object System.Collections.Generic.List[string]
     try {
-        $text = [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false, $true))
+        $fs = $null; $sr = $null
+        try {
+            $fs = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+            $sr = New-Object System.IO.StreamReader($fs, [System.Text.Encoding]::UTF8, $true, 4096)
+            $n = 0
+            while ($n -lt 20) {
+                $line = $sr.ReadLine()
+                if ($null -eq $line) { break }
+                $lines.Add($line); $n++
+            }
+        } finally {
+            try { if ($sr) { $sr.Dispose() } } catch {}
+            try { if ($fs) { $fs.Dispose() } } catch {}
+        }
     } catch {
-        try { $text = [System.IO.File]::ReadAllText($Path) } catch { $text = "" }
+        # Запасной путь: если потоковое чтение не вышло - старый способ.
+        try {
+            $text = [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false, $true))
+            return @($text.Split([string[]]@("`r`n", "`n"), [System.StringSplitOptions]::None) | Select-Object -First 20)
+        } catch {
+            try { $text = [System.IO.File]::ReadAllText($Path) } catch { $text = "" }
+            return @($text.Split([string[]]@("`r`n", "`n"), [System.StringSplitOptions]::None) | Select-Object -First 20)
+        }
     }
-    return $text.Split([string[]]@("`r`n", "`n"), [System.StringSplitOptions]::None) | Select-Object -First 20
+    return $lines.ToArray()
 }
 
 function Load-Scripts {

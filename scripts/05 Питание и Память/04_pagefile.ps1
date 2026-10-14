@@ -29,6 +29,24 @@ try {
         exit 0
     }
 
+    # Снимок ДО изменения. Раньше скрипт просто переписывал размеры, а откат
+    # 04_undo_power ставил системный авто-режим: ручные настройки пользователя
+    # терялись безвозвратно. Теперь 04_undo_power читает этот файл.
+    $backupDir = Join-Path $env:ProgramData 'PotatoPC\backups'
+    $backupPath = $null
+    try {
+        if (-not (Test-Path -LiteralPath $backupDir)) { New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }
+        $all = @(Get-CimInstance Win32_PageFileSetting -ErrorAction SilentlyContinue | ForEach-Object {
+            @{ Name = [string]$_.Name; InitialSize = [uint32]$_.InitialSize; MaximumSize = [uint32]$_.MaximumSize }
+        })
+        $backupPath = Join-Path $backupDir ("pagefile-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".json")
+        @{ Time = (Get-Date -Format 's'); Automatic = $oldAutomatic; Entries = $all } |
+            ConvertTo-Json -Depth 4 | Out-File -LiteralPath $backupPath -Encoding UTF8 -Force
+        Write-Output ("[*] Исходные настройки сохранены: " + $backupPath)
+    } catch {
+        Write-Output ("[!] Не удалось сохранить исходные настройки pagefile: " + $_.Exception.Message)
+    }
+
     $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
     $freeMB = [int]($disk.FreeSpace / 1MB)
     if ($freeMB -lt ($SizeMB + 10240)) {

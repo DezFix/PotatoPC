@@ -3,6 +3,10 @@
 # TAGS: 2
 # ICON: 📦
 
+# Скрипт работает с Get/Remove-AppxPackage -AllUsers, образами
+# AppxProvisionedPackage и веткой HKLM - всё это требует админа. Без
+# #Requires ветка "снос + поставить заново" падала на первом же шаге.
+#Requires -RunAsAdministrator
 
 $ErrorActionPreference = "Stop"
 

@@ -2,7 +2,7 @@
 # DESC: Отключает экран-заставку политикой NoLockScreen — сразу ввод пароля. Пароль/ПИН всё равно спрашивает
 # TAGS: 1
 # ICON: 🚪
-# PRESET: potato, office, game
+# PRESET:
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

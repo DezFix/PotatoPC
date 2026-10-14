@@ -1,16 +1,26 @@
 ﻿$script:UpdateCheckboxes = @{}
 $script:UpdateIconImgs = @{}
-$script:UpdateIconImgs = @{}
 $script:UpdatesCache = $null
+
+function Add-Gdi32Helper {
+    # Компилирует P/Invoke к gdi32 лениво, по первому реальному вызову.
+    # Раньше Add-Type стоял прямо в Get-StartMenuAppIcon, а тот вызывается из
+    # фоновых задач - тип не разделяется между ранспейсами, поэтому csc.exe
+    # запускался заново на каждый вызов. Утечка GDI-объектов в фоне не критична,
+    # но лишняя компиляция на слабом ПК - да.
+    if ('PotatoPC_Gdi32' -as [type]) { return $true }
+    try {
+        Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class PotatoPC_Gdi32 { [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr hObject); }' -ErrorAction Stop
+        return $true
+    } catch { return $false }
+}
 
 function Get-StartMenuAppIcon {
     # Вызывать в фоне. Ищет ярлык программы в меню Пуск, тянет иконку exe.
     # Возвращает замороженный ImageSource или $null. Кэш lnk живёт в сессии фона.
     param([string]$AppName)
     try {
-        if (-not ('PotatoPC_Gdi32' -as [type])) {
-            Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class PotatoPC_Gdi32 { [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr hObject); }' -ErrorAction Stop
-        }
+        Add-Gdi32Helper | Out-Null
         Add-Type -AssemblyName System.Drawing -ErrorAction Stop
         if (-not $script:StartMenuLnkCache) {
             $all = @()

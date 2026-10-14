@@ -2,7 +2,7 @@
 # DESC: Ставит LaunchTo=1 в реестре: вместо «Главная/Быстрый доступ» сразу диски. Только удобство
 # TAGS: 1
 # ICON: 📁
-# PRESET: potato, office, game
+# PRESET:
 
 $ErrorActionPreference = "Stop"
 try {

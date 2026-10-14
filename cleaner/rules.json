@@ -69,9 +69,9 @@
         { "Name": "Signal — кэш", "Desc": "Кэш клиента. Чаты целы.", "Paths": ["${APPDATA}/Signal/Cache", "${APPDATA}/Signal/Code Cache", "${APPDATA}/Signal/GPUCache"] },
         { "Name": "Obsidian — кэш", "Desc": "Кэш приложения. Заметки целы.", "Paths": ["${APPDATA}/obsidian/Cache", "${APPDATA}/obsidian/Code Cache", "${APPDATA}/obsidian/GPUCache"] },
         { "Name": "Thunderbird — кэш", "Desc": "Кэш профилей. Письма целы.", "Paths": ["${APPDATA}/Thunderbird/Profiles/*/cache2"] },
-        { "Name": "npm — кэш", "Desc": "Кэш пакетов разработчика.", "Paths": ["${APPDATA}/npm-cache", "${LOCALAPPDATA}/npm-cache"] },
-        { "Name": "pip — кэш", "Desc": "Кэш пакетов Python.", "Paths": ["${LOCALAPPDATA}/pip/Cache"] },
-        { "Name": "NuGet — пакеты", "Desc": "Скачанное восстановятся при сборке.", "Paths": ["${USERPROFILE}/.nuget/packages"] }
+        { "Name": "npm — кэш", "Desc": "Кэш пакетов разработчика. Без интернета не восстановить.", "Confirm": true, "Paths": ["${APPDATA}/npm-cache", "${LOCALAPPDATA}/npm-cache"] },
+        { "Name": "pip — кэш", "Desc": "Кэш пакетов Python. Без интернета не восстановить.", "Confirm": true, "Paths": ["${LOCALAPPDATA}/pip/Cache"] },
+        { "Name": "NuGet — пакеты", "Desc": "Хранилище пакетов, не кэш. Без интернета сборка не восстановится — часы на повторную загрузку.", "Confirm": true, "Paths": ["${USERPROFILE}/.nuget/packages"] }
       ]
     },
     {

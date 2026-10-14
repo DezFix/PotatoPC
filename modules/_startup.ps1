@@ -129,8 +129,13 @@ function Scan-FolderStartup {
         foreach ($file in [System.IO.Directory]::GetFiles($DirPath)) {
             $fileName = [System.IO.Path]::GetFileName($file)
             if ($fileName -eq 'desktop.ini') { continue }
-            $enabled = Get-StartupApprovedStatus -ApprovedKey $approvedKey -ValueName $fileName
-            $displayName = $fileName -replace '\.disabled$', ''
+            # Отключённый элемент лежит как <имя>.disabled: он обязан быть виден
+            # в списке (чтобы его можно было включить обратно), но как выключенный.
+            $isDisabledByRename = $fileName.EndsWith('.disabled', [System.StringComparison]::OrdinalIgnoreCase)
+            $originalName = if ($isDisabledByRename) { $fileName.Substring(0, $fileName.Length - 9) } else { $fileName }
+            $enabled = Get-StartupApprovedStatus -ApprovedKey $approvedKey -ValueName $originalName
+            if ($isDisabledByRename) { $enabled = $false }
+            $displayName = $originalName
             $name = [System.IO.Path]::GetFileNameWithoutExtension($displayName)
             if ([string]::IsNullOrWhiteSpace($name)) { $name = $displayName }
             $result += @{

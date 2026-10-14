@@ -48,9 +48,22 @@ try {
         try {
             if ([string]$it.Kind -eq 'Folder') {
                 $src = [string]$it.Path
-                if (-not (Test-Path -LiteralPath $src)) { Write-Output ("[!] Файла нет: " + $src); $err++; continue }
-                if ($src.EndsWith('.disabled', [System.StringComparison]::OrdinalIgnoreCase)) {
-                    Rename-Item -LiteralPath $src -NewName ([System.IO.Path]::GetFileName(($src -replace '(?i)\.disabled$', ''))) -Force -ErrorAction Stop
+                # В копии лежит ИСХОДНЫЙ путь, а отключающий скрипт переименовал
+                # файл в <имя>.disabled. Раньше проверка шла по исходному пути
+                # (которого уже нет) и уходила в continue ДО проверки .disabled -
+                # ветка переименования была мёртвым кодом, и всё из папок
+                # автозагрузки отключалось навсегда.
+                $disabled = $src
+                if (-not (Test-Path -LiteralPath $disabled) -and (Test-Path -LiteralPath ($src + '.disabled'))) {
+                    $disabled = $src + '.disabled'
+                }
+                if (-not (Test-Path -LiteralPath $disabled)) {
+                    Write-Output ("[!] Файла нет (ни «" + $src + "», ни «" + $src + ".disabled»): " + $src)
+                    $err++
+                    continue
+                }
+                if ($disabled.EndsWith('.disabled', [System.StringComparison]::OrdinalIgnoreCase)) {
+                    Rename-Item -LiteralPath $disabled -NewName ([System.IO.Path]::GetFileName(($disabled -replace '(?i)\.disabled$', ''))) -Force -ErrorAction Stop
                 }
             } else {
                 Restore-Approved -Path ([string]$it.Approved) -Name ([string]$it.Name) -ErrorAction Stop
