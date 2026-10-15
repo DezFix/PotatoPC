@@ -860,7 +860,7 @@ function Run-SelectedScripts {
     if ($reboot) {
         $names = @($pathsList | ForEach-Object { Split-Path $_ -Leaf })
         $answer = [System.Windows.MessageBox]::Show(
-            ("После выполнения " + $names.Count + " скриптов будет выполнена перезагрузка:`n" + ($names -join "`n") + "`n`nПродолжить?"),
+            ("После выполнения " + $names.Count + " скриптов будет выполнена перезагрузка:`n" + ($names -join "`n") + "`n`nПерезагрузка произойдёт, даже если часть скриптов завершится с ошибкой.`nПродолжить?"),
             "PotatoPC: перезагрузка",
             [System.Windows.MessageBoxButton]::YesNo,
             [System.Windows.MessageBoxImage]::Warning)
@@ -920,8 +920,14 @@ function Run-SelectedScripts {
             if ($fail -eq 0) {
                 Write-Log "Перезагрузка через 10 секунд..."
                 Start-Sleep 10
-                Restart-Computer -Force
+                if (Schedule-PotatoReboot -DelaySec 10 -Reason 'PotatoPC: выполнены скрипты') {
+                    Write-Log "Перезагрузка запланирована (shutdown.exe)." -Color "Green"
+                }
             } else {
+                # Раньше здесь стояло "перезагрузка отменена" - пользователь
+                # ставил галочку, скрипт где-то отваливался, и перезагрузки
+                # просто не было без внятного объяснения на экране.
+                # Галочка означает "перезагрузи", значит и перезагружаем.
                 try {
                     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
                     $note = Join-Path ([Environment]::GetFolderPath('Desktop')) ("PotatoPC-failures-" + $stamp + ".txt")
@@ -936,8 +942,14 @@ function Run-SelectedScripts {
                         }
                     } catch {}
                     ([string[]]$head + @('', '--- хвост лога ---', '') + [string[]]$tailLines) | Out-File -FilePath $note -Encoding UTF8 -Force
-                    Write-Log ("Ошибки: перезагрузка отменена, отчёт: " + $note) -Color "Yellow"
+                    Write-Log ("Часть скриптов с ошибками ($fail). Отчёт: " + $note) -Color "Yellow"
                 } catch { Write-Log ("Не удалось сохранить отчёт: " + $_) -Color "Yellow" }
+                Write-Log "Ошибки скриптов НЕ отменяют перезагрузку - ты её запросил." -Color "Yellow"
+                Write-Log "Перезагрузка через 15 секунд..."
+                Start-Sleep 15
+                if (Schedule-PotatoReboot -DelaySec 10 -Reason 'PotatoPC: выполнены скрипты (с ошибками)') {
+                    Write-Log "Перезагрузка запланирована (shutdown.exe)." -Color "Green"
+                }
             }
         }
         } finally { Clear-Progress }

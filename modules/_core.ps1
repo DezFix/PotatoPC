@@ -347,6 +347,39 @@ function Stop-ProcessTree {
     try { Stop-Process -Id $TargetPid -Force -ErrorAction SilentlyContinue } catch {}
 }
 
+function Schedule-PotatoReboot {
+    # Планирует перезагрузку ОТДЕЛЬНЫМ процессом shutdown.exe.
+    #
+    # Раньше здесь стоял Restart-Computer -Force прямо в фоновом ранспейсе
+    # Invoke-Async. WMI внутри того ранспейса поднимается не всегда, команда
+    # уходила в поток ошибок, который UI не показывал, - пользователь видел
+    # "Перезагрузка через 10 секунд..." и больше ничего. shutdown.exe не
+    # зависит от WMI, от текущего ранспейса и от прав на текущий процесс.
+    # Возвращает $true, только если перезагрузка действительно запланирована.
+    param([int]$DelaySec = 10, [string]$Reason = 'PotatoPC')
+    $exe = Join-Path $env:WINDIR 'System32\shutdown.exe'
+    try {
+        if (-not (Test-Path -LiteralPath $exe)) { throw 'shutdown.exe не найден в System32' }
+        $p = Start-Process -FilePath $exe -ArgumentList @('/r', '/t', [string]$DelaySec, '/c', $Reason) -WindowStyle Hidden -PassThru -ErrorAction Stop
+        try { $null = $p.WaitForExit(15000) } catch {}
+        $code = 0
+        try { if ($p.HasExited) { $code = $p.ExitCode } } catch { $code = 0 }
+        try { $p.Dispose() } catch {}
+        if ($code -ne 0) { throw ("shutdown.exe вернул код " + $code) }
+        return $true
+    } catch {
+        Write-Log ("shutdown.exe не сработал (" + $_.Exception.Message + "), пробую Restart-Computer") -Color "Yellow"
+        try {
+            Restart-Computer -Force -ErrorAction Stop
+            return $true
+        } catch {
+            Write-Log ("✗ Перезагрузку не удалось запланировать: " + $_.Exception.Message) -Color "Red"
+            Write-Log "Перезагрузи вручную: Пуск -> Питание -> Перезагрузка." -Color "Yellow"
+            return $false
+        }
+    }
+}
+
 function Read-ProcessOutput {
     # Забираем вывод с лимитом: висящий пайп не должен вешать раннер.
     param($Task, [int]$TimeoutMs = 15000)
@@ -1016,7 +1049,13 @@ function Invoke-Async {
         [scriptblock]$OnComplete = $null
     )
     if (-not $script:LogState) { Set-LogExpanded -Expand $true }
-    $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    # Тот же снимок ISS, что у Start-Background. Раньше ранспейс создавался
+    # пустым, а нужные функции подставлялись поштучно списком ниже - любая
+    # новая функция приложения (например Schedule-PotatoReboot) молча
+    # отсутствовала в фоновой задаче и давала "команда не найдена".
+    $iss = Get-BgSessionState
+    $rs = if ($iss) { [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss) }
+          else { [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace() }
     $rs.ApartmentState = "STA"
     $rs.ThreadOptions  = "ReuseThread"
     $rs.Open()
