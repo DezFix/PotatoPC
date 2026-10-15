@@ -2,7 +2,7 @@
 # DESC: Режим «Наилучшее быстродействие» + без прозрачности (реестр VisualEffects). Заметно на слабых ПК
 # TAGS: 1
 # ICON: 🚀
-# PRESET: potato, office, game
+# PRESET: game,office,potato
 
 $ErrorActionPreference = "Stop"
 try {

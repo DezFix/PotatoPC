@@ -2,6 +2,7 @@
 # DESC: Отключает древние протоколы (дыры типа WannaCry, спуфинг имён). Старые принтеры и NAS могут отвалиться!
 # TAGS: 2
 # ICON: 🌐
+# PRESET:
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

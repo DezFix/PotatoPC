@@ -2,7 +2,7 @@
 # DESC: Ставит DODownloadMode=0: качает обновления только с серверов Microsoft. Экономит отдачу интернета
 # TAGS: 1
 # ICON: 📥
-# PRESET:
+# PRESET: game,office,potato
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

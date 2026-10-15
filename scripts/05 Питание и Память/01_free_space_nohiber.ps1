@@ -2,7 +2,7 @@
 # DESC: Команда powercfg /hibernate off: удаляет hiberfil.sys (~40% RAM). Пропадут гибернация и быстрый запуск
 # TAGS: 2
 # ICON: 💽
-# PRESET:
+# PRESET: game,potato
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

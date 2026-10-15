@@ -2,6 +2,7 @@
 # DESC: Меняет DNS на активных адаптерах на 1.1.1.1 + 1.0.0.1 через Set-DnsClientServerAddress. В офисе с локальным сервером может сломать интранет!
 # TAGS: 2
 # ICON: 🛰️
+# PRESET:
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

@@ -2,7 +2,7 @@
 # DESC: Ставит GlobalUserDisabled=1 и BackgroundAppGlobalToggle=0: новые UWP не стартуют в фоне. Уже запущенные закроются после перезахода. Обычные .exe не трогает
 # TAGS: 1
 # ICON: ✋
-# PRESET: potato, office, game
+# PRESET: game,office,potato
 
 $ErrorActionPreference = "Stop"
 try {

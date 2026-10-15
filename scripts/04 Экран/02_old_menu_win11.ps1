@@ -4,6 +4,9 @@
 # ICON: 🖱️
 # PRESET:
 
+# Пишет в HKLM - без прав админа скрипт падал на первой же команде.
+#Requires -RunAsAdministrator
+
 $ErrorActionPreference = "Stop"
 try {
     # На Win11 24H2/25H2 этот CLSID на части сборок перестал давать эффект.

@@ -87,12 +87,38 @@ Describe 'PotatoPC scanner helpers' {
     It 'keeps Protection firewall-free and Defender read-only' {
         $protectText = Get-Content -LiteralPath (Join-Path $script:TestRoot 'modules\_protect.ps1') -Raw -Encoding UTF8
         $auditText = Get-Content -LiteralPath (Join-Path $script:TestRoot 'modules\_audit.ps1') -Raw -Encoding UTF8
-        $defenderScriptPath = @(Get-ChildItem -LiteralPath $script:TestRoot -Recurse -File -Filter '03_light_defender.ps1' -ErrorAction SilentlyContinue | Select-Object -First 1)
-        if ($defenderScriptPath.Count -ne 1) { throw 'Defender helper script not found' }
-        $defenderScript = Get-Content -LiteralPath $defenderScriptPath[0].FullName -Raw -Encoding UTF8
         if ($protectText -match 'Get-NetFirewallProfile|Set-NetFirewallProfile') { throw 'Firewall logic remains in Protection' }
         if ($auditText -match 'Get-NetFirewallProfile|Set-NetFirewallProfile') { throw 'Firewall logic remains in audit' }
-        if ($defenderScript -match 'Set-MpPreference|DisableRealtimeMonitoring|DisableArchiveScanning|DisableScanningMappedNetworkDrivesForFullScan') { throw 'Defender settings are modified' }
+        # Раньше проверка висела на одном файле 03_light_defender.ps1. Скрипты
+        # диагностики из списка модулей убраны - вместо этого проверяем ВСЕ
+        # прямые скрипты разом, что гарантия "Defender не ослабляется" держится.
+        # Откаты (09 Откат) исключены осознанно: их работа - вернуть настройки,
+        # в том числе Defender, к заводским. Проверяем их отдельно и строже:
+        # откат не имеет права включать то, что прямой скрипт не выключал.
+        $weakeners = 'Set-MpPreference|DisableRealtimeMonitoring|DisableArchiveScanning|DisableScanningMappedNetworkDrivesForFullScan|Add-MpPreference'
+        $checked = 0
+        $undoDir = Join-Path $script:TestRoot 'scripts\09 Откат'
+        foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $script:TestRoot 'scripts') -Recurse -File -Filter '*.ps1' -ErrorAction SilentlyContinue)) {
+            if ($f.DirectoryName -eq $undoDir) { continue }
+            $text = Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8
+            $code = [regex]::Replace($text, '(?s)<#.*?#>', '')
+            $code = ($code -split "`r?`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+            $checked++
+            if ($code -match $weakeners) { throw ('Script weakens Defender: ' + $f.Name) }
+        }
+        if ($checked -lt 30) { throw ("Expected the full script set, saw only " + $checked) }
+
+        $undoText = Get-Content -LiteralPath (Join-Path $undoDir '02_undo_defender.ps1') -Raw -Encoding UTF8
+
+        # В откате эти параметры обязаны ставиться в $false, то есть защита
+        # ВКЛЮЧАется. Проверяем значение, а не имя: откат содержит
+        # "DisableArchiveScanning = $false" - это включение, а не ослабление.
+        $undoCode = ($undoText -split "`r?`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+        foreach ($forbidden in @('DisableRealtimeMonitoring','DisableArchiveScanning','DisableScanningMappedNetworkDrivesForFullScan')) {
+            if ($undoCode -match ($forbidden + '\s*=\s*\$?true')) {
+                throw ('Defender rollback turns protection OFF: ' + $forbidden)
+            }
+        }
     }
 }
 

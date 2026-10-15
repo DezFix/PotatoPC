@@ -2,7 +2,7 @@
 # DESC: Блокирует политиками TurnOffWindowsCopilot (HKLM+HKCU) + убирает кнопку с панели. Сам пакет Copilot не удаляет. Нужен перезаход
 # TAGS: 1
 # ICON: 🤖
-# PRESET: potato, office, game
+# PRESET: game,office,potato
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

@@ -2,7 +2,7 @@
 # DESC: Фиксирует текущую сборку (TargetReleaseVersion) + откладывает «фичи» на 365 дней, без драйверов из центра обновлений. Патчи безопасности ставятся
 # TAGS: 2
 # ICON: 🛡️
-# PRESET: potato, office
+# PRESET: game,office,potato
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

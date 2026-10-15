@@ -2,6 +2,7 @@
 # DESC: Команды powercfg /hibernate on + пункт в меню выключения. Съест гигабайты на C: (hiberfil.sys). Противоположность кнопки выше
 # TAGS: 2
 # ICON: 💤
+# PRESET:
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

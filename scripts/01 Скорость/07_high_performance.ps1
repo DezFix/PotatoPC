@@ -2,7 +2,7 @@
 # DESC: Включает план powercfg 8c5e7fda…: без экономии CPU. На ноутбуке быстрее съест батарею
 # TAGS: 1
 # ICON: 🔌
-# PRESET:
+# PRESET: game
 
 # powercfg /setactive и /duplicatescheme пишут в HKLM — без прав админа скрипт
 # падал на первой же команде, а откат 07_undo_speed права требовал.
