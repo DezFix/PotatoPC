@@ -2,7 +2,7 @@
 # DESC: Ставит минимальный уровень AllowTelemetry, гасит подсказки отзывов и отключает 5 задач сбора данных в Планировщике (CEIP, Appraiser и др.)
 # TAGS: 1
 # ICON: 🕵️
-# PRESET: game,office,potato
+# PRESET: potato,office,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

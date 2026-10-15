@@ -2,7 +2,7 @@
 # DESC: Ставит Start=0 для 7 логгеров (DiagLog, SQM, WiFiSession и др.). Меньше постоянной записи на диск
 # TAGS: 1
 # ICON: 📝
-# PRESET: game,office,potato
+# PRESET: potato,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

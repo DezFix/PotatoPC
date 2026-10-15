@@ -2,7 +2,7 @@
 # DESC: Включает Storage Sense (StoragePolicy 01=1), раз в месяц (04=1) и удаление Temp старше 30 дней (256=30)
 # TAGS: 1
 # ICON: 🧽
-# PRESET: game,office,potato
+# PRESET: potato
 
 $ErrorActionPreference = "Stop"
 try {

@@ -2,7 +2,7 @@
 # DESC: Блокирует политиками AllowRecallEnablement=0: Windows не делает постоянные снимки экрана. Нужна перезагрузка. Только Win11 24H2+ (build 26100+)
 # TAGS: 1,win11
 # ICON: 🪟
-# PRESET: game,office,potato
+# PRESET: potato,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

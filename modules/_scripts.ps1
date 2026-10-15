@@ -948,7 +948,11 @@ function Run-SelectedScripts {
     }
 }
 
-$script:PresetTitles = @{ potato = "Potato (слабый ПК)"; office = "Офис"; game = "Игры" }
+$script:PresetTitles = @{
+    potato = "Слабый ПК — максимум ускорения"
+    office = "Офис — обычный рабочий ПК"
+    game   = "Игры — мощный ПК, минимум телеметрии"
+}
 
 function Select-ScriptPreset {
     param([string]$Preset)

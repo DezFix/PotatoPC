@@ -2,7 +2,7 @@
 # DESC: Ставит WER Disabled=1, службу WerSvc в Disabled и гасит задачу QueueReporting. Отчёты в Microsoft не уходят (и локальные дампы тоже не пишутся)
 # TAGS: 1
 # ICON: 🔕
-# PRESET:
+# PRESET: potato,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

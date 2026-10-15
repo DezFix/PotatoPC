@@ -2,7 +2,7 @@
 # DESC: Отключает GameDVR/AppCapture в реестре: +FPS, меньше лагов. Запись через Win+G перестанет работать
 # TAGS: 1
 # ICON: ⏺️
-# PRESET: game,potato
+# PRESET: potato,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

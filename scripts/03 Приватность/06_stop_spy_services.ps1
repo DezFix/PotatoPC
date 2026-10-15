@@ -2,7 +2,7 @@
 # DESC: Стоп + Startup=Disabled для DiagTrack, dmwappushservice, DiagnosticsHub, DusmSvc. DcpSvc - в Manual (иначе сломается «Передача рядом»). Есть откат
 # TAGS: 1
 # ICON: 🔇
-# PRESET: game,office,potato
+# PRESET: potato,office,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

@@ -2,7 +2,7 @@
 # DESC: Включает профили Domain + Private + Public через Set-NetFirewallProfile. Вкладка «Защита» только показывает статус — это чинит
 # TAGS: 1
 # ICON: 🧱
-# PRESET: game,office,potato
+# PRESET: potato,office,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

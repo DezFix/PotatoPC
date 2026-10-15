@@ -2,7 +2,7 @@
 # DESC: Отключает AdvertisingInfo + ConsumerFeatures + советы через реестр и политики. Нужен повторный вход
 # TAGS: 1
 # ICON: 🚫
-# PRESET: game,office,potato
+# PRESET: potato,office,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

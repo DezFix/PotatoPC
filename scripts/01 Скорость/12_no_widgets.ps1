@@ -2,7 +2,7 @@
 # DESC: Отключает TaskbarDa + AllowNewsAndInterests. Работает на Win10 и Win11.
 # TAGS: 1
 # ICON: 📰
-# PRESET: game,office,potato
+# PRESET: potato,office,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

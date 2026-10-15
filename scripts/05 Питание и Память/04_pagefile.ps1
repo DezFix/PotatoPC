@@ -2,7 +2,7 @@
 # DESC: Ставит фиксированный pagefile 4–12 ГБ по размеру RAM на C:. Лечит вылеты «не хватает памяти». Нужна перезагрузка
 # TAGS: 2
 # ICON: 💾
-# PRESET: game,office,potato
+# PRESET: potato
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

@@ -2,7 +2,7 @@
 # DESC: Удаляет только мусор по cleaner/rules.json: Temp, кэши браузеров/игр, DNS-кэш. Свои папки PotatoPC и данные пользователя защищены
 # TAGS: 1
 # ICON: 🧹
-# PRESET: game,office,potato
+# PRESET: potato,office
 
 $ErrorActionPreference = "Stop"
 
