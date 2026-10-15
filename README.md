@@ -29,16 +29,10 @@ Invoke-WebRequest https://raw.githubusercontent.com/DezFix/PotatoPC/main/Install
 ```
 Несовпадение хэша = архив удаляется, запуск блокируется. Установочный каталог по умолчанию защищён в `C:\ProgramData\PotatoPC\install`, поэтому запускай PowerShell от имени администратора. Хэш `menu.ps1` находится в `SHA256SUMS`, но для `-ExpectedHash` нужен отдельный SHA256 ZIP-архива.
 
-Замечание про SmartScreen/Defender: ругаться будет на любой запуск
+замечание про SmartScreen/Defender: ругаться будет на любой запуск
 скрипта, скачанного из интернета — это нормально. Исходники открыты: скачай,
 прочитай, потом запускай. После сверки хэша bootstrap сам снимает
 блокировку (`Unblock-File`) с проверенного архива.
-
-### 4. Интерфейс v6 (по умолчанию)
-```powershell
-powershell -STA -NoProfile -ExecutionPolicy Bypass -File menu.ps1
-```
-Дашборд, закреплённые панели действий, кастомный хром.
 
 Описание шапки сприптов 
 ```powershell
