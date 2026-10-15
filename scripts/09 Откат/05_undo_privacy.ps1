@@ -25,8 +25,10 @@ try {
         Set-ItemProperty -LiteralPath $p -Name "AllowTelemetry" -Value $telemetryValue -Type DWord -Force -ErrorAction Stop
         Del-Prop $p "DoNotShowFeedbackNotifications"
     }
-    $wer = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting"
-    if (Test-Path -LiteralPath $wer) { Set-ItemProperty -LiteralPath $wer -Name "Disabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue }
+    # WER-часть (политика Disabled, служба WerSvc, задача QueueReporting) убрана
+    # вместе со скриптом 02_no_error_reports.ps1. Откат не имеет права включать то,
+    # что сам не выключал: если пользователь отключил отчёты об ошибках сам,
+    # «откат приватности» молча вернул бы их обратно.
 
     Write-Output "[*] Возвращаю службы на их заводские режимы..."
     # Заводские значения: DiagTrack - Manual, dmwappushservice - Disabled,
@@ -39,8 +41,7 @@ try {
         @{ Name = 'dmwappushservice'; Mode = 'Disabled' },
         @{ Name = 'DusmSvc'; Mode = 'Manual' },
         @{ Name = 'DcpSvc'; Mode = 'Automatic' },
-        @{ Name = 'diagnosticshub.standardcollector.service'; Mode = 'Automatic' },
-        @{ Name = 'WerSvc'; Mode = 'Manual' }
+        @{ Name = 'diagnosticshub.standardcollector.service'; Mode = 'Automatic' }
     )
     foreach ($s in $restore) {
         if (-not (Get-Service -Name $s.Name -ErrorAction SilentlyContinue)) { continue }
@@ -71,8 +72,7 @@ try {
         @{ TaskName = "ProgramDataUpdater"; TaskPath = "\Microsoft\Windows\Application Experience\" },
         @{ TaskName = "Consolidator"; TaskPath = "\Microsoft\Windows\Customer Experience Improvement Program\" },
         @{ TaskName = "UsbCeip"; TaskPath = "\Microsoft\Windows\Customer Experience Improvement Program\" },
-        @{ TaskName = "DmClient"; TaskPath = "\Microsoft\Windows\Feedback\Siuf\" },
-        @{ TaskName = "QueueReporting"; TaskPath = "\Microsoft\Windows\Windows Error Reporting\" }
+        @{ TaskName = "DmClient"; TaskPath = "\Microsoft\Windows\Feedback\Siuf\" }
     )
     $on = 0
     foreach ($t in $tasks) {

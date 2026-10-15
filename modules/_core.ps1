@@ -252,8 +252,6 @@ function Get-ScriptTimeout {
     if ($FilePath -like '*undo_cleanup*') { return 1800 }
     # Снос встроенных приложений: ~150 вызовов Appx/DISM, 60с не берёт.
     if ($FilePath -like '*remove_bloat*') { return 1200 }
-    # Disable-WindowsOptionalFeature (Features-on-Demand) - десятки секунд.
-    if ($FilePath -like '*strong_net*') { return 600 }
     # Обход дерева Temp + логов: своего обхода много, Remove-Item больше не тормозит.
     if ($FilePath -like '*clean_junk*') { return 600 }
     return 60

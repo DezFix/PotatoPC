@@ -1,8 +1,8 @@
-﻿# NAME: 02 · Winget: снос под чистую и установка (не Store!)
-# DESC: Убивает процессы, сносит пакет/образ/данные, ставит заново с GitHub. Каждый шаг с таймаутом — не виснет. Нужен вкладке «Приложения»
-# TAGS: 2
+﻿# NAME: 02 · Восстановить winget, если сломан или не установлен
+# DESC: Проверяет winget и чинит его. Если winget работает и источники в порядке — сразу выходит, ничего не трогая. Снос и переустановка только если чинить нечем. Нужен вкладке «Приложения»
+# TAGS: 1
 # ICON: 📦
-# PRESET:
+# PRESET: potato,office,game
 
 # Скрипт работает с Get/Remove-AppxPackage -AllUsers, образами
 # AppxProvisionedPackage и веткой HKLM - всё это требует админа. Без
@@ -266,12 +266,14 @@ try {
         Write-Output ("[*] Winget отзывается: " + $cur + ". Проверяю источники...")
         $wgSrc = Get-TrustedWingetPath
         if (-not [string]::IsNullOrWhiteSpace($wgSrc) -and (Repair-WingetSources -Wg $wgSrc)) {
-            Write-Output ("[OK] Winget в порядке: " + $cur)
+            # Здоровый winget - это обычный исход, а не ошибка. Поэтому скрипт
+            # безвреден в пресетах: на живой машине он просто выходит.
+            Write-Output ("[OK] Winget работает, ремонт не потребовался: " + $cur + ". Ничего не менял.")
             exit 0
         }
-        Write-Output "[*] Ремонт не помог — сношу и ставлю заново..."
+        Write-Output "[*] Источники не починились — перехожу к переустановке..."
     } else {
-        Write-Output "[*] Winget нет или висит — сношу остатки и ставлю заново..."
+        Write-Output "[*] Winget не отвечает или не установлен — ставлю заново..."
     }
 
     Write-WingetInboxMarker

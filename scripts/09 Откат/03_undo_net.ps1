@@ -1,5 +1,5 @@
-﻿# NAME: 03 · Откат сети: DNS на авто, вернуть SMBv1, NetBIOS и поиск имён
-# DESC: Возвращает DNS на авто (DHCP), включает обратно SMBv1 и NetBIOS, снимает политику LLMNR. mDNS и WPAD намеренно НЕ трогаем — их PotatoPC не менял
+﻿# NAME: 03 · Откат сети: DNS на авто, вернуть NetBIOS и поиск имён
+# DESC: Возвращает DNS на авто (DHCP) и NetbiosOptions=0, снимает политику LLMNR. SMBv1, mDNS и WPAD намеренно НЕ трогаем — их PotatoPC не менял
 # TAGS: 1
 # ICON: ↩️
 
@@ -44,35 +44,7 @@ try {
     }
     $tail = ""
     if ($nFail -gt 0) { $tail = " (интерфейсов NetBIOS с ошибкой: " + $nFail + ")" }
-
-    # SMBv1. Скрипт 04_strong_net.ps1 его отключает, значит откат обязан вернуть.
-    # Раньше этого здесь не было, а DESC утверждал, что PotatoPC SMBv1 не трогал.
-    $smbFail = 0
-    $smbNote = ""
-    try {
-        $smb = $null
-        try { $smb = Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -ErrorAction Stop } catch { }
-        if ($null -eq $smb) {
-            $smbNote = "SMB1Protocol в этой сборке отсутствует - включать нечего"
-        } else {
-            if ($smb.State -in @("Disabled", "DisablePending", "DisabledWithPayloadRemoved")) {
-                Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -All -NoRestart -ErrorAction Stop | Out-Null
-                $smb = Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -ErrorAction Stop
-            }
-            if ($smb.State -notin @("Enabled", "EnablePending", "EnabledWithPayloadRemoved")) { throw ("состояние после включения: " + $smb.State) }
-            try { Set-SmbServerConfiguration -EnableSMB1Protocol $true -Force -ErrorAction Stop | Out-Null } catch { throw ("SMB-сервер: " + $_.Exception.Message) }
-            $smbNote = "SMBv1 включён обратно"
-        }
-    } catch {
-        $smbFail++
-        Write-Output ("[!] SMBv1: " + $_.Exception.Message)
-    }
-
-    if ($smbFail -gt 0) {
-        Write-Output ("[X] Сеть откатана частично; ошибок SMBv1: " + $smbFail)
-        exit 1
-    }
-    Write-Output ("[OK] Сеть как была (" + $n + " инт." + $tail + "). " + $smbNote + ". mDNS и WPAD намеренно не трогаю.")
+    Write-Output ("[OK] Сеть как была (" + $n + " инт." + $tail + "). SMBv1, mDNS и WPAD намеренно не трогаю.")
     exit 0
 } catch {
     Write-Output ("[X] Ошибка: " + $_)
