@@ -2,7 +2,24 @@
 
 ## Установка
 
-### 1. Безопасно (со сверкой SHA256) — рекомендуемый способ
+### 1. Быстро (для своих)
+```powershell
+irm "https://kutt.to/potatopc" | iex
+```
+Шортлинк ведёт на `menu.ps1` в main-ветке. Удобно, но код выполняется сразу
+без проверки, а шортлинк непрозрачен. Вариант чуть честнее (та же ветка,
+но виден конечный URL):
+```powershell
+irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
+```
+
+### 2. Локально из клона
+```powershell
+powershell -STA -NoProfile -ExecutionPolicy Bypass -File menu.ps1
+```
+Работает без сети. Исходники открыты: можно прочитать перед запуском.
+
+### 3. Безопасно (со сверкой SHA256)
 ```powershell
 Invoke-WebRequest https://raw.githubusercontent.com/DezFix/PotatoPC/main/Install-PotatoPC.ps1 -OutFile Install-PotatoPC.ps1
 # Аудит без запуска: скачать архив, показать хэш, проверить все файлы
@@ -11,25 +28,6 @@ Invoke-WebRequest https://raw.githubusercontent.com/DezFix/PotatoPC/main/Install
 .\Install-PotatoPC.ps1 -ExpectedHash '<SHA256_ZIP_АРХИВА>'
 ```
 Несовпадение хэша = архив удаляется, запуск блокируется. Установочный каталог по умолчанию защищён в `C:\ProgramData\PotatoPC\install`, поэтому запускай PowerShell от имени администратора. Хэш `menu.ps1` находится в `SHA256SUMS`, но для `-ExpectedHash` нужен отдельный SHA256 ZIP-архива.
-
-### 2. Локально из клона
-```powershell
-powershell -STA -NoProfile -ExecutionPolicy Bypass -File menu.ps1
-```
-Работает без сети. Исходники открыты: можно прочитать перед запуском.
-
-### 3. Быстро (шортлинк) — без сверки, на свой страх и риск
-```powershell
-irm "https://kutt.to/potatopc" | iex
-```
-⚠️ **Код выполняется сразу от имени администратора, без проверки хэша, а шортлинк
-непрозрачен.** Скрипт сам поднимает PowerShell с правами админа
-(`Start-Process -Verb RunAs`), то есть выполняется в привилегированном
-контексте. Пользуйся только если доверяешь владельцу репозитория. Шортлинк
-ведёт на `menu.ps1` в ветке `main`; чуть прозрачнее — тот же конечный URL:
-```powershell
-irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
-```
 
 Замечание про SmartScreen/Defender: ругаться будет на любой запуск
 скрипта, скачанного из интернета — это нормально. Исходники открыты: скачай,

@@ -70,14 +70,18 @@ if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
             # Clear Mark-of-the-Web from the WHOLE unpacked tree, not just
             # top-level *.ps1. Files from the internet carry the zone mark, and
             # under RemoteSigned (Windows 11 default) PowerShell refuses to load them.
-            $unblocked = 0
-            try {
-                $unblocked = @(Get-ChildItem -Path (Split-Path $zipPath -Parent) -Recurse -Force -ErrorAction SilentlyContinue |
-                    Where-Object { -not $_.PSIsContainer } |
-                    Unblock-File -ErrorAction SilentlyContinue).Count
-            } catch {}
-            if ($unblocked -eq 0) {
-                Write-Host "[!] Could not clear the zone mark (Mark-of-the-Web). If scripts refuse to run, execute:" -ForegroundColor Yellow
+            $unpacked = @(Get-ChildItem -Path (Split-Path $zipPath -Parent) -Recurse -Force -File -ErrorAction SilentlyContinue)
+            try { $unpacked | Unblock-File -ErrorAction SilentlyContinue } catch {}
+            # Unblock-File returns nothing, so counting its output always gave
+            # zero and the warning below fired on every launch. Check the actual
+            # state of the zone stream instead of guessing.
+            $stillTagged = @()
+            foreach ($f in $unpacked) {
+                if ($f.Extension -ne '.ps1' -and $f.Extension -ne '.psm1') { continue }
+                try { if ($f | Get-Content -Stream Zone.Identifier -ErrorAction SilentlyContinue) { $stillTagged += $f } } catch {}
+            }
+            if ($unpacked.Count -eq 0 -or $stillTagged.Count -gt 0) {
+                Write-Host "[!] Could not clear the zone mark (Mark-of-the-Web) on $($stillTagged.Count) file(s). If scripts refuse to run, execute:" -ForegroundColor Yellow
                 Write-Host "    Unblock-File -Path '$($downloadRoot)' -Recurse" -ForegroundColor Yellow
             }
             $cand = Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory |
