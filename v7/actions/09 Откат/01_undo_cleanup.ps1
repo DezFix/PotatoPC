@@ -18,14 +18,14 @@ try {
     # отведённое время и его перезапускали с начала, так и не доходя до OneDrive.
     $names = @(
         "Microsoft.3DBuilder","Microsoft.GetHelp",
-        "Microsoft.ZuneMusic","Microsoft.ZuneVideo","Microsoft.windowscommunicationsapps",
+        "Microsoft.ZuneVideo","Microsoft.windowscommunicationsapps",
         "Microsoft.BingWeather","Microsoft.Getstarted","Microsoft.Microsoft3DViewer",
         "Microsoft.MicrosoftOfficeHub","Microsoft.MicrosoftSolitaireCollection",
-        "Microsoft.MixedReality.Portal","Microsoft.Office.OneNote","Microsoft.OutlookForWindows",
-        "Microsoft.People","Microsoft.ScreenSketch","Microsoft.SkypeApp","Microsoft.Wallet",
-        "Microsoft.WindowsAlarms","Microsoft.WindowsFeedbackHub","Microsoft.WindowsMaps",
-        "Microsoft.WindowsSoundRecorder","Microsoft.YourPhone",
-        "Microsoft.BingNews","Microsoft.NewsAndInterests","Microsoft.549981C3F5F10"
+        "Microsoft.MixedReality.Portal","Microsoft.Office.OneNote",
+        "Microsoft.People","Microsoft.SkypeApp","Microsoft.Wallet",
+        "Microsoft.WindowsFeedbackHub","Microsoft.WindowsMaps",
+        "Microsoft.YourPhone","Microsoft.BingNews","Microsoft.NewsAndInterests",
+        "Microsoft.549981C3F5F10"
     )
     $n = 0
     $appxErrors = 0

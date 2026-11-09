@@ -27,12 +27,24 @@ try {
     $r = Invoke-Powercfg /setactive $guid
     $activeGuid = $guid
     if ($r.Code -ne 0) {
-        # Запасной вариант: своя схема от текущей
-        $dup = Invoke-Powercfg -duplicatescheme $guid
+        # Плана «Высокая производительность» нет (часто на ноутбуках).
+        # Раньше здесь дублировался тот же отсутствующий GUID, то есть
+        # запасной путь был мёртвым. Теперь дублируем текущую схему и
+        # выставляем процессору 100% — это и есть суть плана.
+        $current = Invoke-Powercfg /getactivescheme
+        if ($current.Code -ne 0) { throw ("powercfg /getactivescheme: код " + $current.Code + "; " + $current.Text) }
+        $currentMatch = [regex]::Match($current.Text, '(?i)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})')
+        if (-not $currentMatch.Success) { throw ("powercfg /getactivescheme не вернул GUID: " + $current.Text) }
+        $dup = Invoke-Powercfg -duplicatescheme $currentMatch.Groups[1].Value
         if ($dup.Code -ne 0) { throw ("powercfg -duplicatescheme: код " + $dup.Code + "; " + $dup.Text) }
         $dupMatches = [regex]::Matches($dup.Text, '(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
         if ($dupMatches.Count -eq 0) { throw ("powercfg -duplicatescheme не вернул GUID: " + $dup.Text) }
         $activeGuid = $dupMatches[$dupMatches.Count - 1].Value
+        foreach ($sub in @('SUB_PROCESSOR:PROCTHROTTLEMIN', 'SUB_PROCESSOR:PROCTHROTTLEMAX')) {
+            $parts = $sub.Split(':')
+            $null = Invoke-Powercfg /setacvalueindex $activeGuid $parts[0] $parts[1] 100
+            $null = Invoke-Powercfg /setdcvalueindex $activeGuid $parts[0] $parts[1] 100
+        }
         $r = Invoke-Powercfg /setactive $activeGuid
         if ($r.Code -ne 0) { throw ("powercfg /setactive: код " + $r.Code + "; " + $r.Text) }
     }

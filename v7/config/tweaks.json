@@ -291,7 +291,7 @@
                        },
     "remove-bloat":  {
                          "name":  "04 · Удалить встроенные приложения (Bloatware)",
-                         "description":  "Сносит 24 AppX через Remove-AppxPackage: Solitaire, Советы, Новости, Skype и т.п. + убирает из образа системы",
+                         "description":  "Сносит 20 AppX через Remove-AppxPackage: Solitaire, Советы, Новости, Skype и т.п. + убирает из образа системы. Не трогает Snipping Tool, Media Player, новый Outlook, Диктофон и Будильники",
                          "category":  "cleanup",
                          "risk":  "caution",
                          "apply":  "actions/02 Очистка/04_remove_bloat.ps1",
@@ -704,7 +704,7 @@
                     },
     "net-reset":  {
                       "name":  "03 · Сброс сети: winsock + IP + DNS (лечит интернет)",
-                      "description":  "Команды netsh winsock reset + netsh int ip reset + чистка DNS-кэша. ВНИМАНИЕ: сбрасывает DNS на DHCP, т.е. отменяет 06 Интернет/01_dns_cloudflare. Нужна перезагрузка!",
+                      "description":  "Команды netsh winsock reset + netsh int ip reset + чистка DNS-кэша. ВНИМАНИЕ: сбрасывает DNS адаптеров на DHCP. Нужна перезагрузка!",
                       "category":  "internet",
                       "risk":  "caution",
                       "apply":  "actions/06 Интернет/03_net_reset.ps1",
@@ -724,7 +724,7 @@
                   },
     "security-only":  {
                           "name":  "01 · Обновления Windows: только безопасность, без новых версий",
-                          "description":  "Фиксирует текущую сборку (TargetReleaseVersion) + откладывает «фичи» на 365 дней, без драйверов из центра обновлений. Патчи безопасности ставятся",
+                          "description":  "Фиксирует текущую сборку (TargetReleaseVersion) + откладывает «фичи» на 365 дней. Драйверы из Windows Update не блокирует. Патчи безопасности ставятся",
                           "category":  "updates",
                           "risk":  "caution",
                           "apply":  "actions/07 Обновления/01_security_only.ps1",

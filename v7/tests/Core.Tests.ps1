@@ -129,7 +129,7 @@ Describe 'PotatoPC v7 plans' {
 
     It 'requires AllowIrreversible for unattended runs with irreversible actions' {
         $plan = Resolve-PotatoPlan -Config $script:Config -ProfileName 'potato' -SystemInfo $script:FakeWin11
-        { Invoke-PotatoPlan -Plan $plan -Config $script:Config -Yes -NoRestorePoint -NoReboot } | Should Throw
+        { Invoke-PotatoPlan -Plan $plan -Config $script:Config -Yes -NoRestorePoint -NoReboot 6>$null } | Should Throw
     }
 }
 
@@ -140,6 +140,29 @@ Describe 'PotatoPC v7 cleaning safety' {
         $text | Should Match 'POTATOPC_CLEAN_SAFE'
         $text | Should Match 'POTATOPC_ALLOW_RISKY_CLEAN'
         $text | Should Match 'Confirm'
+    }
+}
+
+Describe 'PotatoPC v7 action safety' {
+    It 'does not block Windows Update drivers' {
+        $path = Join-Path $script:TestRoot 'actions\07 Обновления\01_security_only.ps1'
+        $text = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+        $text | Should Not Match 'ExcludeWUDriversInQualityUpdate'
+    }
+
+    It 'keeps everyday apps out of remove-bloat' {
+        $path = Join-Path $script:TestRoot 'actions\02 Очистка\04_remove_bloat.ps1'
+        $text = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+        $text | Should Not Match 'Microsoft\.ScreenSketch'
+        $text | Should Not Match 'Microsoft\.ZuneMusic'
+        $text | Should Not Match 'Microsoft\.OutlookForWindows'
+    }
+
+    It 'has a live fallback for a missing high-performance plan' {
+        $path = Join-Path $script:TestRoot 'actions\01 Скорость\07_high_performance.ps1'
+        $text = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+        $text | Should Match 'getactivescheme'
+        $text | Should Match 'setacvalueindex'
     }
 }
 
@@ -167,8 +190,7 @@ Describe 'PotatoPC v7 executor' {
 Describe 'PotatoPC v7 static integrity' {
     It 'parses every PowerShell file without syntax errors' {
         $errors = @()
-        $files = @(Get-ChildItem -LiteralPath $script:TestRoot -Recurse -File -Filter '*.ps1' -Force |
-            Where-Object { $_.FullName -notmatch '[\\/]actions[\\/]' })
+        $files = @(Get-ChildItem -LiteralPath $script:TestRoot -Recurse -File -Filter '*.ps1' -Force)
         foreach ($file in $files) {
             $tokens = $null
             $parseErrors = $null

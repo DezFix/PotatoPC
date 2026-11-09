@@ -1,5 +1,5 @@
 ﻿# NAME: 03 · Сброс сети: winsock + IP + DNS (лечит интернет)
-# DESC: Команды netsh winsock reset + netsh int ip reset + чистка DNS-кэша. ВНИМАНИЕ: сбрасывает DNS на DHCP, т.е. отменяет 06 Интернет/01_dns_cloudflare. Нужна перезагрузка!
+# DESC: Команды netsh winsock reset + netsh int ip reset + чистка DNS-кэша. ВНИМАНИЕ: сбрасывает DNS адаптеров на DHCP. Нужна перезагрузка!
 # TAGS: 2
 # ICON: 🔄
 # PRESET:

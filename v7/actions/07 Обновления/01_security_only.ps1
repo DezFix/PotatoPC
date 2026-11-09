@@ -1,5 +1,5 @@
 ﻿# NAME: 01 · Обновления Windows: только безопасность, без новых версий
-# DESC: Фиксирует текущую сборку (TargetReleaseVersion) + откладывает «фичи» на 365 дней, без драйверов из центра обновлений. Патчи безопасности ставятся
+# DESC: Фиксирует текущую сборку (TargetReleaseVersion) + откладывает «фичи» на 365 дней. Драйверы из Windows Update не блокирует. Патчи безопасности ставятся
 # TAGS: 2
 # ICON: 🛡️
 # PRESET: potato,office,game
@@ -24,8 +24,9 @@ try {
     Set-ItemProperty -LiteralPath $w -Name "DeferFeatureUpdates" -Value 1 -Type DWord -Force
     Set-ItemProperty -LiteralPath $w -Name "DeferFeatureUpdatesPeriodInDays" -Value 365 -Type DWord -Force
     Set-ItemProperty -LiteralPath $w -Name "DeferQualityUpdates" -Value 0 -Type DWord -Force
-    # Драйверы из центра обновлений тоже не ставим.
-    Set-ItemProperty -LiteralPath $w -Name "ExcludeWUDriversInQualityUpdate" -Value 1 -Type DWord -Force
+    # Драйверы не блокируем: на ноутбуках и игровых ПК это оставляет
+    # пользователя без свежих GPU/chipset-драйверов. Отдельного пункта
+    # «запретить драйверы» в профилях нет намеренно.
 
     # Перезапуск службы нужен, чтобы политики подхватились. Раньше обе команды
     # шли с SilentlyContinue, и при отказе запуска скрипт рапортовал "[OK]",

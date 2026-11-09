@@ -23,9 +23,8 @@ try {
     }
     $dnsFailed = 0
     try {
-        # Только физические адаптеры: прямо скрипт 01_dns_cloudflare.ps1 менял
-        # лишь их, а -ResetServerAddresses на всех Up затирал корпоративный
-        # DNS у VPN- и виртуальных адаптеров.
+        # Только физические адаптеры: -ResetServerAddresses на всех Up затирал
+        # корпоративный DNS у VPN- и виртуальных адаптеров.
         $dnsAdapters = @(Get-NetAdapter -Physical -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' })
         if ($dnsAdapters.Count -eq 0) { $dnsAdapters = @(Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' }) }
         foreach ($adapter in $dnsAdapters) {

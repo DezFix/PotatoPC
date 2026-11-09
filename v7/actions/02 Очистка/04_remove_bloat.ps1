@@ -1,5 +1,5 @@
 ﻿# NAME: 04 · Удалить встроенные приложения (Bloatware)
-# DESC: Сносит 24 AppX через Remove-AppxPackage: Solitaire, Советы, Новости, Skype и т.п. + убирает из образа системы
+# DESC: Сносит 20 AppX через Remove-AppxPackage: Solitaire, Советы, Новости, Skype и т.п. + убирает из образа системы. Не трогает Snipping Tool, Media Player, новый Outlook, Диктофон и Будильники
 # TAGS: 2
 # ICON: 🗑️
 # PRESET: potato
@@ -12,14 +12,14 @@ try {
     # Game Bar, а про обратное в откате не было ни слова.
     $apps = @(
         "Microsoft.3DBuilder","Microsoft.GetHelp",
-        "Microsoft.ZuneMusic","Microsoft.ZuneVideo","Microsoft.windowscommunicationsapps",
+        "Microsoft.ZuneVideo","Microsoft.windowscommunicationsapps",
         "Microsoft.BingWeather","Microsoft.Getstarted","Microsoft.Microsoft3DViewer",
         "Microsoft.MicrosoftOfficeHub","Microsoft.MicrosoftSolitaireCollection",
-        "Microsoft.MixedReality.Portal","Microsoft.Office.OneNote","Microsoft.OutlookForWindows",
-        "Microsoft.People","Microsoft.ScreenSketch","Microsoft.SkypeApp","Microsoft.Wallet",
-        "Microsoft.WindowsAlarms","Microsoft.WindowsFeedbackHub","Microsoft.WindowsMaps",
-        "Microsoft.WindowsSoundRecorder","Microsoft.YourPhone",
-        "Microsoft.BingNews","Microsoft.NewsAndInterests","Microsoft.549981C3F5F10"
+        "Microsoft.MixedReality.Portal","Microsoft.Office.OneNote",
+        "Microsoft.People","Microsoft.SkypeApp","Microsoft.Wallet",
+        "Microsoft.WindowsFeedbackHub","Microsoft.WindowsMaps",
+        "Microsoft.YourPhone","Microsoft.BingNews","Microsoft.NewsAndInterests",
+        "Microsoft.549981C3F5F10"
     )
     $n = 0; $nProv = 0
     $errors = 0
