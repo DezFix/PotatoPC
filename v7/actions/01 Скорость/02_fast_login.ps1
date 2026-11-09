@@ -1,0 +1,18 @@
+﻿# NAME: 02 · Вход без экрана-заставки (Lock Screen)
+# DESC: Отключает экран-заставку политикой NoLockScreen — сразу ввод пароля. Пароль/ПИН всё равно спрашивает
+# TAGS: 1
+# ICON: 🚪
+# PRESET: potato
+
+#Requires -RunAsAdministrator
+$ErrorActionPreference = "Stop"
+try {
+    $p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
+    if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
+    Set-ItemProperty -Path $p -Name "NoLockScreen" -Value 1 -Type DWord -Force
+    Write-Output "[OK] Заставка убрана. Пароль по-прежнему спрашивается."
+    exit 0
+} catch {
+    Write-Output ("[X] Ошибка: " + $_)
+    exit 1
+}
