@@ -13,7 +13,7 @@ $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
 $isAdmin = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin -and -not $Preview) {
-    $arg = '-STA -NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $PSCommandPath
+    $arg = '-STA -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $PSCommandPath
     Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $arg
     exit
 }
@@ -247,7 +247,7 @@ function Start-Cli {
 function Start-Elevated {
     $profileArg = if ($script:CurrentProfile) { ' -Profile ' + $script:CurrentProfile } else { '' }
     $fullArg = if ($fullRadio.IsChecked) { ' -Full' } else { '' }
-    $arg = '-STA -NoProfile -ExecutionPolicy Bypass -File "{0}"{1}{2}' -f $PSCommandPath, $profileArg, $fullArg
+    $arg = '-STA -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"{1}{2}' -f $PSCommandPath, $profileArg, $fullArg
     try {
         Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $arg
         $window.Close()
