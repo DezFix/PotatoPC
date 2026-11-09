@@ -107,6 +107,19 @@ CLI
  -> reboot prompt
 ```
 
+## GUI
+
+`gui\Start-PotatoPC.ps1` — тонкая WPF-обёртка:
+
+- строит план через `Resolve-PotatoPlan`;
+- запускает `PotatoPC.ps1` отдельным процессом;
+- читает stdout/stderr через `ReadToEndAsync`;
+- обновляет интерфейс из `DispatcherTimer`, без событий процесса
+  (`OutputDataReceived`/`Exited`), чтобы падение фонового потока не убивало окно;
+- кнопка «Проверить» запускает `-DryRun` и показывает полный вывод.
+
+Все ошибки интерфейса пишутся в `%TEMP%\PotatoPC\gui-crash.log`.
+
 ## Безопасность
 
 - Абсолютные пути и `..` запрещены: `Resolve-PotatoPath`.

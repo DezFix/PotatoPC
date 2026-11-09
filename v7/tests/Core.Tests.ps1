@@ -192,10 +192,18 @@ Describe 'PotatoPC v7 GUI' {
         $path = Join-Path $script:TestRoot 'gui\MainWindow.xaml'
         [xml]$xaml = Get-Content -LiteralPath $path -Raw -Encoding UTF8
         foreach ($name in @('PotatoBtn', 'OfficeBtn', 'GameBtn', 'SafeRadio', 'FullRadio',
-                            'PlanList', 'SummaryText', 'WarningsText', 'LogBox',
-                            'ApplyBtn', 'StopBtn', 'UndoBtn', 'StatusText')) {
+                            'PlanList', 'PlanCountText', 'SummaryText', 'WarningsText', 'LogBox',
+                            'ApplyBtn', 'CheckBtn', 'StopBtn', 'UndoBtn', 'StatusText', 'StatusDot',
+                            'TitleBar', 'MinBtn', 'MaxBtn', 'CloseBtn', 'SystemText')) {
             $xaml.OuterXml | Should Match ('x:Name="' + $name + '"')
         }
+    }
+
+    It 'does not update the UI from process events' {
+        $path = Join-Path $script:TestRoot 'gui\Start-PotatoPC.ps1'
+        $text = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+        $text | Should Not Match 'add_Exited'
+        $text | Should Not Match 'OutputDataReceived'
     }
 }
 

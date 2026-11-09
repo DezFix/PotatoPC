@@ -32,7 +32,18 @@ $script:Running = $false
 $script:Stopping = $false
 $script:CurrentProcess = $null
 $script:CanApply = $isAdmin
+$script:RunIsDryRun = $false
 $script:BrushCache = @{}
+$global:PotatoCrashLog = Join-Path $env:TEMP 'PotatoPC\gui-crash.log'
+try { New-Item -ItemType Directory -Path (Split-Path $global:PotatoCrashLog -Parent) -Force | Out-Null } catch {}
+try {
+    [AppDomain]::CurrentDomain.add_UnhandledException({
+        param($sender, $eventArgs)
+        try {
+            Add-Content -LiteralPath $global:PotatoCrashLog -Value ("UNHANDLED: " + $eventArgs.ExceptionObject.ToString()) -Encoding UTF8
+        } catch {}
+    })
+} catch {}
 
 function Brush {
     param([string]$Hex)
@@ -46,27 +57,67 @@ $xamlPath = Join-Path $PSScriptRoot 'MainWindow.xaml'
 [xml]$xaml = Get-Content -LiteralPath $xamlPath -Raw -Encoding UTF8
 $reader = New-Object System.Xml.XmlNodeReader $xaml
 $window = [Windows.Markup.XamlReader]::Load($reader)
-$iconPath = Join-Path $PSScriptRoot 'logo.png'
+
+$titleText     = $window.FindName('TitleText')
+$titleBar      = $window.FindName('TitleBar')
+$titleDragArea = $window.FindName('TitleDragArea')
+$minBtn        = $window.FindName('MinBtn')
+$maxBtn        = $window.FindName('MaxBtn')
+$closeBtn      = $window.FindName('CloseBtn')
+$headerLogo    = $window.FindName('HeaderLogo')
+$titleLogo     = $window.FindName('TitleLogo')
+$potatoIcon    = $window.FindName('PotatoIcon')
+$officeIcon    = $window.FindName('OfficeIcon')
+$gameIcon      = $window.FindName('GameIcon')
+$systemText    = $window.FindName('SystemText')
+$systemSubText = $window.FindName('SystemSubText')
+$potatoBtn     = $window.FindName('PotatoBtn')
+$officeBtn     = $window.FindName('OfficeBtn')
+$gameBtn       = $window.FindName('GameBtn')
+$safeRadio     = $window.FindName('SafeRadio')
+$fullRadio     = $window.FindName('FullRadio')
+$planList      = $window.FindName('PlanList')
+$planCountText = $window.FindName('PlanCountText')
+$summaryText   = $window.FindName('SummaryText')
+$warningsText  = $window.FindName('WarningsText')
+$warnIcon      = $window.FindName('WarnIcon')
+$logBox        = $window.FindName('LogBox')
+$applyBtn      = $window.FindName('ApplyBtn')
+$applyIcon     = $window.FindName('ApplyIcon')
+$checkBtn      = $window.FindName('CheckBtn')
+$checkIcon     = $window.FindName('CheckIcon')
+$stopBtn       = $window.FindName('StopBtn')
+$stopIcon      = $window.FindName('StopIcon')
+$undoBtn       = $window.FindName('UndoBtn')
+$undoIcon      = $window.FindName('UndoIcon')
+$statusText    = $window.FindName('StatusText')
+$statusDot     = $window.FindName('StatusDot')
+
+$profileButtons = @($potatoBtn, $officeBtn, $gameBtn)
+
+function Set-UiIcon {
+    param($Image, [string]$File)
+    if ($null -eq $Image) { return }
+    $path = Join-Path $PSScriptRoot ('icons\' + $File)
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        try { $Image.Source = [System.Windows.Media.Imaging.BitmapImage]::new([Uri]$path) } catch {}
+    }
+}
+
+$iconPath = Join-Path $PSScriptRoot 'icons\potato.png'
 if (Test-Path -LiteralPath $iconPath -PathType Leaf) {
     try { $window.Icon = [System.Windows.Media.Imaging.BitmapImage]::new([Uri]$iconPath) } catch {}
 }
-
-$titleText    = $window.FindName('TitleText')
-$potatoBtn    = $window.FindName('PotatoBtn')
-$officeBtn    = $window.FindName('OfficeBtn')
-$gameBtn      = $window.FindName('GameBtn')
-$safeRadio    = $window.FindName('SafeRadio')
-$fullRadio    = $window.FindName('FullRadio')
-$planList     = $window.FindName('PlanList')
-$summaryText  = $window.FindName('SummaryText')
-$warningsText = $window.FindName('WarningsText')
-$logBox       = $window.FindName('LogBox')
-$applyBtn     = $window.FindName('ApplyBtn')
-$stopBtn      = $window.FindName('StopBtn')
-$undoBtn      = $window.FindName('UndoBtn')
-$statusText   = $window.FindName('StatusText')
-
-$profileButtons = @($potatoBtn, $officeBtn, $gameBtn)
+Set-UiIcon $headerLogo 'potato.png'
+Set-UiIcon $titleLogo 'potato.png'
+Set-UiIcon $potatoIcon 'potato.png'
+Set-UiIcon $officeIcon 'office.png'
+Set-UiIcon $gameIcon 'games.png'
+Set-UiIcon $applyIcon 'play.png'
+Set-UiIcon $checkIcon 'check.png'
+Set-UiIcon $stopIcon 'power.png'
+Set-UiIcon $undoIcon 'undo.png'
+Set-UiIcon $warnIcon 'warn.png'
 
 function Add-Log {
     param([string]$Text)
@@ -87,23 +138,98 @@ function Set-Status {
     if ($statusText.Dispatcher.CheckAccess()) {
         $statusText.Text = $Text
         $statusText.Foreground = Brush $Color
+        if ($statusDot) { $statusDot.Fill = Brush $Color }
     } else {
         $statusText.Dispatcher.Invoke([System.Action]{
             $statusText.Text = $Text
             $statusText.Foreground = Brush $Color
+            if ($statusDot) { $statusDot.Fill = Brush $Color }
         }) | Out-Null
     }
 }
 
 function Set-Busy {
     param([bool]$Busy)
-    $applyBtn.IsEnabled = (-not $Busy -and $script:CanApply -and $null -ne $script:CurrentPlan)
+    $applyBtn.IsEnabled = (-not $Busy -and $null -ne $script:CurrentPlan)
+    $checkBtn.IsEnabled = (-not $Busy -and $null -ne $script:CurrentPlan)
     $stopBtn.IsEnabled = $Busy
     $undoBtn.IsEnabled = (-not $Busy -and $script:CanApply)
     foreach ($button in $profileButtons) { $button.IsEnabled = -not $Busy }
     $safeRadio.IsEnabled = -not $Busy
     $fullRadio.IsEnabled = -not $Busy
 }
+
+$script:StdoutTask = $null
+$script:StderrTask = $null
+$script:ProcessTimer = New-Object System.Windows.Threading.DispatcherTimer
+$script:ProcessTimer.Interval = [TimeSpan]::FromMilliseconds(250)
+$script:ProcessTimer.Add_Tick({
+    try {
+    $proc = $script:CurrentProcess
+    if ($null -eq $proc) { $script:ProcessTimer.Stop(); return }
+
+    $exited = $false
+    try { $exited = $proc.HasExited } catch { $exited = $true }
+    if (-not $exited) { return }
+
+    $outText = ''
+    $errText = ''
+    try { if ($script:StdoutTask) { $outText = [string]$script:StdoutTask.Result } } catch {}
+    try { if ($script:StderrTask) { $errText = [string]$script:StderrTask.Result } } catch {}
+    foreach ($line in ($outText -split "`r?`n")) { if (-not [string]::IsNullOrWhiteSpace($line)) { Add-Log $line.TrimEnd() } }
+    foreach ($line in ($errText -split "`r?`n")) { if (-not [string]::IsNullOrWhiteSpace($line)) { Add-Log $line.TrimEnd() } }
+
+    $script:ProcessTimer.Stop()
+    $code = -1
+    try { $code = [int]$proc.ExitCode } catch {}
+    $script:Running = $false
+    $script:CurrentProcess = $null
+    Set-Busy $false
+    Add-Log ('--- завершено, код ' + $code + ' ---')
+
+    if ($script:Stopping) {
+        $script:Stopping = $false
+        Set-Status 'Остановлено пользователем' '#e06c75'
+        try { $proc.Dispose() } catch {}
+        return
+    }
+
+    if ($code -eq 0) {
+        Set-Status $(if ($script:RunIsDryRun) { 'Проверка пройдена — изменения не вносились' } else { 'Готово' }) '#3ecf8e'
+    } else {
+        Set-Status $(if ($script:RunIsDryRun) { 'Проверка нашла ошибки — смотри журнал' } else { 'Завершено с ошибками — смотри журнал' }) '#e06c75'
+    }
+
+    if ($script:RunIsDryRun) {
+        if ($code -ne 0) {
+            [System.Windows.MessageBox]::Show('Проверка нашла ошибки. Подробности в журнале. Изменения не вносились.', 'PotatoPC', [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        }
+        try { $proc.Dispose() } catch {}
+        return
+    }
+
+    if ($script:CurrentPlan -and $script:CurrentPlan.NeedsReboot) {
+        $answer = [System.Windows.MessageBox]::Show(
+            'Изменения применены. Перезагрузить компьютер сейчас?',
+            'PotatoPC',
+            [System.Windows.MessageBoxButton]::YesNo,
+            [System.Windows.MessageBoxImage]::Question)
+        if ($answer -eq [System.Windows.MessageBoxResult]::Yes) { Restart-Computer -Force }
+    } elseif ($code -ne 0) {
+        [System.Windows.MessageBox]::Show('Часть действий завершилась с ошибкой. Подробности в журнале.', 'PotatoPC', [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning) | Out-Null
+    }
+
+    try { $proc.Dispose() } catch {}
+    } catch {
+        try {
+            $msg = "TIMER: " + $_.Exception.ToString() + "`r`n" + $_.ScriptStackTrace
+            Add-Content -LiteralPath $global:PotatoCrashLog -Value $msg -Encoding UTF8
+        } catch {}
+        try { $script:ProcessTimer.Stop() } catch {}
+        try { $script:Running = $false; $script:CurrentProcess = $null; Set-Busy $false } catch {}
+        try { Set-Status 'Ошибка обработки — смотри gui-crash.log' '#e06c75' } catch {}
+    }
+})
 
 function Select-ProfileButton {
     param($Selected)
@@ -125,6 +251,7 @@ function Confirm-Plan {
     if ($Plan.IrreversibleCount -gt 0) {
         $message += "`n`nВНИМАНИЕ: есть необратимые действия. Их нельзя откатить."
     }
+    $message += "`n`nСначала будет создана точка восстановления — это может занять до минуты."
     $message += "`n`nПрименить этот план?"
     $answer = [System.Windows.MessageBox]::Show(
         $message,
@@ -149,20 +276,46 @@ function Show-Plan {
             if ($item.RequiresReboot) { $flags += 'перезагрузка' }
             if ($item.Irreversible) { $flags += 'необратимо' }
             $suffix = if ($flags.Count -gt 0) { '  [' + ($flags -join ', ') + ']' } else { '' }
-            [void]$planList.Items.Add(('[{0}] {1}{2}' -f (Get-PotatoRiskLabel -Risk $item.Risk), $name, $suffix))
+
+            $riskColor = switch ($item.Risk) {
+                'safe' { '#3ecf8e' }
+                'caution' { '#f0c040' }
+                'advanced' { '#e06c75' }
+                default { '#8f93a8' }
+            }
+            $row = New-Object System.Windows.Controls.StackPanel
+            $row.Orientation = 'Horizontal'
+            $dot = New-Object System.Windows.Controls.TextBlock
+            $dot.Text = '●'
+            $dot.FontSize = 9
+            $dot.Margin = [System.Windows.Thickness]::new(0, 2, 8, 0)
+            $dot.Foreground = Brush $riskColor
+            $text = New-Object System.Windows.Controls.TextBlock
+            $text.Text = $name + $suffix
+            $text.Foreground = Brush '#dcdcf0'
+            $text.TextWrapping = 'Wrap'
+            $row.Children.Add($dot) | Out-Null
+            $row.Children.Add($text) | Out-Null
+
+            $listItem = New-Object System.Windows.Controls.ListBoxItem
+            $listItem.Content = $row
+            $listItem.ToolTip = $item.Description
+            [void]$planList.Items.Add($listItem)
         }
         if ($planList.Items.Count -gt 0) { $planList.ScrollIntoView($planList.Items[0]) }
 
         $rebootText = if ($plan.NeedsReboot) { 'да' } else { 'нет' }
         $summaryText.Text = "Профиль: $($plan.ProfileName)`nДействий: $($plan.Items.Count)`nРискованных: $($plan.RiskyCount)`nНеобратимых: $($plan.IrreversibleCount)`nПерезагрузка: $rebootText"
         $warningsText.Text = if ($plan.Warnings.Count -gt 0) { ($plan.Warnings -join "`n") } else { 'Предупреждений нет.' }
+        if ($planCountText) { $planCountText.Text = [string]$plan.Items.Count }
 
         $selectedButton = $profileButtons | Where-Object { $_.Tag -eq $Profile } | Select-Object -First 1
         Select-ProfileButton $selectedButton
 
-        $applyBtn.IsEnabled = $script:CanApply
+        $applyBtn.IsEnabled = $true
+        $checkBtn.IsEnabled = $true
         if ($script:CanApply) {
-            Set-Status ("План готов: $($plan.Items.Count) действий. Проверь и нажми «Применить».")
+            Set-Status ("План готов: $($plan.Items.Count) действий. Проверь и нажми «Применить».") '#3ecf8e'
         } else {
             Set-Status 'План готов. Режим просмотра: для применения запусти от администратора.' '#d4a017'
         }
@@ -175,7 +328,9 @@ function Show-Plan {
 }
 
 function Start-Cli {
-    param([string]$Arguments)
+    param([string]$Arguments, [bool]$IsDryRun = $false)
+    $script:RunIsDryRun = $IsDryRun
+    Set-Status $(if ($IsDryRun) { 'Проверяю план… ничего не меняется' } else { 'Выполняется… не закрывай окно' }) '#f0c040'
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')
     $psi.Arguments = $Arguments
@@ -187,61 +342,28 @@ function Start-Cli {
     $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
     $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
 
+    if ($script:Running) { return }
+
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo = $psi
-    $proc.EnableRaisingEvents = $true
-
-    $proc.add_OutputDataReceived({
-        param($sender, $eventArgs)
-        if ($null -ne $eventArgs.Data) { Add-Log $eventArgs.Data }
-    })
-    $proc.add_ErrorDataReceived({
-        param($sender, $eventArgs)
-        if ($null -ne $eventArgs.Data) { Add-Log $eventArgs.Data }
-    })
-    $proc.add_Exited({
-        param($sender, $eventArgs)
-        $code = -1
-        try { $code = [int]$sender.ExitCode } catch {}
-        $window.Dispatcher.Invoke([System.Action]{
-            $script:Running = $false
-            $script:CurrentProcess = $null
-            Set-Busy $false
-            Add-Log ('--- завершено, код ' + $code + ' ---')
-
-            if ($script:Stopping) {
-                $script:Stopping = $false
-                Set-Status 'Остановлено пользователем' '#e06c75'
-                return
-            }
-            if ($code -eq 0) {
-                Set-Status 'Готово' '#3ecf8e'
-            } else {
-                Set-Status 'Завершено с ошибками — смотри журнал' '#e06c75'
-            }
-
-            if ($script:CurrentPlan -and $script:CurrentPlan.NeedsReboot) {
-                $answer = [System.Windows.MessageBox]::Show(
-                    'Изменения применены. Перезагрузить компьютер сейчас?',
-                    'PotatoPC',
-                    [System.Windows.MessageBoxButton]::YesNo,
-                    [System.Windows.MessageBoxImage]::Question)
-                if ($answer -eq [System.Windows.MessageBoxResult]::Yes) {
-                    Restart-Computer -Force
-                }
-            } elseif ($code -ne 0) {
-                [System.Windows.MessageBox]::Show('Часть действий завершилась с ошибкой. Подробности в журнале.', 'PotatoPC', [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning) | Out-Null
-            }
-        }) | Out-Null
-    })
 
     $script:CurrentProcess = $proc
     $script:Running = $true
     $script:Stopping = $false
     Set-Busy $true
-    $proc.Start() | Out-Null
-    $proc.BeginOutputReadLine()
-    $proc.BeginErrorReadLine()
+    try {
+        $proc.Start() | Out-Null
+        $script:StdoutTask = $proc.StandardOutput.ReadToEndAsync()
+        $script:StderrTask = $proc.StandardError.ReadToEndAsync()
+        $script:ProcessTimer.Start()
+    } catch {
+        $script:Running = $false
+        $script:CurrentProcess = $null
+        Set-Busy $false
+        Add-Log ('Не удалось запустить процесс: ' + $_.Exception.Message)
+        Set-Status 'Ошибка запуска — смотри журнал' '#e06c75'
+        try { $proc.Dispose() } catch {}
+    }
 }
 
 function Start-Elevated {
@@ -278,7 +400,21 @@ function Start-Apply {
 
     Add-Log ''
     Add-Log ('=== ЗАПУСК: ' + $profile + $(if ($full) { ' (full)' } else { ' (safe)' }) + ' ===')
-    Start-Cli -Arguments ($argList -join ' ')
+    Start-Cli -Arguments ($argList -join ' ') -IsDryRun $false
+}
+
+function Start-Check {
+    if ($null -eq $script:CurrentPlan) { return }
+    $profile = $script:CurrentPlan.Profile
+    $full = [bool]$script:CurrentPlan.Full
+    $cli = Join-Path $script:Root 'PotatoPC.ps1'
+    $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $cli + '"'), '-Profile', $profile)
+    if ($full) { $argList += '-Full' }
+    $argList += '-DryRun'
+
+    Add-Log ''
+    Add-Log '=== ПРОВЕРКА (dry-run, без изменений) ==='
+    Start-Cli -Arguments ($argList -join ' ') -IsDryRun $true
 }
 
 function Start-Undo {
@@ -299,7 +435,7 @@ function Start-Undo {
     $argText = '-NoProfile -ExecutionPolicy Bypass -File "' + $cli + '" -Undo -Session ' + $session.Id + ' -Yes'
     Add-Log ''
     Add-Log ('=== ОТКАТ: ' + $session.Id + ' ===')
-    Start-Cli -Arguments $argText
+    Start-Cli -Arguments $argText -IsDryRun $false
 }
 
 function Stop-Apply {
@@ -321,8 +457,31 @@ $gameBtn.Add_Click({ Show-Plan -Profile 'game' })
 $safeRadio.Add_Checked({ if ($script:CurrentProfile) { Show-Plan -Profile $script:CurrentProfile } })
 $fullRadio.Add_Checked({ if ($script:CurrentProfile) { Show-Plan -Profile $script:CurrentProfile } })
 $applyBtn.Add_Click({ Start-Apply })
+$checkBtn.Add_Click({ Start-Check })
 $stopBtn.Add_Click({ Stop-Apply })
 $undoBtn.Add_Click({ Start-Undo })
+
+$titleDragArea.Add_MouseLeftButtonDown({
+    param($sender, $eventArgs)
+    if ($eventArgs.ButtonState -eq [System.Windows.Input.MouseButtonState]::Pressed) {
+        try { $window.DragMove() } catch {}
+    }
+})
+$minBtn.Add_Click({ $window.WindowState = 'Minimized' })
+$maxBtn.Add_Click({
+    if ($window.WindowState -eq 'Maximized') { $window.WindowState = 'Normal' }
+    else { $window.WindowState = 'Maximized' }
+})
+$closeBtn.Add_Click({ $window.Close() })
+
+$window.Dispatcher.add_UnhandledException({
+    param($sender, $eventArgs)
+    try {
+        Add-Log ('UI ERROR: ' + $eventArgs.Exception.Message)
+        Set-Status 'Ошибка интерфейса — смотри журнал' '#e06c75'
+        $eventArgs.Handled = $true
+    } catch {}
+})
 
 $window.Add_Closing({
     param($sender, $eventArgs)
@@ -334,10 +493,17 @@ $window.Add_Closing({
 
 $window.Add_Loaded({
     $system = Get-PotatoSystemInfo
+    if ($systemText) { $systemText.Text = ($system.OS -replace '^Microsoft\s+', '') }
+    if ($systemSubText) {
+        $device = if ($system.IsLaptop) { 'ноутбук' } else { 'ПК' }
+        $systemSubText.Text = "build $($system.Build) · $($system.RamGB) ГБ · $device"
+    }
     Add-Log 'PotatoPC v7'
     Add-Log ("Система: " + $system.OS + " (build " + $system.Build + "), RAM " + $system.RamGB + " ГБ" + $(if ($system.IsLaptop) { ', ноутбук' } else { '' }))
     Add-Log 'Выбери профиль сверху — покажу план. Ничего не изменится без кнопки «Применить».'
     [void]$planList.Items.Add('Выбери профиль сверху — здесь появится план.')
+    $warningsText.Text = 'Пока нет предупреждений.'
+    $planCountText.Text = '0'
     if ($Full) { $fullRadio.IsChecked = $true }
     if ($script:CanApply) {
         Set-Status 'Выбери профиль'
