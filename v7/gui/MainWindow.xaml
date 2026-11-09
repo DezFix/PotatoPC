@@ -1,0 +1,194 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="PotatoPC v7"
+        Height="820" Width="1060"
+        MinHeight="660" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        Background="#0f1117"
+        Foreground="#e6e6f0"
+        FontFamily="Segoe UI"
+        FontSize="13">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#1b1e2b" />
+            <Setter Property="Foreground" Value="#e6e6f0" />
+            <Setter Property="BorderBrush" Value="#2a2e42" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="Margin" Value="4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#242a3d" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ProfileButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Height" Value="116" />
+            <Setter Property="Margin" Value="6" />
+            <Setter Property="Background" Value="#171a26" />
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#167a4a" />
+            <Setter Property="BorderBrush" Value="#1f9d55" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#5a1f24" />
+            <Setter Property="BorderBrush" Value="#9b3a42" />
+        </Style>
+
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#e6e6f0" />
+            <Setter Property="Margin" Value="0,0,18,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="#0b0d13" />
+            <Setter Property="Foreground" Value="#dcdcf0" />
+            <Setter Property="BorderBrush" Value="#2a2e42" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#0b0d13" />
+            <Setter Property="Foreground" Value="#c9c9dc" />
+            <Setter Property="BorderBrush" Value="#2a2e42" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="160" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="4,0,4,14">
+            <TextBlock x:Name="TitleText" Text="PotatoPC v7" FontSize="30" FontWeight="Bold" Foreground="#ffffff" />
+            <TextBlock Text="Выбери профиль — программа покажет план и сделает всё сама."
+                       FontSize="13" Foreground="#8f93a8" Margin="0,4,0,0" />
+        </StackPanel>
+
+        <!-- Profiles -->
+        <UniformGrid Grid.Row="1" Columns="3" Margin="0,0,0,10">
+            <Button x:Name="PotatoBtn" Style="{StaticResource ProfileButton}" Tag="potato">
+                <StackPanel>
+                    <TextBlock Text="🍠" FontSize="30" HorizontalAlignment="Center" />
+                    <TextBlock Text="Potato" FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,4,0,2" />
+                    <TextBlock Text="суперслабый ПК" FontSize="12" Foreground="#8f93a8" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="OfficeBtn" Style="{StaticResource ProfileButton}" Tag="office">
+                <StackPanel>
+                    <TextBlock Text="💼" FontSize="30" HorizontalAlignment="Center" />
+                    <TextBlock Text="Office" FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,4,0,2" />
+                    <TextBlock Text="рабочий ПК" FontSize="12" Foreground="#8f93a8" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="GameBtn" Style="{StaticResource ProfileButton}" Tag="game">
+                <StackPanel>
+                    <TextBlock Text="🎮" FontSize="30" HorizontalAlignment="Center" />
+                    <TextBlock Text="Game" FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,4,0,2" />
+                    <TextBlock Text="игровой ПК" FontSize="12" Foreground="#8f93a8" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </UniformGrid>
+
+        <!-- Mode -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="6,0,0,8">
+            <TextBlock Text="Режим:" Foreground="#8f93a8" VerticalAlignment="Center" Margin="0,0,12,0" />
+            <RadioButton x:Name="SafeRadio" Content="Safe — только безопасное" IsChecked="True" />
+            <RadioButton x:Name="FullRadio" Content="Full — добавить осторожные пункты" />
+        </StackPanel>
+
+        <!-- Plan + summary -->
+        <Grid Grid.Row="3" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="#131622" BorderBrush="#2a2e42" BorderThickness="1" CornerRadius="10" Padding="10">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Что будет сделано" Foreground="#8f93a8" Margin="2,0,0,8" />
+                    <ListBox x:Name="PlanList" />
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Column="2" Background="#131622" BorderBrush="#2a2e42" BorderThickness="1" CornerRadius="10" Padding="14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Сводка" Foreground="#8f93a8" Margin="0,0,0,8" />
+                        <TextBlock x:Name="SummaryText" Text="Профиль не выбран" TextWrapping="Wrap" FontSize="14" />
+                    </StackPanel>
+                    <TextBlock Grid.Row="1" Text="Предупреждения" Foreground="#8f93a8" Margin="0,16,0,6" />
+                    <TextBlock Grid.Row="2" x:Name="WarningsText" TextWrapping="Wrap"
+                               Foreground="#d4a017" FontSize="12" Margin="0,6,0,0"
+                               VerticalAlignment="Top" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Log label -->
+        <TextBlock Grid.Row="4" Text="Журнал" Foreground="#8f93a8" Margin="4,4,0,4" />
+
+        <!-- Log -->
+        <TextBox Grid.Row="5" x:Name="LogBox" IsReadOnly="True"
+                 FontFamily="Consolas" FontSize="12"
+                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+
+        <!-- Footer -->
+        <DockPanel Grid.Row="6" Margin="0,12,0,0" LastChildFill="False">
+            <TextBlock x:Name="StatusText" DockPanel.Dock="Left" Text="Готово" Foreground="#8f93a8"
+                       VerticalAlignment="Center" FontSize="13" />
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="UndoBtn" Content="↩ Откатить последнюю сессию" Style="{StaticResource DangerButton}" />
+                <Button x:Name="StopBtn" Content="■ Остановить" Style="{StaticResource DangerButton}" IsEnabled="False" />
+                <Button x:Name="ApplyBtn" Content="▶ Применить" Style="{StaticResource PrimaryButton}" IsEnabled="False" MinWidth="140" />
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

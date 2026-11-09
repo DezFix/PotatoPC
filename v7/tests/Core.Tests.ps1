@@ -118,7 +118,7 @@ Describe 'PotatoPC v7 plans' {
     It 'skips Windows 11 only tweaks on Windows 10' {
         $plan = Resolve-PotatoPlan -Config $script:Config -ProfileName 'potato' -SystemInfo $script:FakeWin10
         @($plan.Items | Where-Object { $_.Id -eq 'remove-recall-win11' }).Count | Should Be 0
-        @($plan.Warnings | Where-Object { $_ -match 'remove-recall-win11' }).Count | Should Be 1
+        @($plan.Warnings | Where-Object { $_ -match 'Recall' }).Count | Should Be 1
     }
 
     It 'supports include and exclude' {
@@ -184,6 +184,18 @@ Describe 'PotatoPC v7 executor' {
         $result = Invoke-PotatoAction -Item $item -Config $script:ExecutorConfig
         $result.Ok | Should Be $false
         $result.ExitCode | Should Be 7
+    }
+}
+
+Describe 'PotatoPC v7 GUI' {
+    It 'parses the XAML and keeps the main controls' {
+        $path = Join-Path $script:TestRoot 'gui\MainWindow.xaml'
+        [xml]$xaml = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+        foreach ($name in @('PotatoBtn', 'OfficeBtn', 'GameBtn', 'SafeRadio', 'FullRadio',
+                            'PlanList', 'SummaryText', 'WarningsText', 'LogBox',
+                            'ApplyBtn', 'StopBtn', 'UndoBtn', 'StatusText')) {
+            $xaml.OuterXml | Should Match ('x:Name="' + $name + '"')
+        }
     }
 }
 

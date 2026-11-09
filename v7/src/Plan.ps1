@@ -41,24 +41,25 @@
         $t = $Config.TweakMap[$id]
         if ($null -eq $t) { throw ("Неизвестный твик: '$id'.") }
 
+        $displayName = [string](Get-PotatoObjectProperty $t 'name')
         $windows = [string](Get-PotatoObjectProperty $t 'windows')
         if ($windows -eq '11' -and [int]$SystemInfo.Major -lt 11) {
-            $warnings.Add("Пропуск '$id': только Windows 11.")
+            $warnings.Add("Пропуск '$displayName': только Windows 11.")
             continue
         }
 
         $risk = [string](Get-PotatoObjectProperty $t 'risk')
         if ($risk -ne 'safe') {
-            $warnings.Add(("Осторожно: '{0}' помечен как {1}." -f $id, $risk))
+            $warnings.Add(("Осторожно: '{0}' ({1})." -f $displayName, $risk))
         }
         if ([bool](Get-PotatoObjectProperty $t 'irreversible')) {
-            $warnings.Add(("Необратимо: '{0}'." -f $id))
+            $warnings.Add(("Необратимо: '{0}'." -f $displayName))
         }
         if ($SystemInfo.IsLaptop -and $id -in @('high-performance', 'free-space-nohiber')) {
-            $warnings.Add(("Ноутбук: '{0}' может ухудшить батарею/сон." -f $id))
+            $warnings.Add(("Ноутбук: '{0}' может ухудшить батарею/сон." -f $displayName))
         }
         if ($SystemInfo.IsDomain -and $id -in @('security-only', 'stop-spy-services', 'firewall-on')) {
-            $warnings.Add(("Домен/GPO: '{0}' может конфликтовать с политикой." -f $id))
+            $warnings.Add(("Домен/GPO: '{0}' может конфликтовать с политикой." -f $displayName))
         }
 
         $items.Add([PSCustomObject]@{

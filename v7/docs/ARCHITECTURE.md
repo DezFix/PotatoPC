@@ -14,7 +14,7 @@
 ## Слои
 
 ```
-CLI / GUI
+CLI / GUI (gui\Start-PotatoPC.ps1, WPF)
    |
 PotatoPC.Core (PowerShell module)
    |-- Config.ps1      загрузка и валидация JSON
