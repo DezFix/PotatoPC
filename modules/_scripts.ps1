@@ -168,6 +168,26 @@ function Read-ScriptHeader {
     return $lines.ToArray()
 }
 
+function Get-ScriptLabel {
+    # "01 02" = раздел 01, скрипт 02 по порядку внутри раздела.
+    # Нужно и интерфейсу, и логу: номер не зависит от истории удалений.
+    param([string]$Path)
+    $dir = Split-Path $Path -Parent
+    $catName = Split-Path $dir -Leaf
+    $catNum = 0
+    if ($catName -match '^(\d{2})') { $catNum = [int]$Matches[1] }
+    $file = Split-Path $Path -Leaf
+    $num = 0
+    if ($file -match '^(\d{2})') { $num = [int]$Matches[1] }
+    $ordinal = 0
+    try {
+        $ordinal = @(Get-ChildItem -LiteralPath $dir -File -Filter '*.ps1' -ErrorAction Stop |
+            Where-Object { $_.BaseName -match '^(\d{2})' -and [int]$Matches[1] -le $num }).Count
+    } catch {}
+    if ($ordinal -lt 1) { $ordinal = 1 }
+    return ("{0:D2} {1:D2}" -f $catNum, $ordinal)
+}
+
 function Load-Scripts {
     if ($script:ScriptsCache -and $script:ScriptsCacheFolder -eq $script:ScriptsFolder) { return $script:ScriptsCache }
     $result = @()
@@ -197,6 +217,17 @@ function Load-Scripts {
             if ($line -match '^#\s*TAGS:.*win11')        { $meta.Win11Only   = $true }
         }
         $result += $meta
+    }
+    # Нумерация «папка скрипт»: первое число — номер раздела, второе —
+    # порядковый номер скрипта внутри раздела (та же формула, что в Get-ScriptLabel).
+    foreach ($g in ($result | Group-Object { $_.Category })) {
+        $catNum = 0
+        if ($g.Name -match '^(\d{2})') { $catNum = [int]$Matches[1] }
+        $sorted = @($g.Group | Sort-Object { $_.Num })
+        for ($i = 0; $i -lt $sorted.Count; $i++) {
+            $sorted[$i].CategoryNum = $catNum
+            $sorted[$i].Label = ("{0:D2} {1:D2}" -f $catNum, ($i + 1))
+        }
     }
     $script:ScriptsCacheFolder = $script:ScriptsFolder
     $script:ScriptsCache = $result
@@ -234,6 +265,18 @@ function Load-RollbackScripts {
             if ($line -match '^#\s*TAGS:.*win11')        { $meta.Win11Only   = $true }
         }
         $result += $meta
+    }
+    # Та же нумерация «папка скрипт», что и у обычных скриптов. У откатов
+    # Category = "Откат", поэтому номер раздела берём из имени папки.
+    foreach ($g in ($result | Group-Object { $_.Category })) {
+        $catNum = 0
+        $catName = Split-Path (Split-Path @($g.Group)[0].Path -Parent) -Leaf
+        if ($catName -match '^(\d{2})') { $catNum = [int]$Matches[1] }
+        $sorted = @($g.Group | Sort-Object { $_.Num })
+        for ($i = 0; $i -lt $sorted.Count; $i++) {
+            $sorted[$i].CategoryNum = $catNum
+            $sorted[$i].Label = ("{0:D2} {1:D2}" -f $catNum, ($i + 1))
+        }
     }
     return @($result)
 }
@@ -337,7 +380,7 @@ function Build-ScriptsPanel {
             $nameRow.Orientation = "Horizontal"; $nameRow.VerticalAlignment = "Center"
             $nameText = [System.Windows.Controls.TextBlock]::new()
             # Номер скрипта из имени файла (NN_name.ps1): "02 04" = раздел 02, скрипт 04.
-            $nameText.Text = if ($script_item.Num -gt 0) { ("{0:D2} · {1}" -f $script_item.Num, $script_item.Name) } else { $script_item.Name }
+            $nameText.Text = if ($script_item.Label) { ("{0} · {1}" -f $script_item.Label, $script_item.Name) } else { $script_item.Name }
             $nameText.FontSize = 12; $nameText.FontWeight = "Medium"
             $nameText.VerticalAlignment = "Center"
             $nameColor = if ($isWin11Incompatible) { "#505060" } else { "#e0e0f4" }
@@ -411,11 +454,11 @@ function Build-ScriptsPanel {
                     $scriptPath = $this.Tag
                     $miss = @(Test-ScriptsExist -Paths @($scriptPath))
                     if ($miss.Count -gt 0) {
-                        Write-Log ("✗ Файл пропал с диска: " + (Split-Path $scriptPath -Leaf)) -Color "Red"
+                        Write-Log ("✗ Файл пропал с диска: " + (Get-ScriptLabel $scriptPath) + " · " + (Split-Path $scriptPath -Leaf)) -Color "Red"
                         Repair-ScriptsCache
                         return
                     }
-                    Write-Log "══ Запуск: $(Split-Path $scriptPath -Leaf) ══"
+                    Write-Log "══ Запуск: $(Get-ScriptLabel $scriptPath) · $(Split-Path $scriptPath -Leaf) ══"
                     Start-Background {
                         try {
                             $ok = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 2 -TimeoutSec (Get-ScriptTimeout $scriptPath)
@@ -561,7 +604,7 @@ function Build-RollbackPanel {
             $textStack = [System.Windows.Controls.StackPanel]::new()
             $textStack.VerticalAlignment = "Center"
             $nameText = [System.Windows.Controls.TextBlock]::new()
-            $nameText.Text = if ($rollbackItem.Num -gt 0) { ("{0:D2} · {1}" -f $rollbackItem.Num, $rollbackItem.Name) } else { $rollbackItem.Name }
+            $nameText.Text = if ($rollbackItem.Label) { ("{0} · {1}" -f $rollbackItem.Label, $rollbackItem.Name) } else { $rollbackItem.Name }
             $nameText.FontSize = 12
             $nameText.FontWeight = "Medium"
             $nameText.VerticalAlignment = "Center"
@@ -801,7 +844,7 @@ function Run-SelectedRollbackScripts {
                     try { Set-Progress ([double]$idx / [double]([Math]::Max(1, $total))) } catch {}
                      try {
                          if (-not (Is-RollbackPath -Path $rollbackPath -ScriptsFolder $ScriptsFolder -FolderName $FolderName)) { throw 'Путь отката изменился или стал небезопасным' }
-                         Write-Log "── $(Split-Path $rollbackPath -Leaf)"
+                         Write-Log "── $(Get-ScriptLabel $rollbackPath) · $(Split-Path $rollbackPath -Leaf)"
                          $result = Invoke-ScriptFileWithRetry -FilePath $rollbackPath -MaxAttempts 2 -TimeoutSec (Get-ScriptTimeout $rollbackPath) -Control $batchControl
                         if ($result) {
                             Write-Log "   ✓ Готово" -Color "Green"
@@ -814,7 +857,7 @@ function Run-SelectedRollbackScripts {
                         if ("$_" -like "*STOPPED_BY_USER*") {
                             $stoppedByUser = $true
                             $fail++
-                            Write-Log "⏹ Остановлено пользователем: $(Split-Path $rollbackPath -Leaf)" -Color "Yellow"
+                            Write-Log "⏹ Остановлено пользователем: $(Get-ScriptLabel $rollbackPath) · $(Split-Path $rollbackPath -Leaf)" -Color "Yellow"
                             break
                         }
                         $fail++
@@ -888,7 +931,7 @@ function Run-SelectedScripts {
         $total=@($pathsList).Count; $idx=0
         try {
         foreach ($scriptPath in $pathsList) {
-            Write-Log "── $(Split-Path $scriptPath -Leaf)"
+            Write-Log "── $(Get-ScriptLabel $scriptPath) · $(Split-Path $scriptPath -Leaf)"
             $idx++; Set-Progress ([double]$idx / [double]([Math]::Max(1, $total)))
             try {
                 $res = Invoke-ScriptFileWithRetry -FilePath $scriptPath -MaxAttempts 2 -TimeoutSec (Get-ScriptTimeout $scriptPath) -Control $batchControl
@@ -897,11 +940,11 @@ function Run-SelectedScripts {
             } catch {
                 if ("$_" -like "*STOPPED_BY_USER*") {
                     $stoppedByUser=$true; $fail++
-                    Write-Log "⏹ Остановлено пользователем: $(Split-Path $scriptPath -Leaf)" -Color Yellow
+                    Write-Log "⏹ Остановлено пользователем: $(Get-ScriptLabel $scriptPath) · $(Split-Path $scriptPath -Leaf)" -Color Yellow
                     break
                 }
                 $fail++
-                $skipped += (Split-Path $scriptPath -Leaf)
+                $skipped += (Get-ScriptLabel $scriptPath) + " · " + (Split-Path $scriptPath -Leaf)
                 Write-Log "   ⚠ Скипаю после неудачных попыток: $_" -Color Yellow
                 Write-Log "   Иду к следующему скрипту..." -Color Yellow
             }

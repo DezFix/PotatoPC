@@ -1,4 +1,4 @@
-﻿# NAME: 02 · Откат Defender: вернуть защиту на максимум
+﻿# NAME: Откат Defender: вернуть защиту на максимум
 # DESC: Возвращает Set-MpPreference к заводским: CPU 50%, скан архивов/сети вкл., облако Basic, образцы SendSafeSamples. Нужен, если Defender меняли сторонней утилитой
 # TAGS: 1
 # ICON: 🛡️

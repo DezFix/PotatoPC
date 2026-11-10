@@ -1,4 +1,4 @@
-﻿# NAME: 05 · Отключить Copilot (ИИ-помощник)
+﻿# NAME: Отключить Copilot (ИИ-помощник)
 # DESC: Блокирует политиками TurnOffWindowsCopilot (HKLM+HKCU) + убирает кнопку с панели. Сам пакет Copilot не удаляет. Нужен перезаход
 # TAGS: 1
 # ICON: 🤖

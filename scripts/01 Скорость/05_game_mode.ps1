@@ -1,4 +1,4 @@
-﻿# NAME: 05 · Игровой режим Windows (Game Mode)
+﻿# NAME: Игровой режим Windows (Game Mode)
 # DESC: Включает AllowAutoGameMode + AutoGameModeEnabled в реестре HKCU. Безопасно, только для игр
 # TAGS: 1
 # ICON: 🕹️

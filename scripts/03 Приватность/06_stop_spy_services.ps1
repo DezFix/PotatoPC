@@ -1,4 +1,4 @@
-﻿# NAME: 06 · Остановить службы телеметрии (5 шт.)
+﻿# NAME: Остановить службы телеметрии (5 шт.)
 # DESC: Стоп + Startup=Disabled для DiagTrack, dmwappushservice, DiagnosticsHub, DusmSvc. DcpSvc - в Manual (иначе сломается «Передача рядом»). Есть откат
 # TAGS: 1
 # ICON: 🔇
