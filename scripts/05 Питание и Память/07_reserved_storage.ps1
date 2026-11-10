@@ -1,4 +1,4 @@
-# NAME: 07 · Освободить место под Reserved Storage
+﻿# NAME: 07 · Освободить место под Reserved Storage
 # DESC: DISM /Set-ReservedStorageState /State:Disabled: освобождает несколько ГБ на C:. Обновления и компоненты Windows работают как обычно
 # TAGS: 2
 # ICON: 🧱

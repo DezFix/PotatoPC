@@ -130,7 +130,7 @@ Describe 'PotatoPC rollback helpers' {
 
     It 'finds rollback scripts in the dedicated source folder' {
         $paths = @(Get-RollbackScriptPaths)
-        $paths.Count | Should Be 6
+        $paths.Count | Should Be 7
         ($paths | Where-Object { (Split-Path $_ -Leaf) -eq '07_undo_speed.ps1' }).Count | Should Be 1
         ($paths | Where-Object { (Split-Path $_ -Leaf) -eq '09_undo_autostart.ps1' }).Count | Should Be 1
     }
