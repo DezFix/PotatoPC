@@ -1,5 +1,5 @@
 ﻿# NAME: 04 · Откат «Питания»: гибернация и подкачка как было
-# DESC: Включает hibernate on + пункт в меню выключения, возвращает быстрый запуск, pagefile в Auto (если он был) и выключает Storage Sense. Откат четырёх кнопок раздела «Питание и Память»
+# DESC: Включает hibernate on + пункт в меню выключения, возвращает быстрый запуск, pagefile в Auto (если он был), выключает Storage Sense и включает Reserved Storage. Откат раздела «Питание и Память»
 # TAGS: 1
 # ICON: ↩️
 
@@ -92,6 +92,18 @@ try {
             try { Remove-ItemProperty -LiteralPath $sp -Name $n -Force -ErrorAction Stop } catch {}
         }
     }
+
+    Write-Output "[*] Включаю Reserved Storage..."
+    # DISM пишет ошибки в stderr; при $ErrorActionPreference='Stop' перенаправление
+    # 2>&1 обрывает скрипт до проверки $LASTEXITCODE.
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $out = & dism /Online /Set-ReservedStorageState /State:Enabled 2>&1
+        $code = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $prev }
+    if ($code -ne 0) { Write-Output ("[!] DISM: код " + $code + "; " + (($out | Out-String).Trim())) }
+    else { Write-Output "[*] Reserved Storage включён обратно." }
 
     Write-Output "[OK] Готово. Нужна перезагрузка, чтобы меню выключения и быстрый запуск вернулись."
     exit 0

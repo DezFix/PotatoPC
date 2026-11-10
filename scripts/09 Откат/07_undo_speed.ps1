@@ -1,5 +1,5 @@
 ﻿# NAME: 07 · Откат «Скорости»: эффекты, фон, питание, мышь как было
-# DESC: Возвращает VisualFX, UserPreferencesMask, схему «Сбалансированная», рекламу, GameDVR и ускорение мыши. Откат раздела «Скорость»
+# DESC: Возвращает VisualFX, UserPreferencesMask, схему «Сбалансированная», рекламу, GameDVR, задержки автозагрузки и меню. Откат раздела «Скорость»
 # TAGS: 1
 # ICON: ↩️
 
@@ -110,6 +110,11 @@ try {
     Set-ItemProperty -LiteralPath $mouse -Name "MouseSpeed" -Value "1" -Type String -Force -ErrorAction SilentlyContinue
     Set-ItemProperty -LiteralPath $mouse -Name "MouseThreshold1" -Value "6" -Type String -Force -ErrorAction SilentlyContinue
     Set-ItemProperty -LiteralPath $mouse -Name "MouseThreshold2" -Value "10" -Type String -Force -ErrorAction SilentlyContinue
+
+    Write-Output "[*] Возвращаю задержки автозагрузки и меню..."
+    Del-Prop "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize" "StartupDelayInMSec"
+    Del-Prop "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize" "WaitForIdleState"
+    Set-ItemProperty -LiteralPath "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Value "400" -Type String -Force -ErrorAction SilentlyContinue
 
     Write-Output "[OK] Раздел Скорость откачен. Перезайди или перезагрузись."
     exit 0

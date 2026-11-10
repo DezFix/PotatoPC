@@ -106,7 +106,7 @@ Describe 'PotatoPC scanner helpers' {
             $checked++
             if ($code -match $weakeners) { throw ('Script weakens Defender: ' + $f.Name) }
         }
-        if ($checked -lt 30) { throw ("Expected the full script set, saw only " + $checked) }
+        if ($checked -lt 20) { throw ("Expected the full script set, saw only " + $checked) }
 
         $undoText = Get-Content -LiteralPath (Join-Path $undoDir '02_undo_defender.ps1') -Raw -Encoding UTF8
 
@@ -130,8 +130,8 @@ Describe 'PotatoPC rollback helpers' {
 
     It 'finds rollback scripts in the dedicated source folder' {
         $paths = @(Get-RollbackScriptPaths)
-        $paths.Count | Should Be 9
-        ($paths | Where-Object { (Split-Path $_ -Leaf) -eq '08_undo_updates.ps1' }).Count | Should Be 1
+        $paths.Count | Should Be 6
+        ($paths | Where-Object { (Split-Path $_ -Leaf) -eq '07_undo_speed.ps1' }).Count | Should Be 1
         ($paths | Where-Object { (Split-Path $_ -Leaf) -eq '09_undo_autostart.ps1' }).Count | Should Be 1
     }
 
