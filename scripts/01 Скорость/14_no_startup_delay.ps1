@@ -2,7 +2,7 @@
 # DESC: StartupDelayInMSec=0 и WaitForIdleState=0: программы автозагрузки стартуют сразу, а не через ~10 секунд. Заметно на слабых ПК
 # TAGS: 1
 # ICON: ⏱️
-# PRESET: potato,office
+# PRESET: potato,office,game
 
 $ErrorActionPreference = "Stop"
 try {

@@ -2,7 +2,7 @@
 # DESC: Ставит AllowCortana=0, DisableWebSearch=1: Пуск ищет только файлы на ПК, без интернета. Ищет быстрее
 # TAGS: 1
 # ICON: 🎤
-# PRESET: potato,game
+# PRESET: potato,office,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

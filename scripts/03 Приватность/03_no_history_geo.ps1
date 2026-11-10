@@ -2,7 +2,7 @@
 # DESC: Ставит PublishUserActivities/UploadUserActivities/EnableActivityFeed=0 + DisableLocation/DisableSensors=1. Погода/Карты потеряют геопозицию
 # TAGS: 1
 # ICON: 📍
-# PRESET: potato,game
+# PRESET: potato,office,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

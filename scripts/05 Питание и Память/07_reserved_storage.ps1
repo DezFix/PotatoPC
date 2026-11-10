@@ -2,7 +2,7 @@
 # DESC: DISM /Set-ReservedStorageState /State:Disabled: освобождает несколько ГБ на C:. Обновления и компоненты Windows работают как обычно
 # TAGS: 2
 # ICON: 🧱
-# PRESET: potato
+# PRESET: potato,office,game
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
