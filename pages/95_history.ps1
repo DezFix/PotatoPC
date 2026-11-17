@@ -5,7 +5,7 @@
 # NAV: footer
 
 $script:HiUi = $null
-$script:HistoryIcons = @{ plugin = 'bolt'; clean = 'broom'; startup = 'power'; app = 'box'; drivers = 'chip'; users = 'users'; protect = 'shield'; service = 'wrench'; maintenance = 'clock'; test = 'gauge'; report = 'report'; restore = 'flag'; optimize = 'play' }
+$script:HistoryIcons = @{ plugin = 'bolt'; clean = 'broom'; startup = 'power'; app = 'box'; drivers = 'chip'; users = 'users'; protect = 'shield'; service = 'wrench'; maintenance = 'clock'; test = 'gauge'; report = 'report'; restore = 'flag'; optimize = 'play'; network = 'network'; uninstall = 'trash' }
 
 function Build-Page_history {
     $ui = @{}

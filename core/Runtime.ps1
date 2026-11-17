@@ -138,6 +138,7 @@ function Stop-BgTask {
     if (-not $Job) { return }
     $Job.Cancel = $true
     try { if ('PotatoBench' -as [type]) { [PotatoBench]::Cancel = $true } } catch {}
+    try { if ('PotatoNet' -as [type]) { [PotatoNet]::Cancel = $true } } catch {}
     try { if ($Job.ChildPid -gt 0) { Stop-ProcessTree -TargetPid $Job.ChildPid } } catch {}
 }
 

@@ -4,19 +4,13 @@
 # ORDER: 70
 
 $script:PrUi = $null
-$script:DnsPresets = [ordered]@{
-    cloudflare = @{ Name = 'Cloudflare (защита от вредоносных сайтов)'; V4 = @('1.1.1.2', '1.0.0.2') }
-    quad9      = @{ Name = 'Quad9 (защита от вредоносных сайтов)'; V4 = @('9.9.9.9', '149.112.112.112') }
-    adguard    = @{ Name = 'AdGuard (блокирует рекламу и трекеры)'; V4 = @('94.140.14.14', '94.140.15.15') }
-    auto       = @{ Name = 'Как у провайдера (автоматически)'; V4 = @() }
-}
 function Get-BrowserPolicyKeys {
     return @('SOFTWARE\Policies\Google\Chrome', 'SOFTWARE\Policies\Microsoft\Edge', 'SOFTWARE\Policies\BraveSoftware\Brave', 'SOFTWARE\Policies\YandexBrowser', 'SOFTWARE\Policies\Mozilla\Firefox', 'SOFTWARE\Policies\Opera Software\Opera')
 }
 
 function Get-SecurityState {
-    # Фон. Антивирус, проверки, DNS.
-    $r = @{ Av = (Get-AntivirusState); Mp = $null; Threats = @(); Checks = @(); Dns = @() }
+    # Фон. Антивирус, проверки. (DNS теперь на странице «Сеть».)
+    $r = @{ Av = (Get-AntivirusState); Mp = $null; Threats = @(); Checks = @() }
     try {
         $mp = Get-MpComputerStatus -ErrorAction Stop
         $pref = Get-MpPreference -ErrorAction SilentlyContinue
@@ -41,7 +35,6 @@ function Get-SecurityState {
     if ($r.Mp) { $c += @{ Id = 'pua'; Title = 'Блокировка нежелательных программ'; Ok = ($r.Mp.Pua -eq 1); Detail = 'рекламные тулбары, «ускорители», навязанные установщики'; Plugin = '06_pua_protection' } }
     try { $wu = Get-Service wuauserv -ErrorAction Stop; $c += @{ Id = 'wu'; Title = 'Центр обновления Windows работает'; Ok = ($wu.StartType -ne 'Disabled'); Detail = 'без него не приходят исправления безопасности'; Plugin = '' } } catch {}
     $r.Checks = $c
-    $r.Dns = Get-DnsState
     return $r
 }
 
@@ -52,17 +45,6 @@ function Test-Smb1Off {
     $cli = $true
     try { $st = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\mrxsmb10' -Name Start -ErrorAction Stop).Start; $cli = ([int]$st -eq 4) } catch {}
     return ($srv -and $cli)
-}
-
-function Get-DnsState {
-    $out = @()
-    try {
-        foreach ($a in @(Get-NetAdapter -Physical -ErrorAction Stop | Where-Object { $_.Status -eq 'Up' })) {
-            $d = Get-DnsClientServerAddress -InterfaceIndex $a.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue
-            $out += @{ Name = [string]$a.Name; Index = [int]$a.ifIndex; Servers = @($d.ServerAddresses) }
-        }
-    } catch {}
-    return $out
 }
 
 function Get-ChromiumExtName {
@@ -246,8 +228,9 @@ function Build-Page_protect {
     [void]$ui.BrSec.Body.Children.Add((New-Placeholder 'Ищу подменённый поисковик, чужие стартовые страницы, расширения не из магазина и политики, которые прописывают рекламные программы.'))
     [void]$L.Body.Children.Add($ui.BrSec.Root)
 
-    $ui.DnsSec = New-Section -Title 'DNS - защита от вредоносных сайтов'
-    [void]$L.Body.Children.Add($ui.DnsSec.Root)
+    $toNet = New-Button -Text 'Безопасный DNS - на странице «Сеть» →' -Kind Ghost -OnClick { Show-Page -Id 'network' }
+    $toNet.HorizontalAlignment = 'Left'
+    [void]$L.Body.Children.Add($toNet)
     $script:PrUi = $ui
     return $L.Root
 }
@@ -301,7 +284,6 @@ function Set-ProtectData {
         $row = New-Row -Left (New-Icon -Name $(if ($c.Ok) { 'check' } else { 'warn' }) -Size 18 -Color $(if ($c.Ok) { 'Ok' } else { 'Warn' })) -Main (New-TitleBlock -Title $c.Title -Sub $c.Detail) -Right @($fix) -Padding (16, 8, 12, 8)
         [void]$body.Children.Add($row)
     }
-    Set-DnsSection -Dns $r.Dns
 }
 
 function Repair-SecurityCheck {
@@ -388,31 +370,3 @@ function Set-BrowserSection {
     [void]$body.Children.Add((New-Text -Text 'Подозрительные расширения удаляются в самом браузере: «Расширения» → «Удалить». PotatoPC их не удаляет, чтобы не стереть нужное.' -Size 12 -Color 'Muted' -Wrap -Margin (16, 8, 16, 12)))
 }
 
-function Set-DnsSection {
-    param($Dns)
-    $body = $script:PrUi.DnsSec.Body
-    $body.Children.Clear()
-    $cur = @($Dns | ForEach-Object { $_.Name + ': ' + $(if ($_.Servers.Count) { $_.Servers -join ', ' } else { 'автоматически' }) })
-    [void]$body.Children.Add((New-Text -Text ('Сейчас: ' + $(if ($cur.Count) { $cur -join ' · ' } else { 'нет активных сетевых адаптеров' })) -Size 13 -Color 'Muted' -Wrap -Margin (16, 0, 16, 10)))
-    $all = @($Dns | ForEach-Object { $_.Servers } | Where-Object { $_ })
-    foreach ($k in $script:DnsPresets.Keys) {
-        $p = $script:DnsPresets[$k]
-        $active = if ($k -eq 'auto') { $all.Count -eq 0 } else { $all.Count -gt 0 -and @($all | Where-Object { $p.V4 -notcontains $_ }).Count -eq 0 }
-        $btn = if ($active) { New-Badge 'сейчас' 'ok' } else { New-Button -Text 'Включить' -Kind Small -Tag $k -OnClick { Set-DnsPreset -Key $this.Tag } }
-        [void]$body.Children.Add((New-Row -Main (New-TitleBlock -Title $p.Name -Sub $(if ($p.V4.Count) { $p.V4 -join ', ' } else { 'DNS выдаёт роутер или провайдер' })) -Right @($btn) -Padding (16, 8, 12, 8)))
-    }
-}
-
-function Set-DnsPreset {
-    param([string]$Key)
-    $p = $script:DnsPresets[$Key]
-    Start-BgTask -Name 'Смена DNS' -Vars @{ V4 = $p.V4; N = $p.Name } -Script {
-        foreach ($a in @(Get-DnsState)) {
-            if ($V4.Count) { Set-DnsClientServerAddress -InterfaceIndex $a.Index -ServerAddresses $V4 -ErrorAction Stop }
-            else { Set-DnsClientServerAddress -InterfaceIndex $a.Index -ResetServerAddresses -ErrorAction Stop }
-            Write-Log ('DNS для «' + $a.Name + '»: ' + $N) 'ok'
-        }
-        Clear-DnsClientCache -ErrorAction SilentlyContinue
-        Add-History -Kind 'protect' -Name ('DNS: ' + $N)
-    } -OnDone { Update-ProtectPage } | Out-Null
-}
