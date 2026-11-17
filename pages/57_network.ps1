@@ -104,7 +104,7 @@ function Get-WifiState {
 function Get-HostsReport {
     $path = Join-Path $env:WINDIR 'System32\drivers\etc\hosts'
     $r = @{ Path = $path; Block = 0; Redirect = @(); Danger = @() }
-    $sens = '(?i)(microsoft|windowsupdate|windows\.com|live\.com|google|gstatic|yandex|vk\.com|mail\.ru|ok\.ru|kaspersky|eset|drweb|avast|avg\.com|malwarebytes|bitdefender|norton|mcafee|virustotal|sberbank|tinkoff|vtb|alfabank|gosuslugi|nalog|paypal|steam|epicgames)'
+    $sens = '(?i)(microsoft|windowsupdate|windows\.com|live\.com|google|gstatic|yandex|vk\.com|mail\.ru|ok\.ru|kaspersky|eset|drweb|avast|avg\.com|malwarebytes|bitdefender|norton|mcafee|virustotal|privat24|privatbank|monobank|oschadbank|raiffeisen|ukrsibbank|pumb|diia|sberbank|tinkoff|vtb|alfabank|gosuslugi|nalog|paypal|steam|epicgames)'
     try {
         foreach ($l in [System.IO.File]::ReadAllLines($path)) {
             $t = ($l -replace '#.*$', '').Trim()
@@ -651,7 +651,7 @@ function Set-SpeedResult {
 
 function Get-ColoName {
     param([string]$Code)
-    $m = @{ DME = 'Москва'; SVO = 'Москва'; LED = 'Санкт-Петербург'; KJA = 'Красноярск'; SVX = 'Екатеринбург'; OVB = 'Новосибирск'; KHV = 'Хабаровск'; FRA = 'Франкфурт'; AMS = 'Амстердам'; WAW = 'Варшава'; HEL = 'Хельсинки'; ARN = 'Стокгольм'; RIX = 'Рига'; TLL = 'Таллин'; VNO = 'Вильнюс'; KIV = 'Кишинёв'; KBP = 'Киев'; ALA = 'Алматы'; NQZ = 'Астана'; TAS = 'Ташкент'; EVN = 'Ереван'; TBS = 'Тбилиси'; IST = 'Стамбул'; LHR = 'Лондон'; CDG = 'Париж'; VIE = 'Вена'; PRG = 'Прага'; BUD = 'Будапешт'; OTP = 'Бухарест'; SOF = 'София'; BEG = 'Белград'; DUS = 'Дюссельдорф'; HAM = 'Гамбург'; MUC = 'Мюнхен'; TXL = 'Берлин'; BER = 'Берлин' }
+    $m = @{ DME = 'Москва'; SVO = 'Москва'; LED = 'Санкт-Петербург'; KJA = 'Красноярск'; SVX = 'Екатеринбург'; OVB = 'Новосибирск'; KHV = 'Хабаровск'; FRA = 'Франкфурт'; AMS = 'Амстердам'; WAW = 'Варшава'; HEL = 'Хельсинки'; ARN = 'Стокгольм'; RIX = 'Рига'; TLL = 'Таллин'; VNO = 'Вильнюс'; KIV = 'Кишинёв'; KBP = 'Киев'; IEV = 'Киев'; LWO = 'Львов'; ODS = 'Одесса'; HRK = 'Харьков'; DNK = 'Днепр'; ALA = 'Алматы'; NQZ = 'Астана'; TAS = 'Ташкент'; EVN = 'Ереван'; TBS = 'Тбилиси'; IST = 'Стамбул'; LHR = 'Лондон'; CDG = 'Париж'; VIE = 'Вена'; PRG = 'Прага'; BUD = 'Будапешт'; OTP = 'Бухарест'; SOF = 'София'; BEG = 'Белград'; DUS = 'Дюссельдорф'; HAM = 'Гамбург'; MUC = 'Мюнхен'; TXL = 'Берлин'; BER = 'Берлин' }
     $c = $Code.ToUpperInvariant()
     if ($m.ContainsKey($c)) { return $m[$c] }
     return $c
@@ -769,10 +769,10 @@ function Update-NetInfoTab {
     $b.Children.Clear()
     switch ($ui.Tab) {
         'trace' {
-            $in = New-TextInput -Placeholder 'Сайт или адрес, например ya.ru' -Width 300 -Text 'ya.ru'
+            $in = New-TextInput -Placeholder 'Сайт или адрес, например google.com' -Width 300 -Text 'google.com'
             $go = New-Button -Text 'Трассировать' -Kind Small -OnClick {
                 $h = ([string]$script:NetUi.TraceIn.Text).Trim()
-                if ($h -notmatch '^[A-Za-z0-9\.\-:]{1,253}$') { Show-Info 'Введите адрес сайта (например, ya.ru) или IP.'; return }
+                if ($h -notmatch '^[A-Za-z0-9\.\-:]{1,253}$') { Show-Info 'Введите адрес сайта (например, google.com) или IP.'; return }
                 $script:NetUi.TraceOut.Text = 'Трассирую ' + $h + '… (до минуты)'
                 $this.IsEnabled = $false
                 $script:NetUi.TraceBtn = $this

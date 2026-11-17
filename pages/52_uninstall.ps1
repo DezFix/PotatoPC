@@ -272,13 +272,15 @@ function Build-Page_uninstall {
     $ui.Search = New-TextInput -Placeholder 'Поиск по названию или издателю' -Width 280
     $ui.Search.Add_TextChanged({ Update-UninstallFilter })
     $refresh = New-Button -Text 'Обновить' -Icon 'refresh' -OnClick { Update-UninstallPage }
-    $ab = New-ActionBar
-    $ui.Bar = $ab
     $ui.SilentChk = New-CheckBox -Text 'Тихо, если программа умеет' -ToolTip 'Без окон деинсталлятора. Работает для MSI и программ, которые сообщают тихую команду удаления'
     $ui.LeftChk = New-CheckBox -Text 'Искать остатки' -Checked $true -ToolTip 'После удаления найти оставшиеся папки, ярлыки и ключи реестра'
     $ui.GoBtn = New-Button -Text 'Удалить выбранные' -Icon 'trash' -Kind Primary -OnClick { Start-Uninstall }
     $ui.GoBtn.IsEnabled = $false
-    foreach ($x in @($ui.SilentChk, $ui.LeftChk, $ui.GoBtn)) { [void]$ab.Right.Children.Add($x) }
+    # Через -Right: панель сама ставит отступы между элементами
+    $ab = New-ActionBar -Right @($ui.SilentChk, $ui.LeftChk, $ui.GoBtn)
+    $ui.LeftChk.Margin = New-Thickness 22, 0, 0, 0
+    $ui.GoBtn.Margin = New-Thickness 22, 0, 0, 0
+    $ui.Bar = $ab
     $L = New-PageLayout -Title 'Удаление программ' -Subtitle 'Удаление программ и приложений Store с поиском остатков' -HeaderRight @($ui.Search, $refresh) -ActionBar $ab.Root
     $ui.Count = New-StatCard -Label 'Программ' -Value '…'
     $ui.Total = New-StatCard -Label 'Занимают на диске' -Value '…'

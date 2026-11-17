@@ -16,7 +16,7 @@ function Build-Page_tweaks {
     $ui.RpChk = New-CheckBox -Text 'Точка восстановления' -Checked $true -ToolTip 'Создать точку восстановления Windows перед изменениями'
     $ui.RebootChk = New-CheckBox -Text 'Перезагрузить после'
     $ui.ApplyBtn = New-Button -Text 'Применить' -Icon 'play' -Kind Primary -OnClick { Start-TweakApply }
-    [void]$ab.Right.Children.Add($ui.RpChk); [void]$ab.Right.Children.Add($ui.RebootChk); [void]$ab.Right.Children.Add($ui.ApplyBtn)
+    foreach ($x in @($ui.RpChk, $ui.RebootChk, $ui.ApplyBtn)) { $x.Margin = New-Thickness 22, 0, 0, 0; $x.VerticalAlignment = 'Center'; [void]$ab.Right.Children.Add($x) }
     $L = New-PageLayout -Title 'Твики' -Subtitle 'Каждый твик - отдельный скрипт-плагин. Отметьте нужные и примените.' -HeaderRight @($ui.Search, $reload) -ActionBar $ab.Root
     $ui.Body = $L.Body
     $ui.Scroll = $L.Scroll

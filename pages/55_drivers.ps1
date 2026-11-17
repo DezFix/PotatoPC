@@ -280,7 +280,7 @@ function Build-Page_drivers {
     $ui.BackupChk = New-CheckBox -Text 'Резервная копия драйверов' -Checked $true
     $ui.InstBtn = New-Button -Text 'Установить драйверы' -Icon 'play' -Kind Primary -OnClick { Start-DriverInstall }
     $ui.InstBtn.IsEnabled = $false
-    [void]$ab.Right.Children.Add($ui.BackupChk); [void]$ab.Right.Children.Add($ui.InstBtn)
+    foreach ($x in @($ui.BackupChk, $ui.InstBtn)) { $x.Margin = New-Thickness 22, 0, 0, 0; $x.VerticalAlignment = 'Center'; [void]$ab.Right.Children.Add($x) }
     $L = New-PageLayout -Title 'Драйверы' -Subtitle 'Только подписанные драйверы из каталога Microsoft Update' -HeaderRight @($devmgmt, $scan) -ActionBar $ab.Root
     $ui.Upd = New-StatCard -Label 'Можно обновить' -Value '…' -ValueColor 'Warn'
     $ui.Prob = New-StatCard -Label 'Проблемные устройства' -Value '…' -ValueColor 'Bad'
