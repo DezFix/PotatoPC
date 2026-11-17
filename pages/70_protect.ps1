@@ -68,7 +68,7 @@ function Get-DnsState {
 function Get-ChromiumExtName {
     param([string]$Dir)
     try {
-        $m = Get-Content -LiteralPath (Join-Path $Dir 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $m = Get-Content -LiteralPath (Join-Path $Dir 'manifest.json') -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         $n = [string]$m.name
         if ($n -match '^__MSG_(.+)__$') {
             $key = $Matches[1]
@@ -76,7 +76,7 @@ function Get-ChromiumExtName {
                 if (-not $loc) { continue }
                 $f = Join-Path $Dir ('_locales\' + $loc + '\messages.json')
                 if (Test-Path -LiteralPath $f) {
-                    $msg = Get-Content -LiteralPath $f -Raw -Encoding UTF8 | ConvertFrom-Json
+                    $msg = Get-Content -LiteralPath $f -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
                     foreach ($p in $msg.PSObject.Properties) { if ($p.Name -ieq $key) { return [string]$p.Value.message } }
                 }
             }
@@ -105,7 +105,7 @@ function Get-BrowserReport {
             if (-not (Test-Path -LiteralPath $prefFile)) { continue }
             $info = @{ Browser = $b.Name; Profile = $pd.Name; Search = ''; Start = @(); Extensions = @(); Issues = @() }
             try {
-                $pref = Get-Content -LiteralPath $prefFile -Raw -Encoding UTF8 | ConvertFrom-Json
+                $pref = Get-Content -LiteralPath $prefFile -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
                 $u = $null; try { $u = [string]$pref.default_search_provider_data.template_url_data.url } catch {}
                 if ($u) {
                     $info.Search = ([uri]($u -replace '\{[^}]+\}', 'x')).Host
@@ -117,7 +117,7 @@ function Get-BrowserReport {
                 $settings = @{}
                 foreach ($f in @('Preferences', 'Secure Preferences')) {
                     try {
-                        $j = if ($f -eq 'Preferences') { $pref } else { Get-Content -LiteralPath (Join-Path $pd.FullName $f) -Raw -Encoding UTF8 | ConvertFrom-Json }
+                        $j = if ($f -eq 'Preferences') { $pref } else { Get-Content -LiteralPath (Join-Path $pd.FullName $f) -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop }
                         foreach ($p in $j.extensions.settings.PSObject.Properties) { $settings[$p.Name] = $p.Value }
                     } catch {}
                 }
@@ -154,12 +154,12 @@ function Get-BrowserReport {
         try {
             $pj = Join-Path $pd.FullName 'prefs.js'
             if (Test-Path -LiteralPath $pj) {
-                $m = Select-String -LiteralPath $pj -Pattern 'user_pref\("browser\.startup\.homepage",\s*"([^"]+)"' | Select-Object -First 1
+                $m = Select-String -LiteralPath $pj -Pattern 'user_pref\("browser\.startup\.homepage",\s*"([^"]+)"' -ErrorAction Stop | Select-Object -First 1
                 if ($m) { $info.Start = @($m.Matches[0].Groups[1].Value -split '\|'); foreach ($s in $info.Start) { if ($s -notmatch '(?i)google\.|yandex\.|about:|mozilla') { $info.Issues += 'Стартовая страница: ' + $s } } }
             }
             $ej = Join-Path $pd.FullName 'extensions.json'
             if (Test-Path -LiteralPath $ej) {
-                $j = Get-Content -LiteralPath $ej -Raw -Encoding UTF8 | ConvertFrom-Json
+                $j = Get-Content -LiteralPath $ej -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
                 foreach ($a in @($j.addons | Where-Object { $_.type -eq 'extension' -and $_.location -ne 'app-builtin' -and $_.location -ne 'app-system-defaults' })) {
                     $flag = ''
                     if ($a.location -ne 'app-profile') { $flag = 'установлено сторонней программой' }
@@ -176,7 +176,7 @@ function Get-BrowserReport {
             $path = $hive + ':\' + $k
             if (-not (Test-Path -LiteralPath $path)) { continue }
             $vals = @()
-            try { $vals += @((Get-Item -LiteralPath $path).Property) } catch {}
+            try { $vals += @((Get-Item -LiteralPath $path -ErrorAction Stop).Property) } catch {}
             try { $vals += @(Get-ChildItem -LiteralPath $path -ErrorAction SilentlyContinue | ForEach-Object { $_.PSChildName }) } catch {}
             if ($vals.Count) { $res.Policies += @{ Path = ($hive + '\' + $k); Items = $vals } }
         }
@@ -363,7 +363,7 @@ function Set-BrowserSection {
     if ($r.Proxy) {
         $btn = New-Button -Text 'Выключить прокси' -Kind Small -OnClick {
             $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
-            Set-ItemProperty -LiteralPath $k -Name ProxyEnable -Value 0 -Type DWord
+            Set-ItemProperty -LiteralPath $k -Name ProxyEnable -Value 0 -Type DWord -ErrorAction Stop
             Remove-ItemProperty -LiteralPath $k -Name AutoConfigURL -ErrorAction SilentlyContinue
             Write-Log 'Системный прокси выключен' 'ok'; Add-History -Kind 'protect' -Name 'Выключен системный прокси'
             Update-BrowserSection

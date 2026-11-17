@@ -61,7 +61,7 @@ function Get-History {
         for ($i = $lines.Count - 1; $i -ge $start; $i--) {
             if ([string]::IsNullOrWhiteSpace($lines[$i])) { continue }
             try {
-                $o = $lines[$i] | ConvertFrom-Json
+                $o = $lines[$i] | ConvertFrom-Json -ErrorAction Stop
                 if ($Days -gt 0) { try { if ([datetime]$o.Time -lt $cut) { continue } } catch {} }
                 $out += $o
             } catch {}

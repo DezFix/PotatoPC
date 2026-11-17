@@ -19,7 +19,7 @@ function Build-Page_history {
     $rep = New-Button -Text 'Отчёт о проделанной работе' -Kind Ghost -OnClick {
         $f = Join-Path $ReportFolder 'test-last.json'
         if (-not (Test-Path -LiteralPath $f)) { Show-Info 'Отчёт строится вместе с результатами теста. Откройте «Тест ПК» и запустите тест - в отчёт попадут и выполненные работы.'; return }
-        try { $t = Get-Content -LiteralPath $f -Raw -Encoding UTF8 | ConvertFrom-Json; $file = New-MasterReport -Test $t; Open-Path $file } catch { Write-Log ('Отчёт: ' + $_.Exception.Message) 'err' }
+        try { $t = Get-Content -LiteralPath $f -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop; $file = New-MasterReport -Test $t; Open-Path $file } catch { Write-Log ('Отчёт: ' + $_.Exception.Message) 'err' }
     }
     $ui.Log = New-Section -Title 'Журнал действий' -Right @($rep)
     [void]$L.Body.Children.Add($ui.Log.Root)

@@ -37,7 +37,7 @@ $script:SettingsPath   = Join-Path $script:DataRoot 'settings.json'
 $script:UIStatePath    = Join-Path $script:DataRoot 'ui.json'
 
 foreach ($d in @($script:DataRoot, $script:WorkFolder, $script:LogFolder, $script:SnapshotFolder, $script:ReportFolder)) {
-    try { if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } } catch {}
+    try { if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force -ErrorAction Stop | Out-Null } } catch {}
 }
 
 function Get-WindowsInfo {
@@ -74,11 +74,11 @@ function Get-Setting {
 function Set-Setting {
     param([string]$Name, $Value)
     $script:Settings[$Name] = $Value
-    try { ($script:Settings | ConvertTo-Json -Depth 5) | Set-Content -LiteralPath $script:SettingsPath -Encoding UTF8 } catch {}
+    try { ($script:Settings | ConvertTo-Json -Depth 5) | Set-Content -LiteralPath $script:SettingsPath -Encoding UTF8 -ErrorAction Stop } catch {}
 }
 try {
     if (Test-Path -LiteralPath $script:SettingsPath) {
-        $o = Get-Content -LiteralPath $script:SettingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $o = Get-Content -LiteralPath $script:SettingsPath -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         foreach ($p in $o.PSObject.Properties) { $script:Settings[$p.Name] = $p.Value }
     }
 } catch {}

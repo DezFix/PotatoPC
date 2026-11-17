@@ -52,7 +52,7 @@ function Get-DriverScan {
         $last = Get-ChildItem -LiteralPath $dir -Directory -ErrorAction Stop | Sort-Object Name -Descending | Select-Object -First 1
         if ($last) { $r.Backup = @{ Path = $last.FullName; Time = $last.CreationTime; Count = @(Get-ChildItem -LiteralPath $last.FullName -Directory -ErrorAction SilentlyContinue).Count } }
     } catch {}
-    try { $cs = Get-CimInstance Win32_ComputerSystem; $r.Model = ([string]$cs.Manufacturer).Trim() + ' ' + ([string]$cs.Model).Trim(); $r.Laptop = ([int]$cs.PCSystemType -eq 2) } catch {}
+    try { $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction Stop; $r.Model = ([string]$cs.Manufacturer).Trim() + ' ' + ([string]$cs.Model).Trim(); $r.Laptop = ([int]$cs.PCSystemType -eq 2) } catch {}
     $r.Hw = Get-DriverSources
     return $r
 }

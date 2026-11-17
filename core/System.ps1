@@ -427,7 +427,7 @@ function Save-MetricSnapshot {
     param($Snapshot)
     try {
         $file = Join-Path $SnapshotFolder ('snap-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + $Snapshot.Label + '.json')
-        ($Snapshot | ConvertTo-Json -Depth 3) | Set-Content -LiteralPath $file -Encoding UTF8
+        ($Snapshot | ConvertTo-Json -Depth 3) | Set-Content -LiteralPath $file -Encoding UTF8 -ErrorAction Stop
     } catch {}
 }
 
@@ -435,7 +435,7 @@ function Get-BaselineSnapshot {
     # Последний замер «до оптимизации».
     try {
         $f = Get-ChildItem -LiteralPath $SnapshotFolder -Filter 'snap-*-before.json' -ErrorAction Stop | Sort-Object Name -Descending | Select-Object -First 1
-        if ($f) { return (Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8 | ConvertFrom-Json) }
+        if ($f) { return (Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop) }
     } catch {}
     return $null
 }

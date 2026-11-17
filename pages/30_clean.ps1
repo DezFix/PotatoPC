@@ -10,7 +10,7 @@ function Get-CleanCatalog {
     # Плоский список пунктов из cleaner\rules.json.
     $out = @()
     try {
-        $j = Get-Content -LiteralPath $CleanRulesPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $j = Get-Content -LiteralPath $CleanRulesPath -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         $gi = 0
         foreach ($g in @($j.Groups)) {
             foreach ($i in @($g.Items)) {
@@ -158,7 +158,7 @@ function Start-CleanScan {
         $items = Get-CleanCatalog
         $items = Measure-CleanItems -Items $items
         $free = 0.0
-        try { $free = [double](Get-CimInstance Win32_LogicalDisk -Filter ("DeviceID='" + $env:SystemDrive + "'")).FreeSpace } catch {}
+        try { $free = [double](Get-CimInstance Win32_LogicalDisk -Filter ("DeviceID='" + $env:SystemDrive + "'") -ErrorAction Stop).FreeSpace } catch {}
         return @{ Items = $items; Free = $free }
     } -OnDone {
         param($r, $err)

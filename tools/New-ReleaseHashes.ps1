@@ -59,7 +59,13 @@ if ($IncludeUntracked) {
         })
     } else { $files = @($allFiles) }
 }
-$files = @($files | Sort-Object FullName)
+# Ordinal, not Sort-Object: the current culture orders Install-PotatoPC.ps1,
+# LICENSE and README.md differently, so every culture re-writes the manifest.
+$byPath = @{}
+foreach ($f in $files) { $byPath[$f.FullName] = $f }
+$keys = [string[]]@($byPath.Keys)
+[array]::Sort($keys, [StringComparer]::Ordinal)
+$files = @($keys | ForEach-Object { $byPath[$_] })
 
 function Test-RepoManifestTextFile {
     param([string]$Path)

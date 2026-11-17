@@ -18,7 +18,7 @@ function Build-Page_programs {
     $L = New-PageLayout -Title 'Программы' -Subtitle 'Установка и обновление через winget - без сайтов, рекламы и галочек «установить заодно»' -HeaderRight @($ui.Search) -ActionBar $ab.Root
 
     $tabs = New-Stack -Orientation Horizontal -Margin (0, 0, 0, 18)
-    foreach ($t in @(@('install', 'Установить'), @('updates', 'Обновления'), @('installed', 'Установленные'))) {
+    foreach ($t in @(@('install', 'Установить'), @('updates', 'Обновления'))) {
         $b = New-Object System.Windows.Controls.Button
         $b.Style = $script:Window.FindResource('BtnGhost')
         $b.Tag = $t[0]; $b.Content = $t[1]; $b.FontSize = 14; $b.MinHeight = 40
@@ -28,9 +28,23 @@ function Build-Page_programs {
         [void]$tabs.Children.Add($b)
         $ui.Tabs[$t[0]] = $b
     }
+    $toUn = New-Button -Text 'Удаление программ →' -Kind Ghost -OnClick { Show-Page -Id 'uninstall' }
+    $toUn.VerticalAlignment = 'Center'
+    [void]$tabs.Children.Add($toUn)
     [void]$L.Body.Children.Add($tabs)
 
-    $ui.Missing = New-Hint -Text 'winget не найден. Установите «Установщик приложений» (App Installer) из Microsoft Store и перезапустите PotatoPC.' -Kind 'warn'
+    # Нет winget - предлагаем поставить его прямо отсюда.
+    $mt = New-Text -Text 'winget не найден - без него не работают установка и обновление программ. PotatoPC может поставить его сам: с официального GitHub Microsoft, с проверкой подписи.' -Size 13 -Color 'Warn' -Wrap -Margin (12, 0, 16, 0)
+    $mt.MaxWidth = 640
+    $ui.WgBtn = New-Button -Text 'Установить winget' -Icon 'plus' -Kind Primary -OnClick { Start-WingetSetup }
+    $ms = New-Object System.Windows.Controls.DockPanel
+    [System.Windows.Controls.DockPanel]::SetDock($ui.WgBtn, 'Right')
+    [void]$ms.Children.Add($ui.WgBtn)
+    $mi = New-Icon -Name 'warn' -Size 20 -Color 'Warn'
+    [System.Windows.Controls.DockPanel]::SetDock($mi, 'Left')
+    [void]$ms.Children.Add($mi)
+    [void]$ms.Children.Add($mt)
+    $ui.Missing = New-Card -Child $ms -Padding (16, 12, 12, 12) -Margin (0, 0, 0, 16) -Background 'WarnDim' -Border '#5A4A1A'
     $ui.Missing.Visibility = 'Collapsed'
     [void]$L.Body.Children.Add($ui.Missing)
 
@@ -169,7 +183,6 @@ function Update-ProgramInstalled {
             [void]$ui.InstPane.Body.Children.Add($row)
         }
         $ui.InstPane.Header.Text = 'Установленные программы (известные winget) · ' + $r.List.Count
-        Set-ButtonText -Button $ui.Tabs['installed'] -Text ('Установленные · ' + $r.List.Count)
         if (-not $ui.UpdLoaded) { Update-ProgramUpdates }
     } | Out-Null
 }
@@ -283,5 +296,26 @@ function Start-ProgramAction {
         if ($r -and $r.Fail.Count) { Show-Info -Message ("Не получилось:`n" + ($r.Fail -join "`n") + "`n`nПодробности в журнале.") -Icon 'Warning' }
         $ui.UpdLoaded = $false
         Update-ProgramInstalled
+    } | Out-Null
+}
+
+function Start-WingetSetup {
+    $ui = $script:PgUi
+    if (-not (Show-Confirm -Message ('Установить winget (App Installer)?' + "`n`n" + 'Сначала PotatoPC попробует включить уже встроенный в Windows установщик. Если его нет - скачает около 300 МБ с официального GitHub Microsoft (microsoft/winget-cli) и проверит цифровую подпись перед установкой.') -Title 'winget')) { return }
+    $ui.WgBtn.IsEnabled = $false
+    Set-ButtonText -Button $ui.WgBtn -Text 'Устанавливаю…'
+    Start-BgTask -Name 'Установка winget' -Script { Install-WingetClient } -OnDone {
+        param($ok)
+        $ui = $script:PgUi
+        $ui.WgBtn.IsEnabled = $true
+        Set-ButtonText -Button $ui.WgBtn -Text 'Установить winget'
+        if ($ok) {
+            $ui.Missing.Visibility = 'Collapsed'
+            $ui.InstLoaded = $false; $ui.UpdLoaded = $false
+            Update-ProgramInstalled
+            Show-Info 'winget установлен - установка и обновление программ доступны.'
+        } else {
+            if (Show-Confirm -Message ('Автоматически поставить не получилось (подробности в журнале).' + "`n`n" + 'Открыть страницу «Установщик приложений» в Microsoft Store?') -Title 'winget') { Open-Path 'ms-windows-store://pdp/?productid=9NBLGGH4NNS1' }
+        }
     } | Out-Null
 }

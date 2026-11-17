@@ -20,7 +20,7 @@ function Get-AdminMemberSids {
     } catch {}
     # Get-LocalGroupMember падает, если в группе есть «осиротевший» SID. Запасной путь через ADSI.
     try {
-        $gname = (Get-LocalGroup -SID $script:SidAdmins).Name
+        $gname = (Get-LocalGroup -SID $script:SidAdmins -ErrorAction Stop).Name
         $g = [ADSI]("WinNT://./" + $gname + ",group")
         foreach ($mem in @($g.Invoke('Members'))) {
             try {
@@ -121,14 +121,15 @@ function Update-UsersPage {
         if ($u.Source -eq 'MicrosoftAccount') { $badges += New-Badge 'Учётка Microsoft' 'muted' }
         if (-not $u.Enabled) { $badges += New-Badge 'Отключён' 'muted' }
         if ($d.Auto.On -and $d.Auto.User -ieq $u.Name) { $badges += New-Badge 'Автовход' 'warn' }
-        $title = New-Stack -Orientation Horizontal -Children (@((New-Text -Text $(if ($u.FullName) { $u.FullName + ' (' + $u.Name + ')' } else { $u.Name }) -Size 15 -Weight 'SemiBold')) + $badges)
+        $nameLine = New-Stack -Orientation Horizontal -Children (@((New-Text -Text $(if ($u.FullName) { $u.FullName + ' (' + $u.Name + ')' } else { $u.Name }) -Size 15 -Weight 'SemiBold')) + $badges)
+        # Строка заголовка: имя и метки слева, переключатель «Пароль бессрочный» справа.
+        $title = New-Object System.Windows.Controls.DockPanel
         foreach ($b in $badges) { $b.Margin = New-Thickness 8, 0, 0, 0 }
         $parts = @()
         if ($u.IsMe) { $parts += 'это вы' }
         if ($u.LastLogon) { $parts += 'последний вход: ' + ([datetime]$u.LastLogon).ToString('dd.MM.yyyy HH:mm') } else { $parts += 'ещё не входил' }
         if ($u.PwdSet) { $parts += 'пароль менялся ' + ([datetime]$u.PwdSet).ToString('dd.MM.yyyy') }
         if ($u.Source -ne 'MicrosoftAccount' -and -not $u.NeverExpires -and $u.PwdExpires) { $parts += 'пароль истекает ' + ([datetime]$u.PwdExpires).ToString('dd.MM.yyyy') }
-        $info = New-Stack -Children @($title, (New-Text -Text ($parts -join ' · ') -Size 12 -Color 'Muted' -Margin (0, 3, 0, 0)))
         $acts = New-Object System.Windows.Controls.WrapPanel
         $acts.Margin = New-Thickness 0, 10, 0, 0
         $mk = { param($t, $tag, $kind = 'Small') $b = New-Button -Text $t -Kind $kind -Tag $tag -OnClick { Invoke-UserAction -Spec $this.Tag }; $b.Margin = New-Thickness 0, 0, 8, 0; [void]$acts.Children.Add($b); $b }
@@ -137,16 +138,19 @@ function Update-UsersPage {
         else {
             $tg = New-Toggle -Checked ([bool]$u.NeverExpires) -Tag $u -OnClick { Set-UserPasswordNeverExpires -User $this.Tag -Never ([bool]$this.IsChecked) }
             $tg.ToolTip = 'Включено - Windows не будет требовать сменить пароль. Выключено - через срок из политики (обычно 42 дня) пароль придётся сменить'
-            $tl = New-Text -Text 'Пароль бессрочный' -Size 13 -Color 'Muted' -Margin (8, 0, 18, 0)
-            $box = New-Stack -Orientation Horizontal -Children @($tg, $tl) -Margin (0, 0, 10, 8)
+            $tl = New-Text -Text 'Пароль бессрочный' -Size 12 -Color 'Muted' -Margin (0, 0, 8, 0)
+            $box = New-Stack -Orientation Horizontal -Children @($tl, $tg)
             $box.VerticalAlignment = 'Center'
-            [void]$acts.Children.Insert(0, $box)
+            [System.Windows.Controls.DockPanel]::SetDock($box, 'Right')
+            [void]$title.Children.Add($box)
         }
+        [void]$title.Children.Add($nameLine)
         if (-not $u.IsMe) {
             [void](& $mk $(if ($u.IsAdmin) { 'Сделать обычным' } else { 'Сделать админом' }) @{ A = 'admin'; U = $u })
             [void](& $mk $(if ($u.Enabled) { 'Отключить' } else { 'Включить' }) @{ A = 'enable'; U = $u })
             [void](& $mk 'Удалить' @{ A = 'delete'; U = $u } 'SmallDanger')
         }
+        $info = New-Stack -Children @($title, (New-Text -Text ($parts -join ' · ') -Size 12 -Color 'Muted' -Margin (0, 3, 0, 0)))
         $sp = New-Stack -Children @($info, $acts)
         [void]$body.Children.Add((New-Row -Left (New-AppIcon -Name $u.Name -Size 44) -Main $sp -Padding (16, 14, 16, 14)))
         $body.Children[$body.Children.Count - 1].Child.Children[0].CornerRadius = New-Object System.Windows.CornerRadius 22
@@ -246,7 +250,7 @@ function Invoke-UserToggle {
             }
             'auto' {
                 if (-not $On) {
-                    Set-ItemProperty -LiteralPath $script:WinlogonKey -Name 'AutoAdminLogon' -Value '0' -Type String
+                    Set-ItemProperty -LiteralPath $script:WinlogonKey -Name 'AutoAdminLogon' -Value '0' -Type String -ErrorAction Stop
                     Remove-ItemProperty -LiteralPath $script:WinlogonKey -Name 'DefaultPassword' -ErrorAction SilentlyContinue
                     Write-Log 'Автовход выключен' 'ok'
                 } else {
@@ -262,10 +266,10 @@ function Invoke-UserToggle {
                         [void]$f.Children.Add((New-Text -Text 'Пароль хранится в реестре открытым текстом - на ноутбуке, который носят с собой, автовход лучше не включать.' -Size 12 -Color 'Warn' -Wrap))
                     } -OnOk {
                         $sel = @($script:AutoRadios | Where-Object { $_.IsChecked })[0]
-                        Set-ItemProperty -LiteralPath $script:WinlogonKey -Name 'AutoAdminLogon' -Value '1' -Type String
-                        Set-ItemProperty -LiteralPath $script:WinlogonKey -Name 'DefaultUserName' -Value ([string]$sel.Tag) -Type String
-                        Set-ItemProperty -LiteralPath $script:WinlogonKey -Name 'DefaultDomainName' -Value $env:COMPUTERNAME -Type String
-                        Set-ItemProperty -LiteralPath $script:WinlogonKey -Name 'DefaultPassword' -Value $script:DlgP1.Password -Type String
+                        Set-ItemProperty -LiteralPath $script:WinlogonKey -Name 'AutoAdminLogon' -Value '1' -Type String -ErrorAction Stop
+                        Set-ItemProperty -LiteralPath $script:WinlogonKey -Name 'DefaultUserName' -Value ([string]$sel.Tag) -Type String -ErrorAction Stop
+                        Set-ItemProperty -LiteralPath $script:WinlogonKey -Name 'DefaultDomainName' -Value $env:COMPUTERNAME -Type String -ErrorAction Stop
+                        Set-ItemProperty -LiteralPath $script:WinlogonKey -Name 'DefaultPassword' -Value $script:DlgP1.Password -Type String -ErrorAction Stop
                         return $true
                     }
                     if ($ok) { Write-Log 'Автовход включён' 'ok' }

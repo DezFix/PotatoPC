@@ -134,7 +134,7 @@ function Get-MaintenanceState {
         $i = Get-ScheduledTaskInfo -TaskName 'PotatoPC Maintenance' -TaskPath '\PotatoPC\' -ErrorAction SilentlyContinue
         if ($i) { $r.Last = $i.LastRunTime; $r.Result = $i.LastTaskResult; $r.Next = $i.NextRunTime }
     } catch {}
-    try { $r.Config = Get-Content -LiteralPath (Join-Path $env:ProgramData 'PotatoPC\maintenance\maintenance.json') -Raw -Encoding UTF8 | ConvertFrom-Json } catch {}
+    try { $r.Config = Get-Content -LiteralPath (Join-Path $env:ProgramData 'PotatoPC\maintenance\maintenance.json') -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop } catch {}
     return $r
 }
 

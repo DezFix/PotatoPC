@@ -13,7 +13,7 @@ function Get-TestReference {
     $ref = @{ CpuSingle = 280e6; CpuMulti = 2.0e9; MemCopy = 14000; DiskSeq = 3000; DiskRand = 50 }
     try {
         $f = Join-Path $AssetsFolder 'test-reference.json'
-        if (Test-Path -LiteralPath $f) { $j = Get-Content -LiteralPath $f -Raw | ConvertFrom-Json; foreach ($p in $j.PSObject.Properties) { $ref[$p.Name] = [double]$p.Value } }
+        if (Test-Path -LiteralPath $f) { $j = Get-Content -LiteralPath $f -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop; foreach ($p in $j.PSObject.Properties) { $ref[$p.Name] = [double]$p.Value } }
     } catch {}
     return $ref
 }
@@ -71,7 +71,7 @@ function Get-BatteryReport {
     try {
         $r = Invoke-ProcessLive -FilePath (Join-Path $env:WINDIR 'System32\powercfg.exe') -Arguments ('/batteryreport /xml /output "' + $f + '"') -TimeoutSec 60 -Quiet
         if (-not (Test-Path -LiteralPath $f)) { return $null }
-        [xml]$x = Get-Content -LiteralPath $f -Raw
+        [xml]$x = Get-Content -LiteralPath $f -Raw -ErrorAction Stop
         $b = @($x.BatteryReport.Batteries.Battery)[0]
         if (-not $b) { return $null }
         return @{ Design = [double]$b.DesignCapacity; Full = [double]$b.FullChargeCapacity; Cycles = [int]$b.CycleCount; Name = ([string]$b.Manufacturer + ' ' + [string]$b.Id).Trim() }
@@ -89,7 +89,7 @@ function Invoke-PcTest {
     & $next 0
     $sum = Get-SystemSummary
     $R.Summary = $sum
-    try { $bios = Get-CimInstance Win32_BIOS; $R.Bios = ([string]$bios.SMBIOSBIOSVersion) } catch {}
+    try { $bios = Get-CimInstance Win32_BIOS -ErrorAction Stop; $R.Bios = ([string]$bios.SMBIOSBIOSVersion) } catch {}
     if (-not ('PotatoBench' -as [type])) { Add-Type -TypeDefinition ([System.IO.File]::ReadAllText((Join-Path $AssetsFolder 'PotatoBench.cs'))) -ErrorAction Stop }
     [PotatoBench]::Cancel = $false
 
@@ -213,7 +213,7 @@ function Invoke-PcTest {
     if ($R.Issues.Count) { $R.Verdict += ', есть неисправности' }
     $R.Usage = if ($R.Score -ge 85) { 'Подходит для любых задач, включая современные игры и монтаж.' } elseif ($R.Score -ge 65) { 'Подходит для работы с фото и видео, игр на средних настройках.' } elseif ($R.Score -ge 40) { 'Подходит для офиса, учёбы, видео и лёгких игр.' } else { 'Подходит для браузера, почты и документов.' }
     $R.Advice = @($R.Advice | Select-Object -Unique)
-    try { ($R | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath (Join-Path $ReportFolder 'test-last.json') -Encoding UTF8 } catch {}
+    try { ($R | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath (Join-Path $ReportFolder 'test-last.json') -Encoding UTF8 -ErrorAction Stop } catch {}
     Add-History -Kind 'test' -Name ('Тест ПК: ' + $R.Score + '/100 - ' + $R.Verdict)
     Set-JobProgress 1 '8|Готово'
     return $R
@@ -301,7 +301,7 @@ function Show-Page_test {
     if (-not $ui.Result) {
         try {
             $f = Join-Path $ReportFolder 'test-last.json'
-            if (Test-Path -LiteralPath $f) { $ui.Result = Get-Content -LiteralPath $f -Raw -Encoding UTF8 | ConvertFrom-Json; Set-TestResult $ui.Result -FromFile }
+            if (Test-Path -LiteralPath $f) { $ui.Result = Get-Content -LiteralPath $f -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop; Set-TestResult $ui.Result -FromFile }
         } catch {}
     }
 }
@@ -463,7 +463,7 @@ $(if ($hist.Count) { "<h2>Выполненные работы (последни�
     $desk = [Environment]::GetFolderPath('Desktop')
     $file = Join-Path $(if ($desk -and (Test-Path -LiteralPath $desk)) { $desk } else { $ReportFolder }) $name
     [System.IO.File]::WriteAllText($file, $html, (New-Object System.Text.UTF8Encoding($true)))
-    try { Copy-Item -LiteralPath $file -Destination (Join-Path $ReportFolder $name) -Force } catch {}
+    try { Copy-Item -LiteralPath $file -Destination (Join-Path $ReportFolder $name) -Force -ErrorAction Stop } catch {}
     Add-History -Kind 'report' -Name ('Отчёт мастера: ' + $name) -Ref $file
     return $file
 }

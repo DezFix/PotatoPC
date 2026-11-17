@@ -94,7 +94,7 @@ function Get-WingetInstalled {
     if ($r.Missing) { return $null }
     $out = @()
     try {
-        $j = Get-Content -LiteralPath $tmp -Raw -Encoding UTF8 | ConvertFrom-Json
+        $j = Get-Content -LiteralPath $tmp -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         foreach ($src in @($j.Sources)) {
             foreach ($p in @($src.Packages)) { $out += @{ Id = [string]$p.PackageIdentifier; Version = [string]$p.Version } }
         }
@@ -152,7 +152,7 @@ function Get-AppCatalog {
     # Старый формат (ManualCategories / Presets) тоже понимаем.
     $cat = @{ Categories = [ordered]@{}; Kits = @() }
     try {
-        $j = Get-Content -LiteralPath $AppsJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $j = Get-Content -LiteralPath $AppsJsonPath -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         $cats = if ($j.Categories) { $j.Categories } else { $j.ManualCategories }
         foreach ($p in $cats.PSObject.Properties) {
             $cat.Categories[$p.Name] = @($p.Value | ForEach-Object { @{ Name = [string]$_.Name; Id = [string]$_.Id; Desc = [string]$_.Description } })
@@ -161,4 +161,70 @@ function Get-AppCatalog {
         elseif ($j.Presets) { foreach ($p in $j.Presets.PSObject.Properties) { $cat.Kits += @{ Name = $p.Name; Desc = ''; Ids = @($p.Value) } } }
     } catch {}
     return $cat
+}
+
+function Install-WingetClient {
+    <#
+      Фон. Ставит winget (App Installer) на этот ПК:
+        1) регистрирует уже лежащий в системе App Installer (частый случай на чистой Windows);
+        2) иначе качает с официального GitHub Microsoft (winget-cli): зависимости и
+           Microsoft.DesktopAppInstaller.msixbundle, проверяет подпись Microsoft и ставит.
+      Возвращает $true, если winget после этого найден.
+    #>
+    if (Get-WingetPath) { Write-Log 'winget уже установлен' 'ok'; return $true }
+    Write-Log 'Пробую зарегистрировать встроенный App Installer...'
+    try {
+        Add-AppxPackage -RegisterByFamilyName -MainPackage 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe' -ErrorAction Stop
+        Start-Sleep -Seconds 2
+        if (Get-WingetPath) { Write-Log 'winget готов' 'ok'; Add-History -Kind 'app' -Name 'Установлен winget (регистрация App Installer)'; return $true }
+    } catch { Write-Log ('Встроенного App Installer нет: ' + $_.Exception.Message) }
+
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    $dir = Join-Path $WorkFolder 'winget-setup'
+    if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
+    New-Item -ItemType Directory -Path $dir -Force -ErrorAction Stop | Out-Null
+    $base = 'https://github.com/microsoft/winget-cli/releases/latest/download/'
+    $arch = switch -Regex ($env:PROCESSOR_ARCHITECTURE) { 'ARM64' { 'arm64' } 'x86' { if ([Environment]::Is64BitOperatingSystem) { 'x64' } else { 'x86' } } default { 'x64' } }
+    $check = {
+        param($f)
+        $sig = Get-AuthenticodeSignature -LiteralPath $f
+        if ($sig.Status -ne 'Valid' -or [string]$sig.SignerCertificate.Subject -notmatch '(?i)O=Microsoft Corporation') { throw ('подпись ' + [System.IO.Path]::GetFileName($f) + ' не прошла проверку: ' + $sig.Status) }
+    }
+    try {
+        Set-JobProgress -1 'Загрузка зависимостей winget...'
+        Write-Log 'Скачиваю winget с GitHub Microsoft (microsoft/winget-cli)...'
+        $depZip = Join-Path $dir 'deps.zip'
+        Invoke-WebRequest -Uri ($base + 'DesktopAppInstaller_Dependencies.zip') -OutFile $depZip -UseBasicParsing -TimeoutSec 300 -ErrorAction Stop
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($depZip, (Join-Path $dir 'deps'))
+        $deps = @(Get-ChildItem -LiteralPath (Join-Path $dir 'deps') -Recurse -Filter '*.appx' -ErrorAction Stop | Where-Object { $_.FullName -match ('(?i)[\\_]' + $arch + '[\\_.]') })
+        foreach ($d in $deps) {
+            & $check $d.FullName
+            Write-Log ('Зависимость: ' + $d.Name)
+            try { Add-AppxPackage -Path $d.FullName -ErrorAction Stop } catch { if ($_.Exception.Message -notmatch '0x80073D06|более поздняя|higher version') { Write-Log ('   ' + $_.Exception.Message) 'warn' } }
+        }
+        Set-JobProgress -1 'Загрузка App Installer...'
+        $bundle = Join-Path $dir 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
+        Invoke-WebRequest -Uri ($base + 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle') -OutFile $bundle -UseBasicParsing -TimeoutSec 600 -ErrorAction Stop
+        & $check $bundle
+        Set-JobProgress -1 'Установка winget...'
+        Write-Log 'Устанавливаю App Installer...'
+        Add-AppxPackage -Path $bundle -ErrorAction Stop
+        Start-Sleep -Seconds 3
+    } catch {
+        Write-Log ('Установка winget не удалась: ' + $_.Exception.Message) 'err'
+        Write-Log 'Можно поставить вручную: Microsoft Store → «Установщик приложений» (App Installer).' 'warn'
+        Add-History -Kind 'app' -Name 'Установка winget' -Result 'fail' -Detail $_.Exception.Message
+        return $false
+    } finally {
+        try { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+    }
+    if (Get-WingetPath) {
+        Write-Log 'winget установлен' 'ok'
+        Add-History -Kind 'app' -Name 'Установлен winget с GitHub Microsoft'
+        try { [void](Invoke-Winget -Arguments 'source update' -TimeoutSec 180 -Quiet) } catch {}
+        return $true
+    }
+    Write-Log 'App Installer установлен, но winget пока не виден. Перезапустите PotatoPC или войдите в систему заново.' 'warn'
+    return $false
 }
