@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 🤖
 # PRESET: potato,game
+# CHECK: Test-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' 1
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

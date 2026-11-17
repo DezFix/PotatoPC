@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 🚪
 # PRESET: potato
+# CHECK: Test-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' 'NoLockScreen' 1
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

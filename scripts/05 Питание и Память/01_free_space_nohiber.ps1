@@ -1,46 +1,28 @@
 ﻿# NAME: Удалить файл гибернации hiberfil.sys (освободить ГБ)
-# DESC: Команда powercfg /hibernate off: удаляет hiberfil.sys (~40% RAM). Пропадут гибернация и быстрый запуск
+# DESC: powercfg /hibernate off: удаляет hiberfil.sys (около 40% объёма RAM). Пропадут гибернация и быстрый запуск. Есть откат
 # TAGS: 2
 # ICON: 💽
 # PRESET: potato
+# CHECK: -not (Test-Path -LiteralPath (Join-Path $env:SystemDrive 'hiberfil.sys'))
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
-    # powercfg пишет ошибки в stderr; при $ErrorActionPreference='Stop' перенаправление
-    # 2>&1 обрывает скрипт до проверки $LASTEXITCODE.
-    function Invoke-Powercfg {
-        param([Parameter(ValueFromRemainingArguments = $true)][string[]]$PcArgs)
-        $prev = $ErrorActionPreference
-        $ErrorActionPreference = "Continue"
-        try {
-            $raw = & powercfg @PcArgs 2>&1
-            return [PSCustomObject]@{ Code = $LASTEXITCODE; Text = (($raw | Out-String).Trim()) }
-        } finally { $ErrorActionPreference = $prev }
-    }
-    # Если гибернация уже выключена, powercfg вернёт 0 и скрипт рапортовал бы
-    # "Место освобождено", хотя диск не изменился.
-    #
-    # Надёжный признак - сам файл hiberfil.sys, а не разбор локализованного
-    # вывода `powercfg /a`: прежняя проверка по регулярке не срабатывала на
-    # английской Windows (порядок слов в строке другой), и скрипт после
-    # успешного удаления печатал "гибернация уже была выключена".
     $hibFile = Join-Path $env:SystemDrive 'hiberfil.sys'
-    $wasOn = $false
-    try { $wasOn = [System.IO.File]::Exists($hibFile) } catch { $wasOn = $false }
-    if (-not $wasOn) {
-        $was = (Invoke-Powercfg /a).Text
-        # Запасной признак по выводу - на случай, если файл уже удалён вручную.
-        $wasOn = ($was -match '(?i)Hibernate\s+available') -or ($was -match '(?i)Гибернация\s+доступна') -or ($was -match '(?i)^\s*hibernate\s+available')
-        if ($wasOn) { $wasOn = $false }
-    }
-    $r = Invoke-Powercfg /hibernate off
-    if ($r.Code -ne 0) { throw ("powercfg /hibernate off: код " + $r.Code + "; " + $r.Text) }
-    if (-not $wasOn) {
-        Write-Output "[=] Гибернация уже была выключена - освобождать нечего."
+    $sizeGb = 0
+    $exists = Test-Path -LiteralPath $hibFile
+    if ($exists) { try { $sizeGb = [math]::Round((Get-Item -LiteralPath $hibFile -Force).Length / 1GB, 1) } catch {} }
+    # powercfg пишет ошибки в stderr: при 'Stop' это оборвало бы скрипт раньше проверки кода.
+    $ErrorActionPreference = "Continue"
+    $out = & powercfg /hibernate off 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    if ($code -ne 0) { throw ("powercfg /hibernate off: код " + $code + "; " + $out.Trim()) }
+    if (-not $exists) {
+        Write-Output "[=] Файла гибернации не было - гибернация уже выключена."
         exit 0
     }
-    Write-Output "[OK] Файл гибернации удален. Место освобождено."
+    Write-Output ("[OK] Гибернация выключена, файл hiberfil.sys удалён" + $(if ($sizeGb -gt 0) { " (освобождено около " + $sizeGb + " ГБ)." } else { "." }))
     exit 0
 } catch {
     Write-Output ("[X] Ошибка: " + $_)

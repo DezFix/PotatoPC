@@ -2,6 +2,7 @@
 # DESC: Возвращает VisualFX, UserPreferencesMask, схему «Сбалансированная», рекламу, GameDVR, задержки автозагрузки и меню. Откат раздела «Скорость»
 # TAGS: 1
 # ICON: ↩️
+# UNDOFOR: 01
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

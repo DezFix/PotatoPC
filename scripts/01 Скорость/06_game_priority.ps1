@@ -3,6 +3,7 @@
 # TAGS: 2
 # ICON: 🎮
 # PRESET: game
+# CHECK: Test-Reg 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games' 'GPU Priority' 8
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

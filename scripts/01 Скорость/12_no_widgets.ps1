@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 📰
 # PRESET: potato,office,game
+# CHECK: Test-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' 'AllowNewsAndInterests' 0
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

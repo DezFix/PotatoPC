@@ -2,6 +2,7 @@
 # DESC: Возвращает базовый уровень AllowTelemetry=1, службы DiagTrack/DcpSvc/WerSvc на их заводские режимы, журналы WMI и задачи планировщика. Откат раздела «Приватность»
 # TAGS: 1
 # ICON: ↩️
+# UNDOFOR: 03
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
@@ -37,11 +38,11 @@ try {
     # «Передача рядом» и сборщик диагностики не возвращались, а DiagTrack
     # наоборот стартовал каждый раз, хотя раньше не стартовал.
     $restore = @(
-        @{ Name = 'DiagTrack'; Mode = 'Manual' },
-        @{ Name = 'dmwappushservice'; Mode = 'Disabled' },
-        @{ Name = 'DusmSvc'; Mode = 'Manual' },
-        @{ Name = 'DcpSvc'; Mode = 'Automatic' },
-        @{ Name = 'diagnosticshub.standardcollector.service'; Mode = 'Automatic' }
+        @{ Name = 'DiagTrack'; Mode = 'Automatic' },
+        @{ Name = 'dmwappushservice'; Mode = 'Manual' },
+        @{ Name = 'DusmSvc'; Mode = 'Automatic' },
+        @{ Name = 'DcpSvc'; Mode = 'Manual' },
+        @{ Name = 'diagnosticshub.standardcollector.service'; Mode = 'Manual' }
     )
     foreach ($s in $restore) {
         if (-not (Get-Service -Name $s.Name -ErrorAction SilentlyContinue)) { continue }

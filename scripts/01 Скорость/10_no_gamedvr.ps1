@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: ⏺️
 # PRESET: potato,game
+# CHECK: Test-Reg 'HKCU:\System\GameConfigStore' 'GameDVR_Enabled' 0
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

@@ -2,6 +2,7 @@
 # DESC: Переподключает удалённые AppX, снимает политики Copilot/Кортаны/OneDrive, службы Xbox в Manual. Снесённое из образа — докачать в Microsoft Store
 # TAGS: 1
 # ICON: ↩️
+# UNDOFOR: 02
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

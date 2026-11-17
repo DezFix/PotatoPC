@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 🚫
 # PRESET: potato,office,game
+# CHECK: Test-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SystemPaneSuggestionsEnabled' 0
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

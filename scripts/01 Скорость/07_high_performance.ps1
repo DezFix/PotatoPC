@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 🔌
 # PRESET: game
+# CHECK: (powercfg /getactivescheme | Out-String) -match '8c5e7fda|Высокая производительность|High performance'
 
 # powercfg /setactive и /duplicatescheme пишут в HKLM — без прав админа скрипт
 # падал на первой же команде, а откат 07_undo_speed права требовал.

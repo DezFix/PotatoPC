@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 🧱
 # PRESET: potato,office,game
+# CHECK: -not @(Get-NetFirewallProfile -ErrorAction Stop | Where-Object { -not $_.Enabled }).Count
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

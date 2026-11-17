@@ -2,6 +2,7 @@
 # DESC: Включает hibernate on + пункт в меню выключения, возвращает быстрый запуск, pagefile в Auto (если он был), выключает Storage Sense и включает Reserved Storage. Откат раздела «Питание и Память»
 # TAGS: 1
 # ICON: ↩️
+# UNDOFOR: 05
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

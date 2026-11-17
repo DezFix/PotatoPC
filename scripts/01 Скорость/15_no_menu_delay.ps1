@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 🖱️
 # PRESET: potato,office,game
+# CHECK: Test-Reg 'HKCU:\Control Panel\Desktop' 'MenuShowDelay' '0'
 
 $ErrorActionPreference = "Stop"
 try {

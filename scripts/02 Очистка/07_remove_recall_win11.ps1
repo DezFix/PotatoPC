@@ -3,6 +3,7 @@
 # TAGS: 1,win11
 # ICON: 🪟
 # PRESET: potato,office,game
+# CHECK: Test-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI' 'AllowRecallEnablement' 0
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

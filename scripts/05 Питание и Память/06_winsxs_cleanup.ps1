@@ -3,6 +3,7 @@
 # TAGS: 2
 # ICON: 🧰
 # PRESET: potato,office
+# TIMEOUT: 2400
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

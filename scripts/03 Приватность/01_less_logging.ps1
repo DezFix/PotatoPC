@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 📝
 # PRESET: potato,office,game
+# CHECK: Test-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\SQMLogger' 'Start' 0
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

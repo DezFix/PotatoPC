@@ -1,0 +1,105 @@
+﻿# PAGE: history
+# TITLE: История и откаты
+# ICON: history
+# ORDER: 95
+# NAV: footer
+
+$script:HiUi = $null
+$script:HistoryIcons = @{ plugin = 'bolt'; clean = 'broom'; startup = 'power'; app = 'box'; drivers = 'chip'; users = 'users'; protect = 'shield'; service = 'wrench'; maintenance = 'clock'; test = 'gauge'; report = 'report'; restore = 'flag'; optimize = 'play' }
+
+function Build-Page_history {
+    $ui = @{}
+    $rp = New-Button -Text 'Создать точку восстановления' -Icon 'flag' -OnClick { Start-BgTask -Name 'Точка восстановления' -Script { New-RestorePoint -Description 'PotatoPC: вручную' } -OnDone { Update-RestorePoints } | Out-Null }
+    $rs = New-Button -Text 'Восстановление системы' -Kind Ghost -OnClick { Start-Process (Join-Path $env:WINDIR 'System32\rstrui.exe') }
+    $L = New-PageLayout -Title 'История и откаты' -Subtitle 'Что и когда менял PotatoPC, как вернуть всё назад' -HeaderRight @($rs, $rp)
+    $ui.Points = New-Section -Title 'Точки восстановления Windows'
+    [void]$L.Body.Children.Add($ui.Points.Root)
+    $ui.Undo = New-Section -Title 'Откаты по разделам'
+    [void]$L.Body.Children.Add($ui.Undo.Root)
+    $rep = New-Button -Text 'Отчёт о проделанной работе' -Kind Ghost -OnClick {
+        $f = Join-Path $ReportFolder 'test-last.json'
+        if (-not (Test-Path -LiteralPath $f)) { Show-Info 'Отчёт строится вместе с результатами теста. Откройте «Тест ПК» и запустите тест - в отчёт попадут и выполненные работы.'; return }
+        try { $t = Get-Content -LiteralPath $f -Raw -Encoding UTF8 | ConvertFrom-Json; $file = New-MasterReport -Test $t; Open-Path $file } catch { Write-Log ('Отчёт: ' + $_.Exception.Message) 'err' }
+    }
+    $ui.Log = New-Section -Title 'Журнал действий' -Right @($rep)
+    [void]$L.Body.Children.Add($ui.Log.Root)
+    $script:HiUi = $ui
+    return $L.Root
+}
+
+function Show-Page_history {
+    param($Arg)
+    $ui = $script:HiUi
+    # Откаты
+    $ui.Undo.Body.Children.Clear()
+    $cats = @{}
+    foreach ($p in @(Get-Plugins | Where-Object { -not $_.IsUndo })) { $cats[$p.CatNum] = $p.Category }
+    foreach ($u in @(Get-UndoPlugins)) {
+        $for = @($u.UndoFor | ForEach-Object { if ($cats[$_]) { $cats[$_] } else { $_ } })
+        $sub = $u.Desc
+        if ($for.Count) { $sub = 'Раздел «' + ($for -join '», «') + '». ' + $sub }
+        $b = New-Button -Text 'Откатить' -Icon 'undo' -Kind Small -Tag $u -OnClick {
+            $p = $this.Tag
+            if (-not (Show-Confirm -Message ('Запустить откат «' + $p.Name + '»?' + "`n`n" + $p.Desc) -Title 'Откат' -Warning)) { return }
+            Start-BgTask -Name ('Откат: ' + $p.Name) -Vars @{ P = $p } -Script { Invoke-PluginBatch -Plugins @($P) -RestorePoint $true -Title 'Откат' } -OnDone { Show-Page_history } | Out-Null
+        }
+        [void]$ui.Undo.Body.Children.Add((New-Row -Left (New-IconTile -Icon 'undo' -Color 'Info') -Main (New-TitleBlock -Title $u.Name -Sub $sub) -Right @($b)))
+    }
+    # Журнал
+    $ui.Log.Body.Children.Clear()
+    $h = @(Get-History -Last 300)
+    $ui.Log.Header.Text = 'Журнал действий · ' + $h.Count
+    if ($h.Count -eq 0) { [void]$ui.Log.Body.Children.Add((New-Placeholder 'PotatoPC пока ничего не менял на этом компьютере.')) }
+    $lastDay = ''
+    foreach ($x in ($h | Select-Object -First 150)) {
+        $t = [datetime]$x.Time
+        $day = $t.ToString('dd MMMM yyyy')
+        if ($day -ne $lastDay) {
+            [void]$ui.Log.Body.Children.Add((New-Text -Text $day -Size 12 -Color 'Muted' -Weight 'SemiBold' -Margin (16, 12, 16, 4)))
+            $lastDay = $day
+        }
+        $icon = $script:HistoryIcons[[string]$x.Kind]; if (-not $icon) { $icon = 'info' }
+        $ok = $x.Result -eq 'ok'
+        $right = @((New-Text -Text $t.ToString('HH:mm') -Size 12 -Color 'Muted'))
+        if (-not $ok) { $right = @((New-Badge 'ошибка' 'bad')) + $right }
+        $main = New-Text -Text ([string]$x.Name) -Size 13
+        if ($x.Detail) { $main.ToolTip = [string]$x.Detail }
+        [void]$ui.Log.Body.Children.Add((New-Row -Left (New-Icon -Name $icon -Size 16 -Color $(if ($ok) { 'Muted' } else { 'Bad' })) -Main $main -Right $right -Padding (16, 6, 16, 6)))
+    }
+    Update-RestorePoints
+}
+
+function Update-RestorePoints {
+    $ui = $script:HiUi
+    $ui.Points.Body.Children.Clear()
+    [void]$ui.Points.Body.Children.Add((New-Placeholder))
+    Start-BgTask -Name 'Точки восстановления' -Silent -Script {
+        $pts = @()
+        try { $pts = @(Get-ComputerRestorePoint -ErrorAction Stop | Sort-Object SequenceNumber -Descending | Select-Object -First 8 | ForEach-Object { @{ Desc = [string]$_.Description; Time = $_.ConvertToDateTime($_.CreationTime) } }) } catch {}
+        $disabled = $false
+        try { $v = Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore' -Name DisableSR -ErrorAction Stop; $disabled = ($v.DisableSR -eq 1) } catch {}
+        return @{ Points = $pts; Disabled = $disabled }
+    } -OnDone {
+        param($r)
+        $ui = $script:HiUi
+        $ui.Points.Body.Children.Clear()
+        if (-not $r) { return }
+        if ($r.Points.Count -eq 0) {
+            $en = New-Button -Text 'Включить защиту системы' -Kind Small -OnClick {
+                Start-BgTask -Name 'Защита системы' -Script {
+                    Enable-ComputerRestore -Drive ($env:SystemDrive + '\') -ErrorAction Stop
+                    [void](Invoke-ProcessLive -FilePath (Join-Path $env:WINDIR 'System32\vssadmin.exe') -Arguments ('resize shadowstorage /for=' + $env:SystemDrive + ' /on=' + $env:SystemDrive + ' /maxsize=5%') -TimeoutSec 60 -Quiet)
+                    Write-Log ('Защита системы включена для ' + $env:SystemDrive + ' (до 5% диска)') 'ok'
+                    Add-History -Kind 'restore' -Name 'Включена защита системы'
+                    [void](New-RestorePoint -Description 'PotatoPC: первая точка')
+                } -OnDone { Update-RestorePoints } | Out-Null
+            }
+            $msg = if ($r.Disabled) { 'Защита системы запрещена политикой - точки восстановления не создаются.' } else { 'Точек восстановления нет. Скорее всего, защита системы выключена - без неё откатить Windows целиком не получится.' }
+            [void]$ui.Points.Body.Children.Add((New-Row -Left (New-Icon -Name 'warn' -Size 18 -Color 'Warn') -Main (New-Text -Text $msg -Size 13 -Wrap) -Right @($en)))
+            return
+        }
+        foreach ($p in $r.Points) {
+            [void]$ui.Points.Body.Children.Add((New-Row -Left (New-Icon -Name 'flag' -Size 16 -Color 'Muted') -Main (New-Text -Text $p.Desc -Size 13) -Right @((New-Text -Text $p.Time.ToString('dd.MM.yyyy HH:mm') -Size 12 -Color 'Muted')) -Padding (16, 6, 16, 6)))
+        }
+    } | Out-Null
+}

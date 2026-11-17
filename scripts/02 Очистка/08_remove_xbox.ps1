@@ -3,6 +3,7 @@
 # TAGS: 2
 # ICON: 🎮
 # PRESET: potato,office
+# CHECK: Test-Reg 'HKLM:\SYSTEM\CurrentControlSet\Services\XblGameSave' 'Start' 4
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

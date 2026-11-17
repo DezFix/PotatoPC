@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 🕵️
 # PRESET: potato,office,game
+# CHECK: (Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name AllowTelemetry -ErrorAction Stop).AllowTelemetry -le 1
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

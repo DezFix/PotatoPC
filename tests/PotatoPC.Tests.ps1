@@ -1,361 +1,102 @@
-﻿$script:TestRoot = Split-Path -Parent $PSScriptRoot
+﻿# Тесты PotatoPC v7 (Pester 5).
+#   Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck
+#   Invoke-Pester .\tests
+# Проверяют то, что ломается чаще всего: синтаксис, шапки плагинов, кодировку,
+# страницы, XAML и разбор вывода winget. Окно не открывают.
 
-Describe 'PotatoPC security helpers' {
-    BeforeAll {
-        . (Join-Path $script:TestRoot 'modules\_protect.ps1')
-    }
+BeforeAll {
+    $script:Root = Split-Path $PSScriptRoot -Parent
+    $script:CoreDir = Join-Path $Root 'core'
+    $script:AppRoot = $Root
+    . (Join-Path $CoreDir 'Config.ps1')
+    . (Join-Path $CoreDir 'Runtime.ps1')
+    . (Join-Path $CoreDir 'Plugins.ps1')
+    . (Join-Path $CoreDir 'Winget.ps1')
+    $script:AllPs1 = @(Get-ChildItem -LiteralPath $Root -Recurse -Filter '*.ps1' -File | Where-Object { $_.FullName -notmatch '[\\/](_archive_v6|\.git)[\\/]' })
+    $script:Plugins = @(Get-Plugins -Force)
+}
 
-    It 'accepts a valid YARA manifest' {
-        $manifest = ConvertFrom-ProtectYaraManifest -Content "# comment`nMALW_Test.yar`nRAT_Test.yar`n"
-        $manifest.Valid | Should Be $true
-        @($manifest.Names).Count | Should Be 2
-    }
-
-    It 'rejects path traversal in a YARA manifest' {
-        $manifest = ConvertFrom-ProtectYaraManifest -Content "..\outside.yar`n"
-        $manifest.Valid | Should Be $false
-    }
-
-    It 'rejects unsafe local paths' {
-        $unsafe = @('..\outside.ps1', '\\server\share\file.ps1', 'C:\temp\*.ps1', 'C:\temp\bad|name.ps1')
-        foreach ($path in $unsafe) {
-            $result = ConvertTo-ProtectPath -Path $path -AllowMissing
-            if ($null -ne $result) { throw "Path was accepted: $path" }
+Describe 'Файлы' {
+    It 'все .ps1 без синтаксических ошибок' {
+        $bad = foreach ($f in $AllPs1) {
+            $t = $null; $e = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$t, [ref]$e)
+            if ($e.Count) { $f.Name + ': ' + $e[0].Message }
         }
+        $bad | Should -BeNullOrEmpty
     }
-
-    It 'keeps protected paths inside their root' {
-        $root = Join-Path $env:TEMP 'PotatoPC-test-root'
-        $child = Join-Path $root 'child'
-        $sibling = Join-Path $env:TEMP 'PotatoPC-test-sibling'
-        Test-ProtectPathWithin -Path $child -Root $root | Should Be $true
-        Test-ProtectPathWithin -Path $sibling -Root $root | Should Be $false
+    It 'все .ps1 в UTF-8 с BOM (иначе Windows PowerShell 5.1 ломает кириллицу)' {
+        $bad = foreach ($f in $AllPs1) {
+            $b = [System.IO.File]::ReadAllBytes($f.FullName)
+            if ($b.Length -lt 3 -or $b[0] -ne 0xEF -or $b[1] -ne 0xBB -or $b[2] -ne 0xBF) { $f.Name }
+        }
+        $bad | Should -BeNullOrEmpty
     }
-
-    It 'restricts restore targets to the built-in scan roots' {
-        $tempRoot = [string]$env:TEMP
-        Test-ProtectRestoreTarget -OriginalPath (Join-Path $tempRoot 'restore-test.bin') -ScanRoot $tempRoot | Should Be $true
-        Test-ProtectRestoreTarget -OriginalPath 'C:\Windows\System32\restore-test.bin' -ScanRoot 'C:\Windows\System32' | Should Be $false
+    It 'XAML читается как XML' {
+        foreach ($x in @(Get-ChildItem -LiteralPath (Join-Path $Root 'assets') -Filter '*.xaml')) { { [xml](Get-Content -LiteralPath $x.FullName -Raw) } | Should -Not -Throw }
     }
-
-    It 'pins every bundled YARA rule hash' {
-        $script:YaraRuleHashes.Count | Should Be 30
-        foreach ($hash in @($script:YaraRuleHashes.Values)) { $hash | Should Match '^[0-9A-F]{64}$' }
-        $ruleNames = @(Get-Content -LiteralPath (Join-Path $script:TestRoot 'protect\rules.txt') -Encoding UTF8 | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') })
-        (@($ruleNames | Where-Object { -not $script:YaraRuleHashes.ContainsKey($_) }).Count) | Should Be 0
-        (Get-TextSha256 -Text (($ruleNames -join "`n") + "`n")) | Should Be $script:YaraRulesManifestSha256
+    It 'SHA256SUMS совпадает с файлами' {
+        $map = Get-ManifestMap
+        $map.Count | Should -BeGreaterThan 10
+        $bad = foreach ($k in $map.Keys) {
+            $p = Join-Path $Root $k
+            if (-not (Test-Path -LiteralPath $p) -or (Get-RepoFileHash -Path $p) -ne $map[$k]) { $k }
+        }
+        $bad | Should -BeNullOrEmpty
     }
 }
 
-Describe 'PotatoPC scanner helpers' {
-    BeforeAll {
-        function Set-BgResult { param([string]$Key, $Value) $script:CapturedScanStatus = $Value }
-        . (Join-Path $script:TestRoot 'modules\_protect.ps1')
-        $script:SavedWorkFolder = $script:WorkFolder
-        $script:SavedRepoCacheFolder = $script:RepoCacheFolder
-        $script:SavedLocalRepoRoot = $script:LocalRepoRoot
-    }
-
-    It 'publishes scanner phase and progress state' {
-        $script:ScanOperationId = 'test-operation'
-        Set-ProtectScanStatus -Phase 'scan' -Index 3 -Total 10 -Progress 0.42 -Message 'Проверяю файл' -OperationId 'test-operation'
-        $script:CapturedScanStatus.Phase | Should Be 'scan'
-        $script:CapturedScanStatus.Index | Should Be 3
-        $script:CapturedScanStatus.Total | Should Be 10
-        [double]$script:CapturedScanStatus.Progress | Should Be 0.42
-    }
-
-    It 'excludes runtime and repository roots from scan targets' {
-        $script:WorkFolder = Join-Path $env:TEMP 'PotatoPC-scanner-test'
-        $script:RepoCacheFolder = Join-Path $script:WorkFolder 'cache'
-        $script:LocalRepoRoot = Join-Path $env:TEMP 'PotatoPC-scanner-repo'
-        $targets = @(Get-ProtectScanTargets)
-        foreach ($target in $targets) {
-            if (Test-ProtectPathWithin -Path $target -Root $script:WorkFolder) { throw ('Runtime root was not excluded: ' + $target) }
-            if (Test-ProtectPathWithin -Path $target -Root $script:LocalRepoRoot) { throw ('Repository root was not excluded: ' + $target) }
+Describe 'Плагины' {
+    It 'найдены' { $Plugins.Count | Should -BeGreaterThan 20 }
+    It 'у каждого есть NAME, DESC и TAGS' {
+        $bad = foreach ($p in $Plugins) {
+            $h = Read-PluginHeader -Path $p.Path
+            if (-not $h['NAME'] -or -not $h['DESC'] -or -not $h['TAGS']) { $p.Id }
         }
-        $script:WorkFolder = $script:SavedWorkFolder
-        $script:RepoCacheFolder = $script:SavedRepoCacheFolder
-        $script:LocalRepoRoot = $script:SavedLocalRepoRoot
+        $bad | Should -BeNullOrEmpty
     }
-
-    It 'returns a trusted Defender executable or an empty result' {
-        $exe = [string](Get-DefenderScanExecutable)
-        if (-not [string]::IsNullOrWhiteSpace($exe)) { $exe | Should Match '^[A-Za-z]:\\' }
+    It 'выражения CHECK разбираются' {
+        $bad = foreach ($p in @($Plugins | Where-Object Check)) { try { [void][scriptblock]::Create($p.Check) } catch { $p.Id } }
+        $bad | Should -BeNullOrEmpty
     }
-
-    It 'keeps Protection firewall-free and Defender read-only' {
-        $protectText = Get-Content -LiteralPath (Join-Path $script:TestRoot 'modules\_protect.ps1') -Raw -Encoding UTF8
-        $auditText = Get-Content -LiteralPath (Join-Path $script:TestRoot 'modules\_audit.ps1') -Raw -Encoding UTF8
-        if ($protectText -match 'Get-NetFirewallProfile|Set-NetFirewallProfile') { throw 'Firewall logic remains in Protection' }
-        if ($auditText -match 'Get-NetFirewallProfile|Set-NetFirewallProfile') { throw 'Firewall logic remains in audit' }
-        # Раньше проверка висела на одном файле 03_light_defender.ps1. Скрипты
-        # диагностики из списка модулей убраны - вместо этого проверяем ВСЕ
-        # прямые скрипты разом, что гарантия "Defender не ослабляется" держится.
-        # Откаты (09 Откат) исключены осознанно: их работа - вернуть настройки,
-        # в том числе Defender, к заводским. Проверяем их отдельно и строже:
-        # откат не имеет права включать то, что прямой скрипт не выключал.
-        $weakeners = 'Set-MpPreference|DisableRealtimeMonitoring|DisableArchiveScanning|DisableScanningMappedNetworkDrivesForFullScan|Add-MpPreference'
-        $checked = 0
-        $undoDir = Join-Path $script:TestRoot 'scripts\09 Откат'
-        foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $script:TestRoot 'scripts') -Recurse -File -Filter '*.ps1' -ErrorAction SilentlyContinue)) {
-            if ($f.DirectoryName -eq $undoDir) { continue }
-            $text = Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8
-            $code = [regex]::Replace($text, '(?s)<#.*?#>', '')
-            $code = ($code -split "`r?`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
-            $checked++
-            if ($code -match $weakeners) { throw ('Script weakens Defender: ' + $f.Name) }
-        }
-        if ($checked -lt 20) { throw ("Expected the full script set, saw only " + $checked) }
-
-        $undoText = Get-Content -LiteralPath (Join-Path $undoDir '02_undo_defender.ps1') -Raw -Encoding UTF8
-
-        # В откате эти параметры обязаны ставиться в $false, то есть защита
-        # ВКЛЮЧАется. Проверяем значение, а не имя: откат содержит
-        # "DisableArchiveScanning = $false" - это включение, а не ослабление.
-        $undoCode = ($undoText -split "`r?`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
-        foreach ($forbidden in @('DisableRealtimeMonitoring','DisableArchiveScanning','DisableScanningMappedNetworkDrivesForFullScan')) {
-            if ($undoCode -match ($forbidden + '\s*=\s*\$?true')) {
-                throw ('Defender rollback turns protection OFF: ' + $forbidden)
-            }
-        }
+    It 'пресеты только potato/office/game' {
+        $bad = foreach ($p in $Plugins) { foreach ($x in $p.Presets) { if ($x -notin @('potato', 'office', 'game')) { $p.Id + ': ' + $x } } }
+        $bad | Should -BeNullOrEmpty
+    }
+    It 'каждый откат ссылается на существующий раздел' {
+        $cats = @($Plugins | Where-Object { -not $_.IsUndo } | ForEach-Object { $_.CatNum } | Select-Object -Unique)
+        $bad = foreach ($u in @($Plugins | Where-Object { $_.IsUndo -and $_.UndoFor.Count })) { foreach ($c in $u.UndoFor) { if ($cats -notcontains $c) { $u.Id + ' -> ' + $c } } }
+        $bad | Should -BeNullOrEmpty
+    }
+    It 'все плагины из поставки отмечены как доверенные' {
+        @($Plugins | Where-Object { -not $_.Trusted }).Id | Should -BeNullOrEmpty
     }
 }
 
-Describe 'PotatoPC rollback helpers' {
-    BeforeAll {
-        . (Join-Path $script:TestRoot 'modules\_scripts.ps1')
-        $script:ScriptsFolder = Join-Path $script:TestRoot 'scripts'
-    }
-
-    It 'finds rollback scripts in the dedicated source folder' {
-        $paths = @(Get-RollbackScriptPaths)
-        $paths.Count | Should Be 7
-        ($paths | Where-Object { (Split-Path $_ -Leaf) -eq '07_undo_speed.ps1' }).Count | Should Be 1
-        ($paths | Where-Object { (Split-Path $_ -Leaf) -eq '09_undo_autostart.ps1' }).Count | Should Be 1
-    }
-
-    It 'does not expose rollback scripts in the normal list' {
-        $items = @(Load-Scripts)
-        $rollbackCategory = Split-Path (Get-RollbackFolder) -Leaf
-        @($items | Where-Object { $_.Category -eq $rollbackCategory }).Count | Should Be 0
-    }
-
-    It 'builds a confirmation containing the selected rollback names' {
-        $path = Join-Path (Get-RollbackFolder) '08_undo_updates.ps1'
-        $text = Get-RollbackConfirmationMessage -Paths @($path)
-        $text.Contains('08_undo_updates.ps1') | Should Be $true
+Describe 'Страницы' {
+    It 'у каждой страницы есть шапка и Build-Page_<id>' {
+        $bad = foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $Root 'pages') -Filter '*.ps1')) {
+            $h = Read-PluginHeader -Path $f.FullName
+            if (-not $h['PAGE'] -or -not $h['TITLE'] -or -not $h['ICON']) { $f.Name + ': нет шапки'; continue }
+            $txt = Get-Content -LiteralPath $f.FullName -Raw
+            if ($txt -notmatch ('function\s+Build-Page_' + [regex]::Escape($h['PAGE']) + '\b')) { $f.Name + ': нет Build-Page_' + $h['PAGE'] }
+        }
+        $bad | Should -BeNullOrEmpty
     }
 }
 
-Describe 'PotatoPC winget parser' {
-    BeforeAll {
-        . (Join-Path $script:TestRoot 'modules\_updates.ps1')
-    }
-
-    It 'parses a standard winget upgrade table' {
-        $raw = @'
-Name                 Id              Version   Available Source
--------------------------------------------------- --------------- ----------
-Example App          Vendor.Example  1.0.0     2.0.0     winget
-'@
-        $packages = @(ConvertFrom-WingetUpgradeOutput -RawOutput $raw)
-        $packages.Count | Should Be 1
-        $packages[0].Id | Should Be 'Vendor.Example'
-        $packages[0].NewVersion | Should Be '2.0.0'
-    }
-}
-
-Describe 'PotatoPC password helper' {
-    BeforeAll {
-        . (Join-Path $script:TestRoot 'modules\_users.ps1')
-    }
-
-    It 'generates the requested password length' {
-        $password = New-RandomPassword -Length 24
-        $password.Length | Should Be 24
-        $password | Should Match '^[A-Za-z0-9!@#$%^&*]+$'
-    }
-}
-
-Describe 'PotatoPC cleaning guard' {
-    BeforeAll {
-        . (Join-Path $script:TestRoot 'cleaner\CleanGuard.ps1')
-    }
-
-    It 'keeps a drive root intact while normalising paths' {
-        # Обрезание слэша у "C:\" превратило корень в "C:" и ломало
-        # префиксное сравнение - чистка могла бы снести весь диск.
-        (ConvertTo-CleanFullPath 'C:\') | Should Be 'C:\'
-        (ConvertTo-CleanFullPath 'C:\Users\User\Temp\') | Should Be 'C:\Users\User\Temp'
-        (ConvertTo-CleanFullPath '') | Should Be ''
-    }
-
-    It 'protects a root and everything under it, ignoring case' {
-        Test-CleanPathWithin -Path 'C:\ProgramData\PotatoPC\cache\repo' -Root 'C:\ProgramData\PotatoPC' | Should Be $true
-        Test-CleanPathWithin -Path 'c:\programdata\potatopc' -Root 'C:\ProgramData\PotatoPC' | Should Be $true
-    }
-
-    It 'does not let a similarly named sibling through' {
-        # Префиксное сравнение без слэша считало бы PotatoPCX защищённым -
-        # лишняя блокировка была бы безобидна, обратная ошибка опасна.
-        Test-CleanPathWithin -Path 'C:\ProgramData\PotatoPCX' -Root 'C:\ProgramData\PotatoPC' | Should Be $false
-        Test-CleanPathWithin -Path 'C:\Temp2\file.txt' -Root 'C:\Temp' | Should Be $false
-        Test-CleanPathWithin -Path 'C:\Temp2' -Root 'C:\Temp' | Should Be $false
-    }
-
-    It 'refuses to judge an unparsable path as safe' {
-        Test-CleanProtectedPath -Path '' | Should Be $true
-    }
-
-    It 'blocks a system folder itself but lets its cleanable subfolders through' {
-        # Регрессия: системные корни лежали в точечной защите префиксом, и проверка
-        # видела защищённым вообще всё - раздел очистки показывал "(нет)".
-        Test-CleanProtectedPath -Path $env:SystemRoot | Should Be $true
-        Test-CleanProtectedPath -Path (Join-Path $env:SystemRoot 'Temp') | Should Be $false
-        Test-CleanProtectedPath -Path (Join-Path $env:LOCALAPPDATA 'Temp') | Should Be $false
-    }
-
-    It 'refuses to walk a junction, reparse point or protected path' {
-        $fake = [PSCustomObject]@{ Attributes = [System.IO.FileAttributes]::ReparsePoint }
-        Test-CleanReparseItem -Item $fake | Should Be $true
-        $plain = [PSCustomObject]@{ Attributes = [System.IO.FileAttributes]::Directory }
-        Test-CleanReparseItem -Item $plain | Should Be $false
-    }
-}
-
-Describe 'PotatoPC static integrity' {
-    It 'parses every PowerShell file without AST errors' {
-        $errors = @()
-        $files = @(Get-ChildItem -LiteralPath $script:TestRoot -Recurse -File -Filter '*.ps1' -Force)
-        foreach ($file in $files) {
-            $tokens = $null
-            $parseErrors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
-            $errors += @($parseErrors)
-        }
-        $errors.Count | Should Be 0
-    }
-
-    It 'parses project JSON files' {
-        Get-Content -LiteralPath (Join-Path $script:TestRoot 'apps.json') -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop | Out-Null
-        Get-Content -LiteralPath (Join-Path $script:TestRoot 'cleaner\rules.json') -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop | Out-Null
-    }
-
-    It 'uses only known preset names in script headers' {
-        $allowed = @('potato','office','game')
-        $bad = @()
-        Get-ChildItem -LiteralPath (Join-Path $script:TestRoot 'scripts') -Recurse -File -Filter '*.ps1' | ForEach-Object {
-            foreach ($line in (Get-Content $_.FullName -TotalCount 12)) {
-                if ($line -match '^\s*#\s*PRESET:\s*(.+)$') {
-                    foreach ($p in ($Matches[1] -split ',')) {
-                        if ($p.Trim() -and $allowed -notcontains $p.Trim().ToLower()) { $bad += $_.Name }
-                    }
-                }
-            }
-        }
-        $bad.Count | Should Be 0
-    }
-
-    It 'ships the shared cleaning guard the cleaner script depends on' {
-        # 02 Очистка/01_clean_junk.ps1 и вкладка «Очистка» подключают этот файл.
-        # Без него оба отказываются чистить (см. остановку в 01_clean_junk.ps1),
-        # а обход защиты вернул бы удаление папок PotatoPC.
-        $guard = Join-Path $script:TestRoot 'cleaner\CleanGuard.ps1'
-        if (-not (Test-Path -LiteralPath $guard -PathType Leaf)) { throw 'cleaner/CleanGuard.ps1 не найден' }
-        $text = Get-Content -LiteralPath $guard -Raw -Encoding UTF8
-        foreach ($fn in @('Test-CleanProtectedPath','Test-CleanPathWithin','Get-CleanGuardRoots',
-                          'Measure-CleanPaths','Clear-CleanPaths','Test-CleanReparseItem')) {
-            if ($text -notmatch ('function\s+' + [regex]::Escape($fn) + '\s*\{')) { throw ('Guard missing function: ' + $fn) }
-        }
-        # Комментарии вырезаем: упоминание опасного cmdlet'а в тексте не должно
-        # считаться его использованием.
-        $code = [regex]::Replace($text, '(?s)<#.*?#>', '')
-        $code = ($code -split "`r?`n" | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
-        # Удалять содержимое папок можно только через безопасные функции.
-        if ($code -match '\bRemove-Item\b') { throw 'Guard deletes with Remove-Item instead of the guarded helpers' }
-        if ($code -match 'Remove-Item\s') { throw 'Guard pipes to Remove-Item (bypasses protection)' }
-        if ($code -match 'Get-ChildItem[^\r\n]*-Recurse') { throw 'Guard walks the tree with Get-ChildItem -Recurse (follows junctions)' }
-        if ($code -match '(?i)Get-NetNeighbor[^\r\n]*\|[^\r\n]*Remove-') { throw 'Guard pipes adapters into a removal cmdlet' }
-    }
-
-    It 'keeps the cleaner header honest about protection' {
-        $junk = Get-ChildItem -LiteralPath (Join-Path $script:TestRoot 'scripts') -Recurse -File -Filter '01_clean_junk.ps1' | Select-Object -First 1
-        $text = Get-Content -LiteralPath $junk.FullName -Raw -Encoding UTF8
-        # Скрипт обязан подключить общий движок и отказаться работать без него.
-        if ($text -notmatch 'CleanGuard\.ps1') { throw 'Чистилка не подключает cleaner/CleanGuard.ps1' }
-        if ($text -notmatch 'exit 1') { throw 'Чистилка не прерывается при отсутствии движка очистки' }
-        foreach ($legacy in @('Test-JunkProtected','Measure-Junk','Clear-Junk','Resolve-JunkPaths')) {
-            if ($text -match ('function\s+' + [regex]::Escape($legacy) + '\s*\{')) { throw ('Дубликат движка очистки: ' + $legacy) }
-        }
-    }
-
-    It 'parses the WPF XAML document' {
-        $xaml = [xml](Get-Content -LiteralPath (Join-Path $script:TestRoot 'assets\window.xaml') -Raw -Encoding UTF8)
-        foreach ($name in @('PageProt','ProtectPanel','ScanProgressText','ScanProgressBar','ScanBtn','DefenderScanBtn','RefreshProtectBtn')) {
-            if ($xaml.OuterXml -notmatch ('x:Name="' + [regex]::Escape($name) + '"')) { throw ('XAML control missing: ' + $name) }
-        }
-    }
-}
-
-Describe 'PotatoPC release manifest' {
-    # Тест ловит ровно тот класс расхождений, из-за которого установщик
-    # блокировал запуск: генератор манифеста нормализует CRLF -> LF, а
-    # проверяющая сторона обязана считать хэш ТОЧНО ТАК ЖЕ. Сейчас обе стороны
-    # (tools/New-ReleaseHashes.ps1, modules/_core.ps1, Install-PotatoPC.ps1)
-    # держат один алгоритм, и манифест совпадает с фактическими файлами.
-    It 'hashes text files with the same normalization the generator uses' {
-        $sums = Join-Path $script:TestRoot 'SHA256SUMS'
-        if (-not (Test-Path -LiteralPath $sums -PathType Leaf)) { throw 'SHA256SUMS не найден' }
-        $expected = @{}
-        foreach ($line in [System.IO.File]::ReadAllLines($sums, [System.Text.Encoding]::UTF8)) {
-            if ([string]::IsNullOrWhiteSpace($line)) { continue }
-            if ($line -notmatch '^([0-9A-Fa-f]{64})  (.+)$') { throw ('Некорректная строка манифеста: ' + $line); continue }
-            $expected[$Matches[2].ToUpperInvariant()] = $Matches[1].ToUpperInvariant()
-        }
-        if ($expected.Count -eq 0) { throw 'Манифест пуст' }
-
-        function Get-ManifestHash {
-            param([string]$Path)
-            $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
-            $nm  = [System.IO.Path]::GetFileName($Path).ToLowerInvariant()
-            $isText = (@('.bat','.cfg','.cmd','.conf','.css','.csv','.editorconfig','.gitattributes','.gitignore','.htm','.html','.ini','.js','.json','.md','.ps1','.psd1','.toml','.txt','.svg','.xml','.xaml','.yaml','.yml','.yar','.yara') -contains $ext) -or ($nm -match '^(license|notice|copying|readme)$')
-            if ($isText) {
-                $text = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($Path))
-                $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
-                $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
-                $sha = [System.Security.Cryptography.SHA256]::Create()
-                try { return ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '') } finally { $sha.Dispose() }
-            }
-            return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
-        }
-
-        $mismatch = @()
-        foreach ($rel in $expected.Keys) {
-            $full = Join-Path $script:TestRoot ($rel -replace '/', '\')
-            if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { $mismatch += ('нет файла: ' + $rel); continue }
-            if ((Get-ManifestHash -Path $full) -ne $expected[$rel]) { $mismatch += ('хэш: ' + $rel) }
-        }
-        if ($mismatch.Count -gt 0) {
-            throw ("Манифест разошёлся с файлами (" + $mismatch.Count + "): " + (($mismatch | Select-Object -First 10) -join '; '))
-        }
-    }
-
-    It 'covers every tracked file with the manifest' {
-        $sums = Join-Path $script:TestRoot 'SHA256SUMS'
-        $inManifest = New-Object 'System.Collections.Generic.HashSet[string]'
-        foreach ($line in [System.IO.File]::ReadAllLines($sums, [System.Text.Encoding]::UTF8)) {
-            if ($line -match '^([0-9A-Fa-f]{64})  (.+)$') { [void]$inManifest.Add($Matches[2].ToUpperInvariant()) }
-        }
-        $rootLen = $script:TestRoot.Length
-        $uncovered = @()
-        foreach ($f in @(Get-ChildItem -LiteralPath $script:TestRoot -Recurse -File -Force |
-                        Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' -and $_.Name -ne 'SHA256SUMS' })) {
-            $rel = $f.FullName.Substring($rootLen).TrimStart('\','/').Replace('\','/').ToUpperInvariant()
-            if (-not $inManifest.Contains($rel)) { $uncovered += $rel }
-        }
-        if ($uncovered.Count -gt 0) {
-            throw ("Файлы вне манифеста (" + $uncovered.Count + "): " + (($uncovered | Select-Object -First 10) -join '; '))
-        }
+Describe 'winget' {
+    It 'разбирает таблицу upgrade с именами из нескольких слов' {
+        $t = @"
+Name                Id              Version    Available  Source
+-------------------------------------------------------------------
+Google Chrome       Google.Chrome   130.0.6723 131.0.6778 winget
+7-Zip 23.01 (x64)   7zip.7zip       23.01      24.08      winget
+"@
+        $rows = @(ConvertFrom-WingetTable -Text $t)
+        $rows.Count | Should -Be 2
+        $rows[0][0] | Should -Be 'Google Chrome'
+        $rows[1][1] | Should -Be '7zip.7zip'
+        $rows[1][3] | Should -Be '24.08'
     }
 }

@@ -3,6 +3,7 @@
 # TAGS: 2
 # ICON: ☁️
 # PRESET: potato,game
+# CHECK: Test-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive' 'DisableFileSyncNGSC' 1
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

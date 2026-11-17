@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 🎤
 # PRESET: potato,office,game
+# CHECK: Test-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'DisableWebSearch' 1
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

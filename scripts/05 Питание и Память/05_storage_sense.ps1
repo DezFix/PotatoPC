@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 🧽
 # PRESET: potato,office,game
+# CHECK: Test-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy' '01' 1
 
 $ErrorActionPreference = "Stop"
 try {

@@ -1,8 +1,10 @@
 ﻿# NAME: Удалить встроенные приложения (Bloatware)
-# DESC: Сносит 24 AppX через Remove-AppxPackage: Solitaire, Советы, Новости, Skype и т.п. + убирает из образа системы
+# DESC: Погода, Новости, Карты, Solitaire, Skype, Office Hub и др. Ножницы, Часы и «Связь с телефоном» не трогает. Есть откат
 # TAGS: 2
 # ICON: 🗑️
 # PRESET: potato,office,game
+# CHECK: -not (Get-AppxPackage -Name 'Microsoft.BingNews','Microsoft.MicrosoftSolitaireCollection','Microsoft.GetHelp' -ErrorAction SilentlyContinue)
+# TIMEOUT: 900
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
@@ -16,9 +18,9 @@ try {
         "Microsoft.BingWeather","Microsoft.Getstarted","Microsoft.Microsoft3DViewer",
         "Microsoft.MicrosoftOfficeHub","Microsoft.MicrosoftSolitaireCollection",
         "Microsoft.MixedReality.Portal","Microsoft.Office.OneNote","Microsoft.OutlookForWindows",
-        "Microsoft.People","Microsoft.ScreenSketch","Microsoft.SkypeApp","Microsoft.Wallet",
-        "Microsoft.WindowsAlarms","Microsoft.WindowsFeedbackHub","Microsoft.WindowsMaps",
-        "Microsoft.WindowsSoundRecorder","Microsoft.YourPhone",
+        "Microsoft.People","Microsoft.SkypeApp","Microsoft.Wallet",
+        "Microsoft.WindowsFeedbackHub","Microsoft.WindowsMaps",
+        "Microsoft.WindowsSoundRecorder",
         "Microsoft.BingNews","Microsoft.NewsAndInterests","Microsoft.549981C3F5F10"
     )
     $n = 0; $nProv = 0

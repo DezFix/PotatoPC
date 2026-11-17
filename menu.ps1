@@ -1,250 +1,164 @@
-<#
+﻿<#
 .SYNOPSIS
-    PotatoPC Optimizer v6 - Entry Point
+    PotatoPC v7 - ускорение, очистка и защита Windows для слабых ПК.
 .DESCRIPTION
-    Local:  powershell -STA -NoProfile -ExecutionPolicy Bypass -File menu.ps1
-    Remote: irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
+    Локально:  powershell -STA -NoProfile -ExecutionPolicy Bypass -File menu.ps1
+    По ссылке: irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex
 #>
 
+$RemoteMenuUrl = 'https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1'
+$RemoteZipUrl  = 'https://codeload.github.com/DezFix/PotatoPC/zip/refs/heads/main'
+
+# --- 1. Права администратора, Windows PowerShell 5.1 и STA (нужно для WPF) ---
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
-    Write-Host "Administrator rights required. Relaunching..." -ForegroundColor Yellow
-    try {
-        if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
-            Start-Process powershell "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-        } else {
-            Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command', 'irm https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1 | iex'
-        }
-    } catch {
-        Write-Host "Failed to relaunch as administrator. Run the console manually as administrator." -ForegroundColor Red
-        Read-Host "Press Enter to exit"
+$isSta = [System.Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA'
+$isDesktopPs = $PSVersionTable.PSEdition -ne 'Core'
+if (-not ($isAdmin -and $isSta -and $isDesktopPs)) {
+    $ps = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $argLine = if ($PSCommandPath -and (Test-Path -LiteralPath $PSCommandPath)) {
+        '-STA -NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
+    } else {
+        '-STA -NoProfile -ExecutionPolicy Bypass -Command "irm ''' + $RemoteMenuUrl + ''' | iex"'
     }
-    exit
+    try {
+        if ($isAdmin) { Start-Process -FilePath $ps -ArgumentList $argLine }
+        else { Write-Host 'Нужны права администратора, перезапускаю...' -ForegroundColor Yellow; Start-Process -FilePath $ps -ArgumentList $argLine -Verb RunAs }
+    } catch {
+        Write-Host 'Не удалось перезапуститься от администратора. Запустите PowerShell от имени администратора вручную.' -ForegroundColor Red
+        try { Read-Host 'Enter - выход' | Out-Null } catch {}
+    }
+    return
 }
-
-# IMPORTANT: Set-ExecutionPolicy runs UNCONDITIONALLY and BEFORE any file work.
-# An earlier attempt to save time here (check if policy is not Restricted) broke
-# the link launch: files unpacked from a ZIP carry Mark-of-the-Web, and the
-# default policy on Windows 11 is RemoteSigned, not Restricted. The check
-# silently skipped the fix, dot-source threw PSSecurityException, and the app
-# dumped red errors instead of starting. Do not optimize this.
+# Файлы из ZIP несут Mark-of-the-Web: без Bypass для процесса точечная загрузка
+# модулей падает с PSSecurityException. Делается всегда и до работы с файлами.
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
-# Menu build tag (ASCII-only file!): printed to the log at startup next to the
-# modules build tag, so a version mix (old menu + new modules) is visible.
-$script:MenuTag = '2026-10-14-r7'
-
-# Heavy modules (CimCmdlets, ScheduledTasks, LocalAccounts, Archive,
-# PrintManagement) are deliberately NOT imported: Windows PowerShell 5.1
-# autoloads them on first real use, i.e. lazily and
-# inside a background runspace. On a weak PC pre-importing seven modules
-# cost ~0.5 s before the window appeared.
-Add-Type -AssemblyName PresentationFramework
-Add-Type -AssemblyName PresentationCore
-Add-Type -AssemblyName WindowsBase
-
-if ($PSCommandPath -and (Test-Path $PSCommandPath)) {
-    $script:ModuleDir = Join-Path (Split-Path $PSCommandPath -Parent) "modules"
-} else {
-    # Link launch: fetch a fresh ZIP. Any network/extract trouble ends here
-    # with a readable message + pause instead of a silent flash-and-gone.
-    $zipUrl  = "https://codeload.github.com/DezFix/PotatoPC/zip/refs/heads/main?cachebust=$([Guid]::NewGuid().ToString('N'))"
-    $downloadRoot = Join-Path $env:TEMP ('PotatoPC-link-' + [Guid]::NewGuid().ToString('N'))
-    $zipPath = Join-Path $downloadRoot 'repo.zip'
-    $needBase = @("_config.ps1","_core.ps1","_theme.ps1","_icons.ps1","_ui.ps1","_xaml.ps1")
-    $repoFolder = $null
-    $dlError = $null
-    for ($dlAttempt = 1; $dlAttempt -le 2 -and -not $repoFolder; $dlAttempt++) {
-        try {
-            New-Item -ItemType Directory -Path (Split-Path $zipPath -Parent) -Force | Out-Null
-            if ($dlAttempt -eq 1) { Write-Host "Downloading PotatoPC Optimizer..." -ForegroundColor Cyan }
-            else { Write-Host "Re-downloading PotatoPC Optimizer (attempt 2)..." -ForegroundColor Yellow }
-            Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
-            try {
-                Expand-Archive -Path $zipPath -DestinationPath (Split-Path $zipPath -Parent) -Force -ErrorAction Stop
-            } catch {
-                Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
-                [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, (Split-Path $zipPath -Parent))
-            }
-            Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
-            # Clear Mark-of-the-Web from the WHOLE unpacked tree, not just
-            # top-level *.ps1. Files from the internet carry the zone mark, and
-            # under RemoteSigned (Windows 11 default) PowerShell refuses to load them.
-            $unpacked = @(Get-ChildItem -Path (Split-Path $zipPath -Parent) -Recurse -Force -File -ErrorAction SilentlyContinue)
-            try { $unpacked | Unblock-File -ErrorAction SilentlyContinue } catch {}
-            # Unblock-File returns nothing, so counting its output always gave
-            # zero and the warning below fired on every launch. Check the actual
-            # state of the zone stream instead of guessing.
-            $stillTagged = @()
-            foreach ($f in $unpacked) {
-                if ($f.Extension -ne '.ps1' -and $f.Extension -ne '.psm1') { continue }
-                try { if ($f | Get-Content -Stream Zone.Identifier -ErrorAction SilentlyContinue) { $stillTagged += $f } } catch {}
-            }
-            if ($unpacked.Count -eq 0 -or $stillTagged.Count -gt 0) {
-                Write-Host "[!] Could not clear the zone mark (Mark-of-the-Web) on $($stillTagged.Count) file(s). If scripts refuse to run, execute:" -ForegroundColor Yellow
-                Write-Host "    Unblock-File -Path '$($downloadRoot)' -Recurse" -ForegroundColor Yellow
-            }
-            $cand = Get-ChildItem -Path (Split-Path $zipPath -Parent) -Filter "*-main" -Directory |
-                    Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            if (-not $cand) { throw "Failed to download repository" }
-            $miss = @($needBase | Where-Object { -not (Test-Path (Join-Path (Join-Path $cand.FullName "modules") $_)) })
-            if ($miss.Count -gt 0) { throw ("Archive incomplete, missing: " + ($miss -join ", ")) }
-            $repoFolder = $cand
-        } catch {
-            $dlError = $_
-            $repoFolder = $null
-            if ($dlAttempt -eq 1) { try { Start-Sleep 2 } catch {} }
-        }
+# --- 2. Где лежит приложение ---
+function Get-PotatoHash([string]$Path) {
+    $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
+    $text = @('.bat', '.cfg', '.cmd', '.conf', '.cs', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.psm1', '.toml', '.txt', '.svg', '.xml', '.xaml', '.yaml', '.yml', '.yar', '.yara')
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    if ($text -contains $ext -or [System.IO.Path]::GetFileName($Path) -match '^(?i)(license|notice|copying|readme)$') {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes([System.Text.Encoding]::UTF8.GetString($bytes).Replace("`r`n", "`n").Replace("`r", "`n"))
     }
-    if (-not $repoFolder) {
-        Write-Host ""
-        Write-Host ("FAILED to download PotatoPC: " + $dlError.Exception.Message) -ForegroundColor Red
-        Write-Host "Check internet / VPN / antivirus and run the link again." -ForegroundColor Yellow
-        try { Read-Host "Enter - exit" | Out-Null } catch {}
-        exit 1
-    }
-    $script:ModuleDir = Join-Path $repoFolder.FullName "modules"
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '') } finally { $sha.Dispose() }
 }
 
-$loadOrder = @("_config.ps1", "_core.ps1", "_theme.ps1", "_icons.ps1", "_ui.ps1", "_xaml.ps1")
-$loadFailed = @()
-foreach ($module in $loadOrder) {
-    $modulePath = Join-Path $script:ModuleDir $module
-    if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
-    # Dot-sourcing used to be unguarded: under a blocking execution policy it
-    # threw PSSecurityException and the user got 20 lines of red output
-    # instead of one clear explanation, and the app still did not start.
+if ($PSCommandPath -and (Test-Path -LiteralPath $PSCommandPath)) {
+    # Локальный запуск: работаем с папкой как есть. Свои плагины в scripts\
+    # подхватываются всегда (раньше лишний .ps1 ломал проверку и приложение
+    # молча скачивало копию с GitHub, а плагин пропадал).
+    $script:AppRoot = Split-Path -Parent $PSCommandPath
+    # Разовая миграция с v6: старые модули, сканер YARA и упразднённые плагины
+    # уезжают в _archive_v6 (не удаляются). Иначе старые плагины показались бы
+    # как «сторонние», а 04_foreground_boost и сейчас делал бы хуже.
+    $legacy = @('modules', 'protect', 'assets\window.xaml', 'assets\icons',
+        'scripts\01 Скорость\04_foreground_boost.ps1', 'scripts\01 Скорость\05_game_mode.ps1', 'scripts\02 Очистка\09_clean_autostart.ps1')
+    foreach ($rel in $legacy) {
+        $src = Join-Path $script:AppRoot $rel
+        if (-not (Test-Path -LiteralPath $src)) { continue }
+        try {
+            $dst = Join-Path (Join-Path $script:AppRoot '_archive_v6') $rel
+            New-Item -ItemType Directory -Path (Split-Path $dst -Parent) -Force | Out-Null
+            if (Test-Path -LiteralPath $dst) { Remove-Item -LiteralPath $dst -Recurse -Force -ErrorAction SilentlyContinue }
+            Move-Item -LiteralPath $src -Destination $dst -Force -ErrorAction Stop
+        } catch {}
+    }
+} else {
+    # Запуск по ссылке: свежий архив во временную папку + сверка SHA256SUMS.
+    $dl = Join-Path $env:TEMP ('PotatoPC-run-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $zip = Join-Path $dl 'repo.zip'
     try {
-        . $modulePath
+        New-Item -ItemType Directory -Path $dl -Force | Out-Null
+        Write-Host 'Загружаю PotatoPC...' -ForegroundColor Cyan
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri ($RemoteZipUrl + '?nocache=' + [guid]::NewGuid().ToString('N')) -OutFile $zip -UseBasicParsing -TimeoutSec 90 -ErrorAction Stop
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $dl)
+        Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+        $root = Get-ChildItem -LiteralPath $dl -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'menu.ps1') } | Select-Object -First 1
+        if (-not $root) { throw 'в архиве нет menu.ps1' }
+        Get-ChildItem -LiteralPath $root.FullName -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
+        $man = Join-Path $root.FullName 'SHA256SUMS'
+        if (-not (Test-Path -LiteralPath $man)) { throw 'в архиве нет SHA256SUMS' }
+        $bad = @()
+        foreach ($line in [System.IO.File]::ReadAllLines($man)) {
+            if ($line -notmatch '^([0-9A-Fa-f]{64})  (.+)$') { continue }
+            $f = Join-Path $root.FullName ($Matches[2].Replace('/', '\'))
+            if (-not (Test-Path -LiteralPath $f) -or (Get-PotatoHash $f) -ne $Matches[1].ToUpperInvariant()) { $bad += $Matches[2] }
+        }
+        if ($bad.Count -gt 0) { throw ('файлы не совпали с SHA256SUMS: ' + (($bad | Select-Object -First 5) -join ', ')) }
+        $script:AppRoot = $root.FullName
     } catch {
-        $loadFailed += $module
+        Write-Host ('Не удалось загрузить PotatoPC: ' + $_.Exception.Message) -ForegroundColor Red
+        Write-Host 'Проверьте интернет, VPN или антивирус и запустите команду ещё раз.' -ForegroundColor Yellow
+        try { Read-Host 'Enter - выход' | Out-Null } catch {}
+        return
     }
 }
-if ($loadFailed.Count -gt 0) {
-    $why = ''
-    if (@($loadFailed | Where-Object { $_ -eq '_core.ps1' }).Count -gt 0) {
-        $why = "`n`nMost likely cause: the PowerShell execution policy blocks downloaded .ps1 files.`nRun it in one of these ways:`n  powershell -STA -NoProfile -ExecutionPolicy Bypass -File `"$([System.IO.Path]::GetFullPath($PSCommandPath))`"`n  or: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force"
+
+# --- 3. Загрузка ядра ---
+Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml
+$script:CoreDir = Join-Path $script:AppRoot 'core'
+$coreFiles = @('Config.ps1', 'Runtime.ps1', 'Plugins.ps1', 'System.ps1', 'Winget.ps1', 'Ui.ps1')
+foreach ($cf in $coreFiles) {
+    $p = Join-Path $script:CoreDir $cf
+    if (-not (Test-Path -LiteralPath $p)) {
+        [void][System.Windows.MessageBox]::Show("Не найден файл приложения: core\$cf`nСкачайте PotatoPC заново.", 'PotatoPC', 'OK', 'Error')
+        return
     }
-    throw ("Modules failed to load: " + ($loadFailed -join ', ') + $why)
+    . $p
 }
-$reader = [System.Xml.XmlNodeReader]::new($xaml)
-$window = [Windows.Markup.XamlReader]::Load($reader)
+if (Test-Path -LiteralPath $script:CleanGuardPath) { . $script:CleanGuardPath }
 
-Initialize-Controls $window
-
-# XAML/modules mismatch gate: fail fast with a readable message
-# instead of a cryptic $null crash deep inside _events.ps1.
-$needNames = @("LogOutput","TaskProgressBar","ScriptsPanel","AppsPanel","SysPanel","UpdatesPanel","DiagPanel",
-    "ScriptsFolderText","SelectedCountText","RunScriptsBtn","RebootAfterScriptsChk","SelectAllBtn","DeselectAllBtn",
-    "RefreshBtn","OpenFolderBtn","ClearLogBtn","CopyLogBtn","SaveLogBtn","ToggleLogBtn","LogSplitter","LogRow",
-    "LogOuterBorder","LogHeaderBorder","MainTabControl","InstallAppsBtn","SelectAllAppsBtn","DeselectAllAppsBtn",
-    "AppCountText","RestorePointBtn","PresetPotatoBtn","PresetOfficeBtn","PresetGamesBtn",
-    "ScriptPresetPotatoBtn","ScriptPresetOfficeBtn","ScriptPresetGameBtn","CheckUpdatesBtn","SelectAllUpdatesBtn",
-    "DeselectAllUpdatesBtn","InstallUpdatesBtn","UpdateAllBtn","HiddenUpdatesBtn","UpdateStatusText","UpdateCountText",
-    "StartupAppsPanel","RefreshStartupBtn","DisableStartupBtn","EnableStartupBtn","SelectAllStartupBtn","DeselectAllStartupBtn",
-    "StartupFilterAllBtn","StartupFilterAppBtn","StartupFilterTaskBtn","StartupCountText","StartupSelectedText",
-    "StartupSearchBox","CleanPanel","CleanFilterRow","CleanScanBtn","SelectAllCleanBtn","DeselectAllCleanBtn","CleanBtn",
-    "CleanStatusText","CleanCountText","PageProt","ProtectPanel","ProtectStatusText","ScanProgressText","ScanProgressBar","ScanBtn","DefenderScanBtn","RefreshProtectBtn","SelectAllScanBtn","DeselectAllScanBtn",
-    "QuarantineBtn","RestoreQuarantineBtn","RollbackPanel","RollbackCountText","RollbackFolderText","SelectAllRollbackBtn","DeselectAllRollbackBtn","RunRollbackBtn",
-    "UsersPanel","RefreshUsersBtn","AddUserBtn","ScriptSearchBox","AppSearchBox",
-    "ToolsBtn","AdminBtn","NavModulesBtn","NavStartupBtn","NavUsersBtn","NavAppsBtn","NavUpdatesBtn","NavCleanBtn",
-    "NavProtectBtn","NavDiagBtn","NavSysBtn","NavRollbackBtn","NavRollbackIcon","NavDashBtn","HeaderTitleText","HeaderSubtitleText","SideStatusText")
-$missNames = @($needNames | Where-Object { -not $window.FindName($_) })
-if ($missNames.Count -gt 0) {
-    throw ("XAML outdated, missing controls: " + ($missNames -join ", ") + ". Delete $env:TEMP\PotatoPC and relaunch.")
-}
-
-# Last-chance UI-thread handler: an unhandled error goes to the log and expands
-# the console, but does NOT close the window (used to kill the whole app).
+# --- 4. Окно ---
 try {
-    $window.Dispatcher.add_UnhandledException({
-        param($s, $e)
-        try {
-            $msg = "UI ERROR (caught, window stays): " + $e.Exception.Message
-            try { Write-Log $msg -Color "Red" } catch {}
-            try {
-                $lp = $null; try { $lp = $script:LogPath } catch {}
-                if ($lp) { ("[" + (Get-Date).ToString("HH:mm:ss") + "] " + $msg + "`r`n") | Out-File -FilePath $lp -Append -Encoding UTF8 -ErrorAction SilentlyContinue }
-            } catch {}
-            try { if (-not $script:LogState) { Set-LogExpanded -Expand $true } } catch {}
-            $e.Handled = $true
-        } catch { try { $e.Handled = $true } catch {} }
-    })
+    $script:Window = Import-Shell
+} catch {
+    [void][System.Windows.MessageBox]::Show('Не удалось построить окно: ' + $_.Exception.Message, 'PotatoPC', 'OK', 'Error')
+    return
+}
+Initialize-ShellEvents
+Register-Pages
+# Страницы подключаются здесь, на уровне скрипта: точка-источник внутри функции
+# потеряла бы их функции при выходе из неё.
+foreach ($pg in @($script:Pages.Values)) {
+    try { . $pg.File }
+    catch { Write-Log ('Страница ' + [System.IO.Path]::GetFileName($pg.File) + ' не загрузилась: ' + $_.Exception.Message) 'err' }
+}
+Initialize-Nav
+
+$script:Window.Dispatcher.Add_UnhandledException({
+    param($s, $e)
+    try { Write-Log ('Ошибка интерфейса (окно продолжает работать): ' + $e.Exception.Message) 'err' } catch {}
+    $e.Handled = $true
+})
+
+# Размер и положение окна между запусками.
+try {
+    if (Test-Path -LiteralPath $script:UIStatePath) {
+        $ui = Get-Content -LiteralPath $script:UIStatePath -Raw | ConvertFrom-Json
+        if ($ui.Width -ge 980 -and $ui.Height -ge 620) { $script:Window.Width = [double]$ui.Width; $script:Window.Height = [double]$ui.Height }
+        if ($ui.Maximized) { $script:Window.WindowState = 'Maximized' }
+        if ([bool]$ui.LogOpen) { Set-LogVisible $true }
+    }
 } catch {}
-
-# v6 bindings: chrome, pages, search, dashboard (shared modules untouched)
-. (Join-Path $script:ModuleDir "_ui_v6.ps1")
-
-# --- Restore saved UI state (tabs 0-10; console state restored when saved) ---
-$script:LogHeight = 150
-$script:LogState  = $false
-$ui = Get-UIState
-if ($ui) {
+$script:Window.Add_Closing({
+    foreach ($j in @(Get-RunningTasks)) { Stop-BgTask $j }
     try {
-        if ($ui.LogHeight -ge 60 -and $ui.LogHeight -le 600) { $script:LogHeight = [double]$ui.LogHeight }
-        if ($null -ne $ui.LogExpanded) { $script:LogState = [bool]$ui.LogExpanded }
-        if ($null -ne $ui.Width  -and $ui.Width  -ge 500) { $window.Width  = [double]$ui.Width }
-        if ($null -ne $ui.Height -and $ui.Height -ge 400) { $window.Height = [double]$ui.Height }
-        if ($null -ne $ui.Left -and $null -ne $ui.Top) {
-            $vsL = [System.Windows.SystemParameters]::VirtualScreenLeft
-            $vsT = [System.Windows.SystemParameters]::VirtualScreenTop
-            $vsW = [System.Windows.SystemParameters]::VirtualScreenWidth
-            $vsH = [System.Windows.SystemParameters]::VirtualScreenHeight
-            $l  = [Math]::Max($vsL - $window.Width + 120, [Math]::Min([double]$ui.Left, $vsL + $vsW - 120))
-            $tp = [Math]::Max($vsT - 20, [Math]::Min([double]$ui.Top, $vsT + $vsH - 80))
-            if ($ui.State -ne "Maximized") { $window.Left = $l; $window.Top = $tp }
-        }
-        if ($ui.State -eq "Maximized") { $window.WindowState = "Maximized" }
-        $tab = if ($null -ne $ui.Tab) { [int]$ui.Tab } else { -1 }
-        if ($null -eq $ui.UiVersion -and $tab -eq 9) { $tab = 10 }
-        if ($tab -ge 0 -and $tab -le 10) {
-            try { Set-ActiveNav -Index $tab } catch {}
-        } else {
-            try { Set-ActiveNav -Index 10 } catch {}
-        }
+        @{ Width = $script:Window.RestoreBounds.Width; Height = $script:Window.RestoreBounds.Height
+           Maximized = ($script:Window.WindowState -eq 'Maximized'); LogOpen = ($script:LogPanel.Visibility -eq 'Visible') } |
+            ConvertTo-Json | Set-Content -LiteralPath $script:UIStatePath -Encoding UTF8
     } catch {}
-} else {
-    try { Set-ActiveNav -Index 10 } catch {}
-}
-Set-LogExpanded -Expand $script:LogState -Instant
-try { if ($logSplitter) { $logSplitter.Add_DragDelta({ if ($logRow.Height.Value -gt 32) { $script:LogHeight = $logRow.Height.Value } }) } } catch {}
+})
+$script:Window.Add_Loaded({
+    Write-Log ('PotatoPC ' + $AppVersion + ' (' + $BuildTag + ') · ' + $WinInfo.Name + ' сборка ' + $WinInfo.Build + $(if ($PortableMode) { ' · портативный режим' } else { '' }))
+    Write-Log ('Папка приложения: ' + $AppRoot)
+    $start = if ($script:Pages.Contains('home')) { 'home' } else { @($script:Pages.Keys)[0] }
+    Show-Page -Id $start
+})
 
-# --- Window entrance animation ---
-$window.Opacity = 1
-try { $contentTf = [System.Windows.Media.TranslateTransform]::new(0, 0) } catch { $contentTf = $null }
-if ($contentTf) { try { $window.Content.RenderTransform = $contentTf } catch {} }
-$script:FadedIn = $true
-
-$window.Add_Closing({ Save-UIState })
-
-# Only the modules needed BEFORE the first click. The other 8 (~375 KB)
-# are loaded by Ensure-ModuleLoaded on first open of their tab.
-$uiModules = @("_scripts.ps1", "_search.ps1", "_events.ps1")
-foreach ($module in $uiModules) {
-    $modulePath = Join-Path $script:ModuleDir $module
-    if (-not (Test-Path $modulePath)) { throw "Module not found: $module" }
-    . $modulePath
-}
-# Base modules are loaded - background may run, first snapshot is complete.
-$script:V6ModulesReady = $true
-try { Update-DashStats } catch { }
-
-# The gate checks only what is actually loaded right now. The remaining
-# functions are verified when their module loads; if a module fails to come
-# up, Ensure-PanelBuilt logs "tab N failed to build" with the reason.
-$requiredCommands = @(
-    "Run-SelectedScripts", "Stop-SelectedScripts", "Reset-RunButton", "Select-ScriptPreset",
-    "Build-ScriptsPanel", "Build-RollbackPanel",
-    "Run-SelectedRollbackScripts",
-    "New-Card", "New-CategoryHeader", "Set-LogExpanded", "Update-HeaderCount",
-    "Get-IconImage", "Get-IconSource", "Initialize-WindowIcons", "New-SectionHeader",
-    "Invoke-Async", "Invoke-OnUI", "Set-BgResult", "Get-BgResult",
-    "Start-BgPoller", "Stop-BgPoller", "Test-BgQueue", "Complete-BgPipelines",
-    "Start-Background", "Invoke-ScriptFileWithRetry", "Get-ScriptTimeout",
-    "Set-Progress", "Clear-Progress", "Update-ProgressUI", "Get-LogAutoColor", "Get-LogHexColor",
-    "Sync-V6Page", "Update-DashStats", "Ensure-PanelBuilt", "Ensure-TabReady", "Ensure-ModuleLoaded"
-)
-$missingCommands = @(Test-RequiredCommands -Names $requiredCommands)
-if ($missingCommands.Count -gt 0) {
-    throw "Modules incomplete, missing functions: $($missingCommands -join ', '). Delete $env:TEMP\PotatoPC and relaunch."
-}
+[void]$script:Window.ShowDialog()
+try { $script:PollTimer.Stop() } catch {}

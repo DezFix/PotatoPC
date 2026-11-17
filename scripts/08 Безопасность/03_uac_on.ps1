@@ -3,6 +3,7 @@
 # TAGS: 1
 # ICON: 🛡️
 # PRESET: potato,office,game
+# CHECK: Test-Reg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableLUA' 1
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"

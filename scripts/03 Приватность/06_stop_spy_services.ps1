@@ -1,14 +1,15 @@
 ﻿# NAME: Остановить службы телеметрии (5 шт.)
-# DESC: Стоп + Startup=Disabled для DiagTrack, dmwappushservice, DiagnosticsHub, DusmSvc. DcpSvc - в Manual (иначе сломается «Передача рядом»). Есть откат
+# DESC: Стоп + Startup=Disabled для DiagTrack, dmwappushservice, DiagnosticsHub. DcpSvc - в Manual (иначе сломается «Передача рядом»). Есть откат
 # TAGS: 1
 # ICON: 🔇
 # PRESET: potato,office,game
+# CHECK: (Get-Service DiagTrack -ErrorAction Stop).StartType -eq 'Disabled'
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
     $n = 0; $skip = 0
-    foreach ($s in @("DiagTrack","dmwappushservice","DcpSvc","diagnosticshub.standardcollector.service","DusmSvc")) {
+    foreach ($s in @("DiagTrack","dmwappushservice","DcpSvc","diagnosticshub.standardcollector.service")) {
         $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
         if (-not $svc) { continue }
         try {
