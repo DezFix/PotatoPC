@@ -443,6 +443,8 @@ function Start-Uninstall {
         elseif ($r) { Write-Log 'Остатков не найдено' 'ok' }
         $ui.Loaded = $false
         Update-UninstallPage
+        if ($script:PgUi) { $script:PgUi.InstLoaded = $false; $script:PgUi.UpdLoaded = $false }
+        if ($script:StUi) { $script:StUi.Loaded = $false }
     } | Out-Null
 }
 

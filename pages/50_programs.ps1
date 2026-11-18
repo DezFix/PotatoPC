@@ -15,7 +15,8 @@ function Build-Page_programs {
     $ui.Bar = $ab
     $ui.ActBtn = New-Button -Text 'Установить' -Icon 'plus' -Kind Primary -OnClick { Start-ProgramAction }
     [void]$ab.Right.Children.Add($ui.ActBtn)
-    $L = New-PageLayout -Title 'Программы' -Subtitle 'Установка и обновление через winget - без сайтов, рекламы и галочек «установить заодно»' -HeaderRight @($ui.Search) -ActionBar $ab.Root
+    $refresh = New-Button -Text 'Обновить' -Icon 'refresh' -ToolTip 'Перечитать установленные программы и обновления' -OnClick { $script:PgUi.UpdLoaded = $false; Update-ProgramInstalled }
+    $L = New-PageLayout -Title 'Программы' -Subtitle 'Установка и обновление через winget - без сайтов, рекламы и галочек «установить заодно»' -HeaderRight @($ui.Search, $refresh) -ActionBar $ab.Root
 
     $tabs = New-Stack -Orientation Horizontal -Margin (0, 0, 0, 18)
     foreach ($t in @(@('install', 'Установить'), @('updates', 'Обновления'))) {
@@ -177,7 +178,7 @@ function Update-ProgramInstalled {
             $un = New-Button -Text 'Удалить' -Kind SmallDanger -Tag $p.Id -OnClick {
                 $id = [string]$this.Tag
                 if (-not (Show-Confirm -Message ('Удалить программу ' + $id + '?') -Warning)) { return }
-                Start-BgTask -Name ('Удаление ' + $id) -Vars @{ Id = $id } -Script { Install-WingetPackages -Ids @($Id) -Mode uninstall } -OnDone { Update-ProgramInstalled } | Out-Null
+                Start-BgTask -Name ('Удаление ' + $id) -Vars @{ Id = $id } -Script { Install-WingetPackages -Ids @($Id) -Mode uninstall } -OnDone { Update-ProgramInstalled; if ($script:UnUi) { $script:UnUi.Loaded = $false } } | Out-Null
             }
             $row = New-Row -Left (New-AppIcon -Name $nm -Size 32) -Main (New-TitleBlock -Title $nm -Sub ($p.Id + '  ·  ' + $p.Version)) -Right @($un) -Padding (16, 8, 12, 8)
             [void]$ui.InstPane.Body.Children.Add($row)
@@ -296,6 +297,7 @@ function Start-ProgramAction {
         if ($r -and $r.Fail.Count) { Show-Info -Message ("Не получилось:`n" + ($r.Fail -join "`n") + "`n`nПодробности в журнале.") -Icon 'Warning' }
         $ui.UpdLoaded = $false
         Update-ProgramInstalled
+        if ($script:UnUi) { $script:UnUi.Loaded = $false }
     } | Out-Null
 }
 

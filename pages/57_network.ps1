@@ -413,7 +413,8 @@ function Build-Page_network {
     $script:NetUi = $ui
     $diag = New-Button -Text 'Запустить диагностику' -Icon 'play' -OnClick { Start-NetDiagnostics }
     $ui.DiagBtn = $diag
-    $L = New-PageLayout -Title 'Сеть' -Subtitle 'Скорость, диагностика подключения и исправление неполадок' -HeaderRight @($diag)
+    $refresh = New-Button -Text 'Обновить' -Icon 'refresh' -Kind Ghost -ToolTip 'Перечитать DNS и сведения внизу страницы' -OnClick { Update-NetDns; Update-NetInfoTab }
+    $L = New-PageLayout -Title 'Сеть' -Subtitle 'Скорость, диагностика подключения и исправление неполадок' -HeaderRight @($refresh, $diag)
 
     # Спидтест
     $ui.Ring = New-ScoreRing -Size 96 -Thickness 9
@@ -729,6 +730,7 @@ function Start-NetFix {
             return
         }
         Update-NetDns
+        Update-NetInfoTab
         if ($ui.Verdict.Visibility -eq 'Visible') { Start-NetDiagnostics }
     } | Out-Null
 }
@@ -757,7 +759,7 @@ function Set-NetDnsSection {
 function Set-DnsPreset {
     param([string]$Key)
     $p = $script:DnsPresets[$Key]
-    Start-BgTask -Name 'Смена DNS' -Vars @{ V4 = $p.V4; N = $p.Name } -Script { Set-NetDnsServers -V4 $V4 -Name $N } -OnDone { Update-NetDns } | Out-Null
+    Start-BgTask -Name 'Смена DNS' -Vars @{ V4 = $p.V4; N = $p.Name } -Script { Set-NetDnsServers -V4 $V4 -Name $N } -OnDone { Update-NetDns; Update-NetInfoTab } | Out-Null
 }
 
 # --- Сведения ---

@@ -425,7 +425,7 @@ function Start-DriverRestore {
         $r = Invoke-ProcessLive -FilePath (Join-Path $env:WINDIR 'System32\pnputil.exe') -Arguments ('/add-driver "' + (Join-Path $P '*.inf') + '" /subdirs /install') -TimeoutSec 1800 -Encoding oem
         Add-History -Kind 'drivers' -Name 'Восстановление драйверов из копии' -Ref $P -Result $(if ($r.Code -eq 0 -or $r.Code -eq 3010) { 'ok' } else { 'fail' })
         return $r.Code
-    } | Out-Null
+    } -OnDone { $script:DrUi.Loaded = $false; Update-DriverPage } | Out-Null
 }
 
 function Set-ManualSources {

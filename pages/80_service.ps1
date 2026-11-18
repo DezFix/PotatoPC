@@ -168,6 +168,10 @@ function Build-Page_service {
     $ui = @{ Days = @{}; DayBtns = @() }
     $L = New-PageLayout -Title 'Обслуживание' -Subtitle 'Починка Windows, обслуживание по расписанию и данные PotatoPC'
     $all = New-Button -Text 'Починить Windows' -Icon 'shield' -Kind Primary -OnClick { Start-Repair -Id 'sfcdism' }
+    $refresh = New-Button -Text 'Обновить' -Icon 'refresh' -Kind Ghost -OnClick { Show-Page_service }
+    $refresh.Margin = New-Thickness 10, 0, 0, 0
+    $all.Margin = New-Thickness 10, 0, 0, 0
+    [void]$L.HeaderRight.Children.Add($refresh)
     [void]$L.HeaderRight.Children.Add($all)
     $sec = New-Section -Title 'Починка Windows'
     foreach ($t in (Get-RepairTools)) {

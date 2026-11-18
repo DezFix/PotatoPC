@@ -11,7 +11,7 @@ function Build-Page_history {
     $ui = @{}
     $rp = New-Button -Text 'Создать точку восстановления' -Icon 'flag' -OnClick { Start-BgTask -Name 'Точка восстановления' -Script { New-RestorePoint -Description 'PotatoPC: вручную' } -OnDone { Update-RestorePoints } | Out-Null }
     $rs = New-Button -Text 'Восстановление системы' -Kind Ghost -OnClick { Start-Process (Join-Path $env:WINDIR 'System32\rstrui.exe') }
-    $L = New-PageLayout -Title 'История и откаты' -Subtitle 'Что и когда менял PotatoPC, как вернуть всё назад' -HeaderRight @($rs, $rp)
+    $L = New-PageLayout -Title 'История и откаты' -Subtitle 'Что и когда менял PotatoPC, как вернуть всё назад' -HeaderRight @($rs, (New-Button -Text 'Обновить' -Icon 'refresh' -OnClick { Show-Page_history }), $rp)
     $ui.Points = New-Section -Title 'Точки восстановления Windows'
     [void]$L.Body.Children.Add($ui.Points.Root)
     $ui.Undo = New-Section -Title 'Откаты по разделам'
@@ -62,6 +62,16 @@ function Show-Page_history {
         $ok = $x.Result -eq 'ok'
         $right = @((New-Text -Text $t.ToString('HH:mm') -Size 12 -Color 'Muted'))
         if (-not $ok) { $right = @((New-Badge 'ошибка' 'bad')) + $right }
+        # Исправления реестра и остатки программ сохраняют копию - их можно откатить
+        if ($ok -and $x.Ref -and [string]$x.Kind -in @('registry', 'uninstall') -and [string]$x.Name -notlike 'Откат*' -and (Test-Path -LiteralPath ([string]$x.Ref) -PathType Container)) {
+            if (@(Get-ChildItem -LiteralPath ([string]$x.Ref) -Include '*.reg', 'tasks.json' -Recurse -ErrorAction SilentlyContinue).Count) {
+                $rb = New-Button -Text 'Откатить' -Icon 'undo' -Kind Small -Tag ([string]$x.Ref) -OnClick {
+                    if (-not (Show-Confirm -Message ('Вернуть ключи реестра (и задачи) из копии?' + "`n`n" + $this.Tag) -Title 'Откат' -Warning)) { return }
+                    Start-BgTask -Name 'Откат реестра' -Vars @{ F = $this.Tag } -Script { Restore-RegistryBackup -Folder $F } -OnDone { Show-Page_history } | Out-Null
+                }
+                $right = @($rb) + $right
+            }
+        }
         $main = New-Text -Text ([string]$x.Name) -Size 13
         if ($x.Detail) { $main.ToolTip = [string]$x.Detail }
         [void]$ui.Log.Body.Children.Add((New-Row -Left (New-Icon -Name $icon -Size 16 -Color $(if ($ok) { 'Muted' } else { 'Bad' })) -Main $main -Right $right -Padding (16, 6, 16, 6)))
