@@ -25,40 +25,40 @@ $Root = ([System.IO.Path]::GetFullPath($Root)).TrimEnd('\','/')
 $out = Join-Path $Root 'SHA256SUMS'
 $allFiles = @(Get-ChildItem -LiteralPath $Root -Recurse -File -Force -ErrorAction Stop |
     Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' -and $_.Name -ne 'SHA256SUMS' })
-if ($IncludeUntracked) {
-    $files = @($allFiles)
-} else {
-    $tracked = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
-    $gitOk = $false
-    try {
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = 'git'
-        $psi.Arguments = '-C "' + $Root + '" ls-files -z'
-        $psi.UseShellExecute = $false
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError = $true
-        $psi.CreateNoWindow = $true
-        try { $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
-        $proc = [System.Diagnostics.Process]::Start($psi)
-        if ($proc) {
-            $raw = $proc.StandardOutput.ReadToEnd()
-            [void]$proc.WaitForExit()
-            if ($proc.ExitCode -eq 0) {
-                foreach ($rel in @($raw -split "`0")) {
-                    if (-not [string]::IsNullOrWhiteSpace($rel)) { [void]$tracked.Add(($rel -replace '/', '\')) }
-                }
-                $gitOk = $tracked.Count -gt 0
+# Git decides what goes in. -IncludeUntracked adds untracked files, but never the
+# ignored ones (_archive_v6/, data/, portable.txt) - -Force above lists them too.
+$tracked = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+$gitOk = $false
+try {
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = 'git'
+    # -c -o --exclude-standard: tracked plus untracked, never the ignored ones
+    # (_archive_v6, data, portable.txt must stay out of the manifest).
+    $psi.Arguments = '-C "' + $Root + '" ls-files -z' + $(if ($IncludeUntracked) { ' -c -o --exclude-standard' } else { '' })
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    try { $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    if ($proc) {
+        $raw = $proc.StandardOutput.ReadToEnd()
+        [void]$proc.WaitForExit()
+        if ($proc.ExitCode -eq 0) {
+            foreach ($rel in @($raw -split "`0")) {
+                if (-not [string]::IsNullOrWhiteSpace($rel)) { [void]$tracked.Add(($rel -replace '/', '\')) }
             }
-            $proc.Dispose()
+            $gitOk = $tracked.Count -gt 0
         }
-    } catch {}
-    if ($gitOk) {
-        $files = @($allFiles | Where-Object {
-            $rel = $_.FullName.Substring($Root.Length).TrimStart('\', '/')
-            $tracked.Contains($rel)
-        })
-    } else { $files = @($allFiles) }
-}
+        $proc.Dispose()
+    }
+} catch {}
+if ($gitOk) {
+    $files = @($allFiles | Where-Object {
+        $rel = $_.FullName.Substring($Root.Length).TrimStart('\', '/')
+        $tracked.Contains($rel)
+    })
+} else { $files = @($allFiles) }
 # Ordinal, not Sort-Object: the current culture orders Install-PotatoPC.ps1,
 # LICENSE and README.md differently, so every culture re-writes the manifest.
 $byPath = @{}
