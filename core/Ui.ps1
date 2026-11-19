@@ -432,10 +432,13 @@ function New-Hint {
     param([string]$Text, [string]$Kind = 'info', $Margin = (0, 0, 0, 16))
     $map = @{ info = @('info', 'Muted', 'Card', 'Line'); warn = @('warn', 'Warn', 'WarnDim', '#5A4A1A'); bad = @('warn', 'Bad', 'BadDim', '#5A2626'); ok = @('shield', 'Ok', 'Card', 'Line') }
     $m = $map[$Kind]
-    $g = New-Stack -Orientation Horizontal
-    [void]$g.Children.Add((New-Icon -Name $m[0] -Size 18 -Color $m[1]))
+    # DockPanel, а не горизонтальный StackPanel: в узком месте (окно, колонка) текст переносится.
+    $g = New-Object System.Windows.Controls.DockPanel
+    $ic = New-Icon -Name $m[0] -Size 18 -Color $m[1]; $ic.VerticalAlignment = 'Top'
+    [System.Windows.Controls.DockPanel]::SetDock($ic, 'Left')
+    [void]$g.Children.Add($ic)
     $t = New-Text -Text $Text -Size 13 -Color $(if ($Kind -eq 'info' -or $Kind -eq 'ok') { 'Muted' } else { $m[1] }) -Wrap -Margin (12, 0, 0, 0)
-    $t.MaxWidth = 900
+    $t.MaxWidth = 900; $t.HorizontalAlignment = 'Left'
     [void]$g.Children.Add($t)
     return (New-Card -Child $g -Padding (16, 12, 16, 12) -Margin $Margin -Background $m[2] -Border $m[3])
 }
@@ -528,13 +531,18 @@ function Show-FormDialog {
     $sp = New-Stack -Margin (22, 18, 22, 18)
     [void]$sp.Children.Add((New-Text -Text $Title -Size 18 -Weight 'Bold' -Margin (0, 0, 0, 14)))
     $fields = New-Stack
-    [void]$sp.Children.Add($fields)
+    # Высокие окна (много дисков, много программ) прокручиваются, а не уходят за край экрана.
+    $sv = New-Object System.Windows.Controls.ScrollViewer
+    $sv.VerticalScrollBarVisibility = 'Auto'; $sv.HorizontalScrollBarVisibility = 'Disabled'
+    $sv.MaxHeight = [Math]::Max(320, [System.Windows.SystemParameters]::WorkArea.Height - 230)
+    $sv.Content = $fields
+    [void]$sp.Children.Add($sv)
     & $Build $fields
     $err = New-Text -Text '' -Size 12 -Color 'Bad' -Wrap -Margin (0, 0, 0, 8)
     [void]$sp.Children.Add($err)
     $btns = New-Stack -Orientation Horizontal
     $btns.HorizontalAlignment = 'Right'
-    $script:DlgState = @{ Window = $w; OnOk = $OnOk; Fields = $fields; Err = $err; Result = $false }
+    $script:DlgState = @{ Window = $w; OnOk = $OnOk; Fields = $fields; Err = $err; Result = $false; Ok = $null }
     $cancel = New-Button -Text 'Отмена' -OnClick { $script:DlgState.Window.Close() }
     $ok = New-Button -Text $OkText -Kind Primary -OnClick {
         try {
@@ -544,12 +552,36 @@ function Show-FormDialog {
         } catch { $script:DlgState.Err.Text = $_.Exception.Message }
     }
     $ok.Margin = New-Thickness 10, 0, 0, 0
+    $script:DlgState.Ok = $ok
     [void]$btns.Children.Add($cancel); [void]$btns.Children.Add($ok)
     [void]$sp.Children.Add($btns)
     $w.Content = $sp
     try { Enable-DarkTitleBar -Target $w } catch {}
     [void]$w.ShowDialog()
     return $script:DlgState.Result
+}
+
+function Show-ActionMenu {
+    <#
+      Тёмное меню под кнопкой «⋯». Items: @{ Text; Tag; OnClick; Danger; Checked; Separator }.
+    #>
+    param($Anchor, [object[]]$Items)
+    $cm = New-Object System.Windows.Controls.ContextMenu
+    $cm.Style = $script:Window.FindResource('Menu')
+    foreach ($i in $Items) {
+        if ($i.Separator) { $s = New-Object System.Windows.Controls.Separator; $s.Style = $script:Window.FindResource('MenuSep'); [void]$cm.Items.Add($s); continue }
+        $mi = New-Object System.Windows.Controls.MenuItem
+        $mi.Style = $script:Window.FindResource('MenuItem')
+        $mi.Header = [string]$i.Text
+        if ($i.Danger) { $mi.Foreground = Get-Brush 'Bad' }
+        if ($null -ne $i.Checked) { $mi.IsCheckable = $true; $mi.IsChecked = [bool]$i.Checked }
+        $mi.Tag = $i.Tag
+        if ($i.OnClick) { $mi.Add_Click($i.OnClick) }
+        [void]$cm.Items.Add($mi)
+    }
+    $cm.PlacementTarget = $Anchor
+    $cm.Placement = 'Bottom'
+    $cm.IsOpen = $true
 }
 
 function Open-Path {

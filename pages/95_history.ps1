@@ -63,7 +63,7 @@ function Show-Page_history {
         $right = @((New-Text -Text $t.ToString('HH:mm') -Size 12 -Color 'Muted'))
         if (-not $ok) { $right = @((New-Badge 'ошибка' 'bad')) + $right }
         # Исправления реестра и остатки программ сохраняют копию - их можно откатить
-        if ($ok -and $x.Ref -and [string]$x.Kind -in @('registry', 'uninstall') -and [string]$x.Name -notlike 'Откат*' -and (Test-Path -LiteralPath ([string]$x.Ref) -PathType Container)) {
+        if ($ok -and $x.Ref -and [string]$x.Kind -in @('registry', 'uninstall', 'users') -and [string]$x.Name -notlike 'Откат*' -and (Test-Path -LiteralPath ([string]$x.Ref) -PathType Container)) {
             if (@(Get-ChildItem -LiteralPath ([string]$x.Ref) -Include '*.reg', 'tasks.json' -Recurse -ErrorAction SilentlyContinue).Count) {
                 $rb = New-Button -Text 'Откатить' -Icon 'undo' -Kind Small -Tag ([string]$x.Ref) -OnClick {
                     if (-not (Show-Confirm -Message ('Вернуть ключи реестра (и задачи) из копии?' + "`n`n" + $this.Tag) -Title 'Откат' -Warning)) { return }

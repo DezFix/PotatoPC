@@ -12,6 +12,7 @@ BeforeAll {
     . (Join-Path $CoreDir 'Runtime.ps1')
     . (Join-Path $CoreDir 'Plugins.ps1')
     . (Join-Path $CoreDir 'Winget.ps1')
+    . (Join-Path $CoreDir 'Profiles.ps1')
     $script:AllPs1 = @(Get-ChildItem -LiteralPath $Root -Recurse -Filter '*.ps1' -File | Where-Object { $_.FullName -notmatch '[\\/](_archive_v6|\.git)[\\/]' })
     $script:Plugins = @(Get-Plugins -Force)
 }
@@ -98,5 +99,55 @@ Google Chrome       Google.Chrome   130.0.6723 131.0.6778 winget
         $rows[0][0] | Should -Be 'Google Chrome'
         $rows[1][1] | Should -Be '7zip.7zip'
         $rows[1][3] | Should -Be '24.08'
+    }
+}
+
+Describe 'Файлы пользователей на другом диске' {
+    It 'системный диск, флешка, сеть и не-NTFS не подходят' {
+        (Get-DriveVerdict @{ IsSystem = $true; DriveType = 3; FileSystem = 'NTFS' }).Suitable | Should -BeFalse
+        (Get-DriveVerdict @{ DriveType = 2; FileSystem = 'NTFS' }).Suitable | Should -BeFalse
+        (Get-DriveVerdict @{ DriveType = 3; FileSystem = 'NTFS'; BusType = 'USB' }).Suitable | Should -BeFalse
+        (Get-DriveVerdict @{ DriveType = 4; FileSystem = 'NTFS' }).Suitable | Should -BeFalse
+        (Get-DriveVerdict @{ DriveType = 3; FileSystem = 'exFAT' }).Suitable | Should -BeFalse
+        (Get-DriveVerdict @{ DriveType = 3; FileSystem = 'NTFS'; BusType = 'SATA' }).Suitable | Should -BeTrue
+    }
+    It 'лучший диск: отдельный физический важнее свободного места, с запасом 2 ГБ' {
+        $d = @(
+            @{ Letter = 'D'; Suitable = $true; SameDiskAsSystem = $true; Free = 400GB }
+            @{ Letter = 'E'; Suitable = $true; SameDiskAsSystem = $false; Free = 200GB }
+            @{ Letter = 'F'; Suitable = $true; SameDiskAsSystem = $false; Free = 100GB }
+            @{ Letter = 'G'; Suitable = $false; Free = 900GB }
+        )
+        Select-BestProfileDrive -Drives $d -NeedBytes 10GB | Should -Be 'E'
+        Select-BestProfileDrive -Drives $d -NeedBytes 199GB | Should -Be 'D'
+        Select-BestProfileDrive -Drives $d -NeedBytes 1000GB | Should -BeNullOrEmpty
+    }
+    It 'свободное имя: «Имя.2» для папки и пометка для файла' {
+        $taken = @('C:\Users\Bob', 'C:\Users\Bob.2', 'C:\x\a.txt', 'C:\x\a (со старой Windows).txt')
+        $ex = { param($p) $taken -contains $p }
+        Get-UniquePath -Path 'C:\Users\Bob' -Exists $ex | Should -Be 'C:\Users\Bob.3'
+        Get-UniquePath -Path 'C:\Users\Ann' -Exists $ex | Should -Be 'C:\Users\Ann'
+        Get-UniquePath -Path 'C:\x\a.txt' -Suffix '(со старой Windows)' -Exists $ex | Should -Be 'C:\x\a (со старой Windows 2).txt'
+    }
+    It 'закладки Chromium считаются и выгружаются в HTML с экранированием' {
+        $f = Join-Path $TestDrive 'Bookmarks'
+        [System.IO.File]::WriteAllText($f, '{"roots":{"bookmark_bar":{"type":"folder","children":[{"type":"url","name":"A & B","url":"https://a.com/?x=1&y=2","date_added":"13300000000000000"},{"type":"folder","name":"F","children":[{"type":"url","name":"<c>","url":"https://c"}]}]},"other":{"type":"folder","children":[]}}}')
+        $o = Read-JsonFast $f
+        Get-BookmarkCount $o | Should -Be 2
+        $html = ConvertTo-BookmarksHtml -Data $o -Title 'T'
+        $html | Should -Match 'NETSCAPE-Bookmark-file-1'
+        $html | Should -Match ([regex]::Escape('HREF="https://a.com/?x=1&amp;y=2" ADD_DATE="1655526400">A &amp; B</A>'))
+        $html | Should -Match '&lt;c&gt;'
+    }
+    It 'скрипт переноса при загрузке самодостаточный и разбирается' {
+        $txt = New-ProfileMoveBootScript -Sid 'S-1-5-21-1-2-3-1001' -Drive 'D' -Dir $TestDrive
+        $t = $null; $e = $null
+        [void][System.Management.Automation.Language.Parser]::ParseInput($txt, [ref]$t, [ref]$e)
+        $e.Count | Should -Be 0
+        foreach ($fn in @('Move-UserProfile', 'Invoke-ProcessLive', 'Copy-ProfileJunctions', 'Add-History')) { $txt | Should -Match ('function ' + $fn + ' \{') }
+    }
+    It 'движок не опирается на переменные $script: (в фоновом потоке их нет)' {
+        $txt = Get-Content -LiteralPath (Join-Path $CoreDir 'Profiles.ps1') -Raw -Encoding UTF8
+        $txt | Should -Not -Match '\$script:'
     }
 }
