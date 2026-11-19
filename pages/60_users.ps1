@@ -231,13 +231,19 @@ function Start-UsersScan {
     $ui.Seq++
     $seq = $ui.Seq
     Start-BgTask -Name 'Пользователи: диски' -Silent -Context $seq -Script {
-        $r = @{ Drives = @(); Old = @() }
-        try { $r.Drives = @(Get-ProfileDrives) } catch {}
-        try { $r.Old = @(Find-OldProfiles) } catch {}
+        $r = @{ Drives = @(); Old = @(); Err = '' }
+        try { $r.Drives = @(Get-ProfileDrives) } catch { $r.Err = 'Диски не проверились: ' + $_.Exception.Message + ' (' + $_.InvocationInfo.ScriptLineNumber + ')' }
+        try { $r.Old = @(Find-OldProfiles) } catch { $r.Err += ' Старые профили не найдены: ' + $_.Exception.Message }
+        # В журнал - вердикт по каждому диску: так видно, почему диск не предложен.
+        foreach ($d in $r.Drives) {
+            Write-Log ('Диск ' + $d.Letter + ': ' + $d.Label + ', ' + (Format-Size $d.Free) + ' свободно, ' + $d.FileSystem + ', тип ' + $d.DriveType + $(if ($d.BusType) { ', ' + $d.BusType } else { '' }) + ' - ' + $(if ($d.Suitable) { 'подходит' } else { 'не подходит: ' + $d.Reason }))
+        }
         return $r
     } -OnDone {
         param($r, $e, $job)
         $ui = $script:UsUi
+        if ($e) { Write-Log ('Пользователи: проверка дисков не удалась - ' + $e) 'warn' }
+        if ($r -and $r.Err) { Write-Log ('Пользователи: ' + $r.Err) 'warn' }
         if ($job.Context -ne $ui.Seq -or -not $r) { return }
         $ui.Scan = $r
         Update-UsersList
@@ -476,7 +482,13 @@ function Update-NewUserDrives {
     $sys = @($drives | Where-Object { $_.IsSystem })[0]
     $ok = @($drives | Where-Object { $_.Suitable })
     if ($ok.Count -eq 0) {
-        [void]$h.Children.Add((New-Text -Text ('Файлы будут на диске ' + $env:SystemDrive + ' - другого подходящего диска нет') -Size 12 -Color 'Muted' -Wrap -Margin (0, 0, 0, 8)))
+        # Не просто «нет диска», а почему: какой диск нашли и чем он не подошёл.
+        $other = @($drives | Where-Object { -not $_.IsSystem })
+        $msg = if ($drives.Count -eq 0) { 'Не удалось проверить диски - подробности в «Журнале» внизу окна. Пока файлы будут на диске ' + $env:SystemDrive }
+               elseif ($other.Count -eq 0) { 'Файлы будут на диске ' + $env:SystemDrive + ' - другого диска с буквой нет. Новый диск сначала нужно разметить в «Управлении дисками»' }
+               else { 'Файлы будут на диске ' + $env:SystemDrive + '. Другие диски не подходят:' }
+        [void]$h.Children.Add((New-Text -Text $msg -Size 12 -Color 'Muted' -Wrap -Margin (0, 0, 0, 6)))
+        foreach ($dr in $other) { [void]$h.Children.Add((New-Text -Text ((Get-UsDriveText $dr) + ' - ' + $dr.Reason) -Size 12 -Color 'Warn' -Wrap -Margin (0, 0, 0, 4))) }
         return
     }
     $best = Select-BestProfileDrive -Drives $ok -NeedBytes 0
