@@ -10,8 +10,12 @@
 #>
 function T([string]$s) { return [regex]::Unescape($s) }
 
-$RemoteMenuUrl = 'https://raw.githubusercontent.com/DezFix/PotatoPC/main/menu.ps1'
-$RemoteZipUrl  = 'https://codeload.github.com/DezFix/PotatoPC/zip/refs/heads/main'
+# Branch to run by link. For testing another branch:
+#   $env:POTATOPC_BRANCH='name'; irm https://raw.githubusercontent.com/DezFix/PotatoPC/name/menu.ps1 | iex
+$Branch = 'main'
+if ($env:POTATOPC_BRANCH -and $env:POTATOPC_BRANCH -match '^[A-Za-z0-9._/-]{1,100}$') { $Branch = $env:POTATOPC_BRANCH }
+$RemoteMenuUrl = 'https://raw.githubusercontent.com/DezFix/PotatoPC/' + $Branch + '/menu.ps1'
+$RemoteZipUrl  = 'https://codeload.github.com/DezFix/PotatoPC/zip/refs/heads/' + $Branch
 
 # --- 1. Administrator rights, Windows PowerShell 5.1 and STA (required by WPF) ---
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -22,7 +26,8 @@ if (-not ($isAdmin -and $isSta -and $isDesktopPs)) {
     $argLine = if ($PSCommandPath -and (Test-Path -LiteralPath $PSCommandPath)) {
         '-STA -NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
     } else {
-        '-STA -NoProfile -ExecutionPolicy Bypass -Command "irm ''' + $RemoteMenuUrl + ''' | iex"'
+        # The elevated process does not inherit our environment: pass the branch explicitly.
+        '-STA -NoProfile -ExecutionPolicy Bypass -Command "$env:POTATOPC_BRANCH=''' + $Branch + '''; irm ''' + $RemoteMenuUrl + ''' | iex"'
     }
     try {
         if ($isAdmin) { Start-Process -FilePath $ps -ArgumentList $argLine }
