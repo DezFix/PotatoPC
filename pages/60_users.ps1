@@ -1037,15 +1037,26 @@ function New-UserFromForm {
         } else {
             $u = New-LocalUser -Name $name -NoPassword -ErrorAction Stop
         }
-        Set-LocalUser -SID $u.SID -PasswordNeverExpires ([bool]$ui.NewNever.IsChecked) -ErrorAction SilentlyContinue
-        Add-LocalGroupMember -SID $script:SidUsers -Member $u.SID -ErrorAction SilentlyContinue
-        if ($ui.NewAdm.IsChecked) { Add-LocalGroupMember -SID $script:SidAdmins -Member $u.SID -ErrorAction Stop }
+        # SID строкой: объект SecurityIdentifier Add-LocalGroupMember на части систем не принимает
+        # (ошибка разбора параметра, её не глушит даже -ErrorAction).
+        $sidStr = [string]$u.SID.Value
+        Set-LocalUser -SID $sidStr -PasswordNeverExpires ([bool]$ui.NewNever.IsChecked) -ErrorAction SilentlyContinue
+        try { Add-LocalGroupMember -SID $script:SidUsers -Member $sidStr -ErrorAction Stop } catch { if ($_.FullyQualifiedErrorId -notlike 'MemberExists*') { Write-Log ('Не добавлен в группу «Пользователи»: ' + $_.Exception.Message) 'warn' } }
+        if ($ui.NewAdm.IsChecked) {
+            try { Add-LocalGroupMember -SID $script:SidAdmins -Member $sidStr -ErrorAction Stop }
+            catch {
+                # Не оставляем недоделанную учётку: удаляем и показываем ошибку.
+                $msg = $_.Exception.Message
+                try { Remove-LocalUser -SID $sidStr -ErrorAction Stop } catch {}
+                throw ('Не удалось дать права администратора, пользователь не создан: ' + $msg)
+            }
+        }
         Write-Log ('Создан пользователь: ' + $name) 'ok'
         Add-History -Kind 'users' -Name ('Создан пользователь: ' + $name + $(if ($ui.NewAdm.IsChecked) { ' (администратор)' } else { '' }))
         $ui.NewName.Text = ''; $ui.NewPwd.Clear(); $ui.NewPwd2.Clear()
         # Файлы - сразу на выбранном диске: создаём профиль сейчас и переносим, пока он пустой.
         if ($drive -and $drive -ne ($env:SystemDrive).TrimEnd(':')) {
-            Start-BgTask -Name ('Папка пользователя на ' + $drive + ':') -Vars @{ Sid = [string]$u.SID.Value; N = $name; D = $drive } -Script {
+            Start-BgTask -Name ('Папка пользователя на ' + $drive + ':') -Vars @{ Sid = $sidStr; N = $name; D = $drive } -Script {
                 try { [void](New-UserProfileNow -Sid $Sid -Name $N) } catch { return @{ Ok = $false; Message = $_.Exception.Message } }
                 return (Move-UserProfile -Sid $Sid -Drive $D)
             } -OnDone {
