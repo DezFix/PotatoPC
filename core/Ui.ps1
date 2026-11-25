@@ -570,7 +570,7 @@ function Show-ActionMenu {
     <#
       Тёмное меню под кнопкой «⋯». Items: @{ Text; Tag; OnClick; Danger; Checked; Separator }.
     #>
-    param($Anchor, [object[]]$Items)
+    param($Anchor, [object[]]$Items, [switch]$AtMouse)
     $cm = New-Object System.Windows.Controls.ContextMenu
     $cm.Style = $script:Window.FindResource('Menu')
     foreach ($i in $Items) {
@@ -579,13 +579,14 @@ function Show-ActionMenu {
         $mi.Style = $script:Window.FindResource('MenuItem')
         $mi.Header = [string]$i.Text
         if ($i.Danger) { $mi.Foreground = Get-Brush 'Bad' }
+        if ($i.Disabled) { $mi.IsEnabled = $false }
         if ($null -ne $i.Checked) { $mi.IsCheckable = $true; $mi.IsChecked = [bool]$i.Checked }
         $mi.Tag = $i.Tag
         if ($i.OnClick) { $mi.Add_Click($i.OnClick) }
         [void]$cm.Items.Add($mi)
     }
     $cm.PlacementTarget = $Anchor
-    $cm.Placement = 'Bottom'
+    $cm.Placement = if ($AtMouse) { 'MousePoint' } else { 'Bottom' }
     # Пока меню открыто, живые списки (например «Кто сейчас в сети») не перерисовываются.
     $script:ActionMenuOpen = $true
     $cm.Add_Closed({ $script:ActionMenuOpen = $false })

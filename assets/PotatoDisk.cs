@@ -55,6 +55,102 @@ public static class PotatoDisk
     [DllImport("kernel32.dll")]
     static extern bool FindClose(IntPtr hFindFile);
 
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool DeleteFileW(string lpFileName);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool RemoveDirectoryW(string lpPathName);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool SetFileAttributesW(string lpFileName, uint dwFileAttributes);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct SHFILEOPSTRUCT
+    {
+        public IntPtr hwnd;
+        public uint wFunc;
+        public string pFrom;
+        public string pTo;
+        public ushort fFlags;
+        public bool fAnyOperationsAborted;
+        public IntPtr hNameMappings;
+        public string lpszProgressTitle;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    static extern int SHFileOperationW(ref SHFILEOPSTRUCT lpFileOp);
+
+    // В корзину. Если файл слишком велик для корзины, Windows спросит, удалить ли навсегда
+    // (FOF_WANTNUKEWARNING) - молча безвозвратно не удалит. 0 = успешно.
+    public static int Recycle(string path)
+    {
+        var op = new SHFILEOPSTRUCT();
+        op.wFunc = 3; // FO_DELETE
+        op.pFrom = path + "\0\0";
+        // FOF_SILENT | FOF_NOCONFIRMATION | FOF_ALLOWUNDO | FOF_WANTNUKEWARNING
+        op.fFlags = (ushort)(0x0004 | 0x0010 | 0x0040 | 0x4000);
+        int r = SHFileOperationW(ref op);
+        if (r == 0 && op.fAnyOperationsAborted) return -1;
+        return r;
+    }
+
+    // Удаление навсегда. Точки соединения (junction, symlink) удаляются как ссылки -
+    // внутрь не заходим, иначе стёрлось бы то, на что они указывают.
+    public static long DelFailed;
+    public static long DelBytes;
+    public static long DelFiles;
+
+    public static void DeleteTree(string path)
+    {
+        Cancel = false; DelFailed = 0; DelBytes = 0; DelFiles = 0;
+        string lp = LongPath(path.TrimEnd('\\'));
+        uint attr = GetAttr(path);
+        if (attr == uint.MaxValue) { DelFailed++; return; }
+        if ((attr & ATTR_DIR) == 0) { DeleteOneFile(lp, 0); return; }
+        if ((attr & ATTR_REPARSE) != 0) { if (!RemoveDirectoryW(lp)) DelFailed++; return; }
+        DeleteDir(lp);
+    }
+
+    static uint GetAttr(string path)
+    {
+        try { return (uint)System.IO.File.GetAttributes(path); } catch { return uint.MaxValue; }
+    }
+
+    static void DeleteOneFile(string lp, long size)
+    {
+        SetFileAttributesW(lp, 0x80); // снять «только чтение»
+        if (DeleteFileW(lp)) { DelBytes += size; DelFiles++; Current = lp; } else DelFailed++;
+    }
+
+    static void DeleteDir(string lp)
+    {
+        WIN32_FIND_DATA fd;
+        IntPtr h = FindFirstFileExW(lp + "\\*", 1, out fd, 0, IntPtr.Zero, 2);
+        if (h != Invalid)
+        {
+            try
+            {
+                do
+                {
+                    if (Cancel) break;
+                    string name = fd.cFileName;
+                    if (name == "." || name == "..") continue;
+                    string full = lp + "\\" + name;
+                    if ((fd.dwFileAttributes & ATTR_DIR) != 0)
+                    {
+                        if ((fd.dwFileAttributes & ATTR_REPARSE) != 0) { SetFileAttributesW(full, 0x10); if (!RemoveDirectoryW(full)) DelFailed++; }
+                        else DeleteDir(full);
+                    }
+                    else DeleteOneFile(full, ((long)fd.nFileSizeHigh << 32) | fd.nFileSizeLow);
+                } while (FindNextFileW(h, out fd));
+            }
+            finally { FindClose(h); }
+        }
+        if (Cancel) return;
+        SetFileAttributesW(lp, 0x10);
+        if (!RemoveDirectoryW(lp)) DelFailed++;
+    }
+
     static readonly IntPtr Invalid = new IntPtr(-1);
     const uint ATTR_DIR = 0x10;
     const uint ATTR_REPARSE = 0x400;
