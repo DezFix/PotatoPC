@@ -48,6 +48,11 @@ $script:IconPaths = @{
     report  = 'M6,3 H15 L19,7 V21 H6 Z M9,12 H16 M9,16 H16 M9,8 H12'
     x       = 'M6,6 L18,18 M18,6 L6,18'
     history = 'M3,12 A9,9 0 1 0 6,5.3 M3,4 V9 H8 M12,7 V12 L15,14'
+    chevR   = 'M9,6 L15,12 L9,18'
+    chevD   = 'M6,9 L12,15 L18,9'
+    file    = 'M6,3 H14 L19,8 V21 H6 Z M14,3 V8 H19'
+    copy    = 'M8,8 H20 V20 H8 Z M4,16 V4 H16'
+    ban     = 'M12,3 A9,9 0 1 1 12,21 A9,9 0 1 1 12,3 M5.6,5.6 L18.4,18.4'
 }
 $script:CategoryIcons = @{ '01' = 'bolt'; '02' = 'broom'; '03' = 'eye'; '05' = 'mem'; '08' = 'shield'; '09' = 'undo' }
 
@@ -581,6 +586,9 @@ function Show-ActionMenu {
     }
     $cm.PlacementTarget = $Anchor
     $cm.Placement = 'Bottom'
+    # Пока меню открыто, живые списки (например «Кто сейчас в сети») не перерисовываются.
+    $script:ActionMenuOpen = $true
+    $cm.Add_Closed({ $script:ActionMenuOpen = $false })
     $cm.IsOpen = $true
 }
 

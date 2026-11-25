@@ -395,15 +395,143 @@ function Get-WifiProfiles {
     return , $out
 }
 
-function Get-NetConnectionsByApp {
-    $out = @()
-    $conns = @(Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue | Where-Object { $_.RemoteAddress -notmatch '^(127\.|::1|0\.0\.0\.0)' })
-    foreach ($g in @($conns | Group-Object OwningProcess | Sort-Object Count -Descending)) {
-        $pr = Get-Process -Id ([int]$g.Name) -ErrorAction SilentlyContinue
-        $remote = @($g.Group | ForEach-Object { [string]$_.RemoteAddress + ':' + $_.RemotePort } | Select-Object -Unique)
-        $out += @{ Name = $(if ($pr) { [string]$pr.ProcessName } else { 'PID ' + $g.Name }); Pid = [int]$g.Name; Path = $(if ($pr) { try { [string]$pr.Path } catch { '' } } else { '' }); Count = $g.Count; Remote = $remote }
+# ---------- Кто сейчас в сети ----------
+
+$script:NetKnownPorts = @{ 135 = 'служба Windows (RPC)'; 139 = 'общий доступ (NetBIOS)'; 445 = 'общий доступ к файлам'; 3389 = 'удалённый рабочий стол'; 5357 = 'обнаружение устройств в сети'; 5040 = 'служба Windows'; 7680 = 'раздача обновлений Windows'; 27036 = 'Steam: игры по локальной сети'; 5900 = 'удалённый доступ (VNC)'; 22 = 'SSH'; 21 = 'FTP'; 80 = 'веб-сервер'; 443 = 'веб-сервер'; 1900 = 'UPnP' }
+$script:NetCriticalProcs = @('System', 'Idle', 'svchost', 'lsass', 'csrss', 'wininit', 'winlogon', 'services', 'smss', 'spoolsv', 'dwm', 'explorer', 'MsMpEng', 'NisSrv', 'powershell', 'pwsh')
+
+function Get-NetBlockId {
+    # Имя правила брандмауэра для программы: одно и то же для одного пути.
+    param([string]$Path)
+    $sha = [System.Security.Cryptography.SHA1]::Create()
+    $h = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Path.ToLowerInvariant()))
+    return 'PotatoPC-block-' + (([BitConverter]::ToString($h)).Replace('-', '').Substring(0, 12))
+}
+
+function Get-NetWhoOnline {
+    # Фон. Программы с соединениями и открытыми портами. $Cache - общий словарь между обновлениями
+    # (подписи файлов и список служб: их проверка дорогая, а меняются они редко).
+    param($Cache)
+    if (-not $Cache) { $Cache = @{} }
+    $dns = @{}
+    try {
+        foreach ($e in @(Get-DnsClientCache -ErrorAction Stop)) {
+            if (($e.Type -eq 1 -or $e.Type -eq 28) -and $e.Data -and -not $dns.ContainsKey([string]$e.Data)) { $dns[[string]$e.Data] = [string]$e.Entry }
+        }
+    } catch {}
+    $now = Get-Date
+    if (-not $Cache['SvcTime'] -or ($now - $Cache['SvcTime']).TotalSeconds -gt 30) {
+        $svc = @{}
+        try {
+            foreach ($s in @(Get-CimInstance Win32_Service -Filter "State='Running'" -ErrorAction Stop)) {
+                $k = [string]$s.ProcessId
+                if (-not $svc.ContainsKey($k)) { $svc[$k] = @() }
+                $svc[$k] += [string]$s.DisplayName
+            }
+        } catch {}
+        $Cache['Svc'] = $svc; $Cache['SvcTime'] = $now
     }
-    return , $out
+    $svc = $Cache['Svc']
+    $tcp = @(Get-NetTCPConnection -ErrorAction SilentlyContinue)
+    $byPid = @{}
+    foreach ($c in $tcp) {
+        $st = [string]$c.State
+        $isEst = $st -eq 'Established' -and [string]$c.RemoteAddress -notmatch '^(127\.|::1$|0\.0\.0\.0$|::$)'
+        $isLis = $st -eq 'Listen' -and [string]$c.LocalAddress -notmatch '^(127\.|::1$)'
+        if (-not $isEst -and -not $isLis) { continue }
+        $k = [int]$c.OwningProcess
+        if (-not $byPid.ContainsKey($k)) { $byPid[$k] = @{ Est = 0; Hosts = New-Object System.Collections.ArrayList; Ports = New-Object System.Collections.ArrayList; Listen = New-Object System.Collections.ArrayList } }
+        $x = $byPid[$k]
+        if ($isEst) {
+            $x.Est++
+            $ip = [string]$c.RemoteAddress
+            $h = if ($dns.ContainsKey($ip)) { $dns[$ip] } else { $ip }
+            if (-not $x.Hosts.Contains($h)) { [void]$x.Hosts.Add($h) }
+            $rp = [int]$c.RemotePort
+            if (-not $x.Ports.Contains($rp)) { [void]$x.Ports.Add($rp) }
+        } else {
+            $lp = [int]$c.LocalPort
+            if (-not $x.Listen.Contains($lp)) { [void]$x.Listen.Add($lp) }
+        }
+    }
+    if (-not $Cache.ContainsKey('Sig')) { $Cache['Sig'] = @{} }
+    $sig = $Cache['Sig']
+    # Проверка подписи файла бывает долгой (до секунды-двух на файл), поэтому за одно обновление
+    # проверяем сколько успеем примерно за 1.5 с, остальное - при следующих обновлениях.
+    # Самый первый проход - без проверки подписей, чтобы список появился сразу.
+    $sigWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $sigBudget = if ($Cache['Pass']) { 1500 } else { 0 }
+    $Cache['Pass'] = [int]$Cache['Pass'] + 1
+    $win = $env:WINDIR.TrimEnd('\') + '\'
+    $out = @()
+    foreach ($k in $byPid.Keys) {
+        $x = $byPid[$k]
+        $name = ''; $path = ''
+        if ($k -eq 4) { $name = 'System' } elseif ($k -eq 0) { $name = 'Idle' }
+        else {
+            $pr = Get-Process -Id $k -ErrorAction SilentlyContinue
+            if ($pr) { $name = [string]$pr.ProcessName; try { $path = [string]$pr.Path } catch {} } else { $name = 'PID ' + $k }
+        }
+        $signed = $null; $signer = ''
+        if ($path) {
+            if (-not $sig.ContainsKey($path) -and $sigWatch.ElapsedMilliseconds -lt $sigBudget) {
+                $v = @{ Ok = $null; By = '' }
+                try {
+                    $a = Get-AuthenticodeSignature -FilePath $path -ErrorAction Stop
+                    $v.Ok = ([string]$a.Status -eq 'Valid')
+                    if ($a.SignerCertificate) { if ([string]$a.SignerCertificate.Subject -match 'CN="?([^",]+)') { $v.By = $Matches[1] } }
+                } catch {}
+                $sig[$path] = $v
+            }
+            if ($sig.ContainsKey($path)) { $signed = $sig[$path].Ok; $signer = $sig[$path].By }
+        }
+        $services = if ($svc.ContainsKey([string]$k)) { @($svc[[string]$k]) } else { @() }
+        $out += @{
+            Pid = $k; Name = $name; Path = $path; Signed = $signed; Signer = $signer; Services = $services
+            Est = $x.Est; Hosts = @($x.Hosts); Ports = @($x.Ports | Sort-Object); Listen = @($x.Listen | Sort-Object)
+            IsWindows = (-not $path) -or $path.StartsWith($win, [StringComparison]::OrdinalIgnoreCase)
+        }
+    }
+    # Правила брандмауэра PotatoPC перечитываются раз в 30 с (или сразу после запрета/разрешения).
+    if (-not $Cache['FwTime'] -or ($now - $Cache['FwTime']).TotalSeconds -gt 30) {
+        $bl = @()
+        try {
+            foreach ($r in @(Get-NetFirewallRule -Group 'PotatoPC' -ErrorAction Stop | Where-Object { $_.Name -like 'PotatoPC-block-*' -and $_.Name -notlike '*-in' })) {
+                $bl += @{ Id = [string]$r.Name; Path = [string]$r.Description; Name = [System.IO.Path]::GetFileNameWithoutExtension([string]$r.Description) }
+            }
+        } catch {}
+        $Cache['Fw'] = $bl; $Cache['FwTime'] = $now
+    }
+    $blocked = @($Cache['Fw'])
+    return @{ Items = @($out | Sort-Object { - $_.Est }, { $_.Name }); Blocked = $blocked; Time = $now }
+}
+
+function Add-NetAppBlock {
+    # Фон. Запрет доступа в сеть для программы: два правила брандмауэра (исходящие и входящие).
+    param([string]$Path, [string]$Name)
+    $id = Get-NetBlockId -Path $Path
+    try {
+        Remove-NetFirewallRule -Name $id, ($id + '-in') -ErrorAction SilentlyContinue
+        New-NetFirewallRule -Name $id -DisplayName ('PotatoPC: запрет сети - ' + $Name) -Group 'PotatoPC' -Description $Path -Direction Outbound -Program $Path -Action Block -Profile Any -ErrorAction Stop | Out-Null
+        New-NetFirewallRule -Name ($id + '-in') -DisplayName ('PotatoPC: запрет сети - ' + $Name) -Group 'PotatoPC' -Description $Path -Direction Inbound -Program $Path -Action Block -Profile Any -ErrorAction Stop | Out-Null
+        Write-Log ('Запрещён доступ в интернет: ' + $Name + ' (' + $Path + ')') 'ok'
+        Add-History -Kind 'firewall' -Name ('Запрещён доступ в интернет: ' + $Name) -Detail $Path -Ref $id
+        return $true
+    } catch {
+        Write-Log ('Не удалось запретить доступ: ' + $_.Exception.Message) 'err'
+        Add-History -Kind 'firewall' -Name ('Запрет доступа в интернет: ' + $Name) -Result 'error' -Detail $_.Exception.Message
+        return $false
+    }
+}
+
+function Remove-NetAppBlock {
+    param([string]$Id)
+    $r = Get-NetFirewallRule -Name $Id -ErrorAction SilentlyContinue
+    $name = if ($r) { [System.IO.Path]::GetFileNameWithoutExtension([string]$r.Description) } else { $Id }
+    Remove-NetFirewallRule -Name $Id, ($Id + '-in') -ErrorAction SilentlyContinue
+    Write-Log ('Доступ в интернет снова разрешён: ' + $name) 'ok'
+    Add-History -Kind 'firewall' -Name ('Доступ в интернет снова разрешён: ' + $name)
+    return $true
 }
 
 # ---------- Интерфейс ----------
@@ -504,6 +632,9 @@ function Build-Page_network {
     $grid.Margin = New-Thickness 0, 0, 0, 16
     [void]$L.Body.Children.Add($grid)
 
+    # Кто сейчас в сети
+    [void]$L.Body.Children.Add((New-NetWhoSection))
+
     # DNS
     $ui.DnsSec = New-Section -Title 'DNS'
     $ui.DnsSec.Right.Children.Add((New-Text -Text 'защита от вредоносных сайтов и рекламы' -Size 12 -Color 'Muted')) | Out-Null
@@ -515,7 +646,7 @@ function Build-Page_network {
     $tabs = New-Object System.Windows.Controls.WrapPanel
     $tabs.Margin = New-Thickness 16, 0, 16, 8
     $ui.Tabs = @{}
-    foreach ($t in @(@('adapters', 'Адаптеры'), @('wifi', 'Сохранённые Wi-Fi'), @('conns', 'Соединения программ'), @('trace', 'Трассировка'))) {
+    foreach ($t in @(@('adapters', 'Адаптеры'), @('wifi', 'Сохранённые Wi-Fi'), @('trace', 'Трассировка'))) {
         $b = New-Button -Text $t[1] -Kind Chip -Tag $t[0] -OnClick { $script:NetUi.Tab = $this.Tag; Update-NetInfoTab }
         $ui.Tabs[$t[0]] = $b
         [void]$tabs.Children.Add($b)
@@ -535,6 +666,177 @@ function Show-Page_network {
         Update-NetDns
         Update-NetInfoTab
     }
+    Update-NetWho
+    if (-not $ui.WhoTimer) {
+        # Живое обновление: только пока открыта страница «Сеть», не на паузе и не открыто меню «⋯».
+        $ui.WhoTimer = New-Object System.Windows.Threading.DispatcherTimer
+        $ui.WhoTimer.Interval = [TimeSpan]::FromSeconds(3)
+        $ui.WhoTimer.Add_Tick({
+            $ui = $script:NetUi
+            if ($script:CurrentPage -ne 'network' -or $ui.WhoPaused -or $ui.WhoBusy -or $script:ActionMenuOpen) { return }
+            if (-not $script:Window.IsActive) { return }
+            Update-NetWho
+        })
+        $ui.WhoTimer.Start()
+    }
+}
+
+# --- Кто сейчас в сети ---
+
+function New-NetWhoSection {
+    $ui = $script:NetUi
+    $ui.WhoFilter = 'active'
+    $ui.WhoCache = [hashtable]::Synchronized(@{})
+    $live = New-Stack -Orientation Horizontal
+    $live.VerticalAlignment = 'Center'
+    $dot = New-Object System.Windows.Shapes.Ellipse; $dot.Width = 8; $dot.Height = 8; $dot.Fill = Get-Brush 'Ok'; $dot.VerticalAlignment = 'Center'
+    [void]$live.Children.Add($dot)
+    $ui.WhoLive = New-Text -Text 'обновляется каждые 3 с' -Size 12 -Color 'Ok' -Margin (6, 0, 12, 0)
+    [void]$live.Children.Add($ui.WhoLive)
+    $ui.WhoDot = $dot
+    $pause = New-Button -Text 'Пауза' -Kind Small -OnClick {
+        $ui = $script:NetUi
+        $ui.WhoPaused = -not $ui.WhoPaused
+        Set-ButtonText -Button $this -Text $(if ($ui.WhoPaused) { 'Продолжить' } else { 'Пауза' })
+        $ui.WhoLive.Text = if ($ui.WhoPaused) { 'на паузе' } else { 'обновляется каждые 3 с' }
+        $c = if ($ui.WhoPaused) { 'Muted' } else { 'Ok' }
+        $ui.WhoLive.Foreground = Get-Brush $c; $ui.WhoDot.Fill = Get-Brush $c
+        if (-not $ui.WhoPaused) { Update-NetWho }
+    }
+    $sec = New-Section -Title 'Кто сейчас в сети' -Right @($live, $pause)
+    $chips = New-Object System.Windows.Controls.WrapPanel
+    $chips.Margin = New-Thickness 16, 0, 16, 4
+    $ui.WhoChips = @{}
+    foreach ($f in @(@('active', 'Активные'), @('listen', 'Слушают порты'), @('all', 'Все'))) {
+        $b = New-Button -Text $f[1] -Kind Chip -Tag $f[0] -OnClick { $script:NetUi.WhoFilter = [string]$this.Tag; Set-NetWho }
+        $ui.WhoChips[$f[0]] = $b
+        [void]$chips.Children.Add($b)
+    }
+    $ui.WhoStats = New-Text -Text '' -Size 12 -Color 'Muted' -Margin (8, 0, 0, 8)
+    $ui.WhoStats.VerticalAlignment = 'Center'
+    [void]$chips.Children.Add($ui.WhoStats)
+    [void]$sec.Body.Children.Add($chips)
+    $ui.WhoBody = New-Stack
+    [void]$ui.WhoBody.Children.Add((New-Placeholder))
+    [void]$sec.Body.Children.Add($ui.WhoBody)
+    [void]$sec.Body.Children.Add((New-Text -Text 'Запрет пишется правилом брандмауэра Windows и попадает в «Историю» - оттуда его можно снять одной кнопкой.' -Size 12 -Color 'Muted' -Wrap -Margin (16, 8, 16, 12)))
+    $ui.WhoSec = $sec
+    return $sec.Root
+}
+
+function Update-NetWho {
+    $ui = $script:NetUi
+    if ($ui.WhoBusy) { return }
+    $ui.WhoBusy = $true
+    Start-BgTask -Name 'Кто в сети' -Silent -Vars @{ C = $ui.WhoCache } -Script { Get-NetWhoOnline -Cache $C } -OnDone {
+        param($r, $err)
+        $ui = $script:NetUi
+        $ui.WhoBusy = $false
+        if (-not $r) { if ($err) { Write-Log ('Кто в сети: ' + $err) 'warn' }; return }
+        $ui.WhoData = $r
+        if (-not $script:ActionMenuOpen) { Set-NetWho }
+    } | Out-Null
+}
+
+function Set-NetWho {
+    $ui = $script:NetUi
+    foreach ($k in $ui.WhoChips.Keys) { Set-ChipActive -Button $ui.WhoChips[$k] -Active ($k -eq $ui.WhoFilter) }
+    $r = $ui.WhoData
+    if (-not $r) { return }
+    $all = @($r.Items)
+    $apps = @($all | Where-Object { $_.Est -gt 0 })
+    $conns = 0; foreach ($x in $apps) { $conns += $x.Est }
+    $ports = 0; foreach ($x in $all) { $ports += @($x.Listen).Count }
+    $uns = @($all | Where-Object { $_.Signed -eq $false }).Count
+    $ui.WhoStats.Text = [string]$apps.Count + ' программ в сети · ' + $conns + ' соединений · ' + $ports + ' открытых портов' + $(if ($uns) { ' · без подписи: ' + $uns } else { '' })
+    $list = switch ($ui.WhoFilter) { 'listen' { @($all | Where-Object { @($_.Listen).Count -gt 0 }) } 'all' { $all } default { $apps } }
+    $b = $ui.WhoBody
+    $b.Children.Clear()
+    if (-not $list.Count) {
+        [void]$b.Children.Add((New-Placeholder $(if ($ui.WhoFilter -eq 'listen') { 'Ни одна программа не ждёт подключений из сети.' } else { 'Сейчас ни одна программа не подключена к интернету.' })))
+    }
+    foreach ($x in $list) {
+        $title = New-Stack -Orientation Horizontal
+        $disp = $x.Name
+        if ($x.Name -eq 'svchost' -and @($x.Services).Count) { $disp = 'Служба: ' + (@($x.Services)[0]) + $(if (@($x.Services).Count -gt 1) { ' и ещё ' + (@($x.Services).Count - 1) } else { '' }) }
+        [void]$title.Children.Add((New-Text -Text $disp -Size 14 -Weight 'SemiBold'))
+        if ($x.Signed -eq $false) {
+            $bd = New-Badge 'без подписи' 'warn'; $bd.Margin = New-Thickness 8, 0, 0, 0
+            $bd.ToolTip = 'У файла нет действующей цифровой подписи издателя. Само по себе это не вирус, но стоит проверить на VirusTotal (меню «⋯»).'
+            [void]$title.Children.Add($bd)
+        }
+        $sub = @()
+        if ($x.Est -gt 0) {
+            $h = (@($x.Hosts) | Select-Object -First 4) -join ', '
+            if (@($x.Hosts).Count -gt 4) { $h += ' и ещё ' + (@($x.Hosts).Count - 4) }
+            $sub += $h
+        }
+        if (@($x.Listen).Count) {
+            $lp = @($x.Listen | Select-Object -First 4 | ForEach-Object { if ($script:NetKnownPorts.ContainsKey([int]$_)) { [string]$_ + ' (' + $script:NetKnownPorts[[int]$_] + ')' } else { [string]$_ } })
+            $sub += 'ждёт подключений: порт ' + ($lp -join ', ')
+        }
+        $meta = @()
+        if ($x.Signer) { $meta += $x.Signer }
+        if ($x.Path) { $meta += $x.Path }
+        elseif ($x.Name -eq 'System') { $meta += 'ядро Windows' }
+        elseif ($x.Name -ne 'svchost' -and @($x.Services).Count) { $meta += 'служба: ' + (@($x.Services) -join ', ') }
+        else { $meta += 'путь к файлу недоступен' }
+        $main = New-Stack
+        [void]$main.Children.Add($title)
+        [void]$main.Children.Add((New-Text -Text ($sub -join '  ·  ') -Size 12 -Color 'Text' -Margin (0, 2, 0, 0)))
+        [void]$main.Children.Add((New-Text -Text ($meta -join '  ·  ') -Size 11 -Color 'Muted' -Margin (0, 1, 0, 0)))
+        $right = @()
+        if ($x.Est -gt 0) { $right += (New-Badge ([string]$x.Est + ' соедин.') 'info') }
+        $more = New-Button -Text '⋯' -Kind Small -Tag $x -ToolTip 'Действия' -OnClick { Show-NetWhoMenu -Anchor $this -Item $this.Tag }
+        $more.Padding = New-Thickness 10, 0, 10, 0
+        $right += $more
+        $row = New-Row -Left (New-AppIcon -Name $x.Name -Size 30) -Main $main -Right $right -Padding (16, 7, 12, 7)
+        if ($x.Path) { $row.ToolTip = $x.Path + "`nPID " + $x.Pid }
+        [void]$b.Children.Add($row)
+    }
+    # Программы, которым PotatoPC запретил сеть: они уже не в списке выше, поэтому - отдельно
+    foreach ($bl in @($r.Blocked)) {
+        $un = New-Button -Text 'Разрешить снова' -Kind Small -Tag $bl.Id -OnClick {
+            $id = [string]$this.Tag
+            Start-BgTask -Name 'Снятие запрета' -Vars @{ Id = $id } -Script { Remove-NetAppBlock -Id $Id } -OnDone { $script:NetUi.WhoCache['FwTime'] = $null; Update-NetWho } | Out-Null
+        }
+        [void]$b.Children.Add((New-Row -Left (New-IconTile -Icon 'ban' -Color 'Bad' -Size 30) -Main (New-TitleBlock -Title ($bl.Name + ' - доступ в интернет запрещён') -Sub $bl.Path) -Right @($un) -Padding (16, 7, 12, 7)))
+    }
+}
+
+function Show-NetWhoMenu {
+    param($Anchor, $Item)
+    $items = @()
+    $canTouch = $Item.Path -and -not $Item.IsWindows -and ($script:NetCriticalProcs -notcontains $Item.Name)
+    if ($Item.Path) {
+        $items += @{ Text = 'Открыть папку программы'; Tag = $Item; OnClick = { Start-Process -FilePath 'explorer.exe' -ArgumentList ('/select,"' + $this.Tag.Path + '"') } }
+        $items += @{ Text = 'Проверить на VirusTotal'; Tag = $Item; OnClick = {
+            try {
+                $h = (Get-FileHash -LiteralPath $this.Tag.Path -Algorithm SHA256 -ErrorAction Stop).Hash
+                Start-Process ('https://www.virustotal.com/gui/file/' + $h)
+            } catch { Write-Log ('Не удалось посчитать хэш файла: ' + $_.Exception.Message) 'warn' }
+        } }
+    }
+    if ($canTouch) {
+        $items += @{ Separator = $true }
+        $items += @{ Text = 'Запретить доступ в интернет'; Tag = $Item; OnClick = {
+            $x = $this.Tag
+            if (-not (Show-Confirm -Message ('Запретить программе «' + $x.Name + '» доступ в интернет и локальную сеть?' + "`n`n" + $x.Path + "`n`nЗапрет снимается кнопкой «Разрешить снова» здесь или в «Истории».") -Title 'Запрет доступа')) { return }
+            Start-BgTask -Name 'Запрет доступа' -Vars @{ P = $x.Path; N = $x.Name } -Script { Add-NetAppBlock -Path $P -Name $N } -OnDone { $script:NetUi.WhoCache['FwTime'] = $null; Update-NetWho } | Out-Null
+        } }
+        $items += @{ Text = 'Завершить программу'; Tag = $Item; Danger = $true; OnClick = {
+            $x = $this.Tag
+            if (-not (Show-Confirm -Message ('Завершить «' + $x.Name + '» (PID ' + $x.Pid + ')?' + "`n`nНесохранённые данные в этой программе пропадут.") -Title 'Завершить программу' -Warning)) { return }
+            try {
+                Stop-Process -Id $x.Pid -Force -ErrorAction Stop
+                Write-Log ('Завершена программа ' + $x.Name + ' (PID ' + $x.Pid + ')') 'ok'
+                Add-History -Kind 'network' -Name ('Завершена программа ' + $x.Name)
+            } catch { Write-Log ('Не удалось завершить ' + $x.Name + ': ' + $_.Exception.Message) 'err' }
+            Update-NetWho
+        } }
+    }
+    if (-not $items.Count) { $items += @{ Text = 'Это часть Windows - действия недоступны'; Tag = $null } }
+    Show-ActionMenu -Anchor $Anchor -Items $items
 }
 
 # --- Спидтест ---
@@ -792,7 +1094,7 @@ function Update-NetInfoTab {
         }
     }
     [void]$b.Children.Add((New-Placeholder))
-    $sb = switch ($ui.Tab) { 'wifi' { { Get-WifiProfiles } } 'conns' { { Get-NetConnectionsByApp } } default { { Get-NetAdaptersInfo } } }
+    $sb = switch ($ui.Tab) { 'wifi' { { Get-WifiProfiles } } default { { Get-NetAdaptersInfo } } }
     Start-BgTask -Name 'Сведения о сети' -Silent -Script $sb -OnDone {
         param($r, $err, $job)
         # пока грузилось, могли переключить вкладку - тогда результат уже не нужен
@@ -808,7 +1110,7 @@ function Set-NetInfo {
     $b.Children.Clear()
     $Items = @($Items | Where-Object { $_ })
     if (-not $Items.Count) {
-        [void]$b.Children.Add((New-Placeholder $(switch ($ui.Tab) { 'wifi' { 'Сохранённых сетей Wi-Fi нет (или на ПК нет Wi-Fi).' } 'conns' { 'Активных соединений нет.' } default { 'Адаптеров не найдено.' } })))
+        [void]$b.Children.Add((New-Placeholder $(switch ($ui.Tab) { 'wifi' { 'Сохранённых сетей Wi-Fi нет (или на ПК нет Wi-Fi).' } default { 'Адаптеров не найдено.' } })))
         return
     }
     foreach ($x in $Items) {
@@ -835,13 +1137,6 @@ function Set-NetInfo {
                     $right += $show; $right += $copy
                 }
                 [void]$b.Children.Add((New-Row -Left (New-Icon -Name 'wifi' -Size 18 -Color 'Muted') -Main (New-TitleBlock -Title $x.Name -Sub $(if ($x.Auth) { $x.Auth } else { 'открытая сеть' })) -Right $right -Padding (16, 6, 12, 6)))
-            }
-            'conns' {
-                $sample = (@($x.Remote) | Select-Object -First 4) -join ', '
-                if (@($x.Remote).Count -gt 4) { $sample += ' и ещё ' + (@($x.Remote).Count - 4) }
-                $row = New-Row -Left (New-AppIcon -Name $x.Name -Size 30) -Main (New-TitleBlock -Title ($x.Name + '  (PID ' + $x.Pid + ')') -Sub $sample) -Right @((New-Badge ([string]$x.Count + ' соедин.') 'info')) -Padding (16, 6, 16, 6)
-                if ($x.Path) { $row.ToolTip = $x.Path }
-                [void]$b.Children.Add($row)
             }
         }
     }

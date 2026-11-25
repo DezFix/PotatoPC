@@ -104,15 +104,43 @@ function Invoke-CleanItems {
 }
 
 function Build-Page_clean {
-    $ui = @{ Rows = @{}; Items = @() }
+    $ui = @{ Rows = @{}; Items = @(); Mode = 'junk' }
+    $script:CleanUi = $ui
     $scan = New-Button -Text 'Сканировать' -Icon 'search' -OnClick { Start-CleanScan }
+    $ui.ScanBtn = $scan
     $ab = New-ActionBar
     $ui.Bar = $ab
     $ui.CleanBtn = New-Button -Text 'Очистить' -Icon 'trash' -Kind Primary -OnClick { Start-CleanRun }
     $ui.CleanBtn.IsEnabled = $false
     [void]$ab.Right.Children.Add($ui.CleanBtn)
+    # Кнопки режима «Что занимает место» живут в той же нижней панели.
+    $ui.SpGo = New-Button -Text '' -Kind Secondary -OnClick { Invoke-SpaceGo }
+    $ui.SpCopy = New-Button -Text 'Копировать путь' -Icon 'copy' -Kind Secondary -OnClick {
+        $n = $script:CleanUi.SpSel
+        if ($n) { try { [System.Windows.Clipboard]::SetText([string]$n.Path); Write-Log ('Путь скопирован: ' + $n.Path) 'ok' } catch {} }
+    }
+    $ui.SpOpen = New-Button -Text 'Открыть в Проводнике' -Icon 'folder' -Kind Primary -OnClick { Open-SpaceSelected }
+    foreach ($b in @($ui.SpGo, $ui.SpCopy, $ui.SpOpen)) { $b.Visibility = 'Collapsed'; [void]$ab.Right.Children.Add($b) }
     $L = New-PageLayout -Title 'Очистка' -Subtitle 'Временные файлы, кэши и мусор программ' -HeaderRight @($scan) -ActionBar $ab.Root
     $ui.Subtitle = $L.Subtitle
+
+    # Переключатель: мусор / что занимает место
+    $modes = New-Object System.Windows.Controls.WrapPanel
+    $modes.Margin = New-Thickness 0, 0, 0, 8
+    $ui.ModeBtns = @{}
+    foreach ($m in @(@('junk', 'Мусор'), @('space', 'Что занимает место'))) {
+        $b = New-Button -Text $m[1] -Kind Chip -Tag $m[0] -OnClick { Set-CleanMode -Mode ([string]$this.Tag) }
+        $ui.ModeBtns[$m[0]] = $b
+        [void]$modes.Children.Add($b)
+    }
+    Set-ChipActive -Button $ui.ModeBtns['junk'] -Active $true
+    [void]$L.Body.Children.Add($modes)
+    $ui.JunkView = New-Stack
+    $ui.SpaceView = New-SpaceView
+    $ui.SpaceView.Visibility = 'Collapsed'
+    [void]$L.Body.Children.Add($ui.JunkView)
+    [void]$L.Body.Children.Add($ui.SpaceView)
+    $L = @{ Root = $L.Root; Body = $ui.JunkView }
 
     $sum = New-Stack
     $top = New-Object System.Windows.Controls.DockPanel
@@ -144,7 +172,30 @@ function Build-Page_clean {
 
 function Show-Page_clean {
     param($Arg)
-    if (-not $script:CleanUi.Scanned) { Start-CleanScan }
+    if ($Arg -eq 'space') { Set-CleanMode -Mode 'space'; return }
+    if ($script:CleanUi.Mode -eq 'junk' -and -not $script:CleanUi.Scanned) { Start-CleanScan }
+}
+
+function Set-CleanMode {
+    param([string]$Mode)
+    $ui = $script:CleanUi
+    $ui.Mode = $Mode
+    foreach ($k in $ui.ModeBtns.Keys) { Set-ChipActive -Button $ui.ModeBtns[$k] -Active ($k -eq $Mode) }
+    $junk = ($Mode -eq 'junk')
+    $ui.JunkView.Visibility = if ($junk) { 'Visible' } else { 'Collapsed' }
+    $ui.SpaceView.Visibility = if ($junk) { 'Collapsed' } else { 'Visible' }
+    $ui.ScanBtn.Visibility = if ($junk) { 'Visible' } else { 'Collapsed' }
+    $ui.CleanBtn.Visibility = if ($junk) { 'Visible' } else { 'Collapsed' }
+    if ($junk) {
+        $ui.Subtitle.Text = 'Временные файлы, кэши и мусор программ'
+        foreach ($b in @($ui.SpGo, $ui.SpCopy, $ui.SpOpen)) { $b.Visibility = 'Collapsed' }
+        Update-CleanSelection
+        if (-not $ui.Scanned) { Start-CleanScan }
+    } else {
+        $ui.Subtitle.Text = 'Какие папки и файлы занимают диск - деревом, по убыванию размера'
+        Update-SpaceBar
+        if (-not $ui.SpRoot -and -not $ui.SpBusy) { Start-SpaceScan }
+    }
 }
 
 function Start-CleanScan {
@@ -214,9 +265,11 @@ function Update-CleanSelection {
     $ui.Total.Text = Format-Size $bytes
     if ($bytes -le 0) { $ui.Total.Text = '0' }
     if ($ui.Free) { $ui.After.Text = 'После очистки на ' + $env:SystemDrive + ' будет ' + (Format-Size ($ui.Free + $bytes)) + ' свободно' }
-    $ui.Bar.Text.Inlines.Clear()
-    $ui.Bar.Text.Inlines.Add((New-Object System.Windows.Documents.Bold (New-Object System.Windows.Documents.Run ([string]$sel.Count))))
-    $ui.Bar.Text.Inlines.Add((New-Object System.Windows.Documents.Run (' выбрано · ' + (Format-Size $bytes))))
+    if ($ui.Mode -eq 'junk') {
+        $ui.Bar.Text.Inlines.Clear()
+        $ui.Bar.Text.Inlines.Add((New-Object System.Windows.Documents.Bold (New-Object System.Windows.Documents.Run ([string]$sel.Count))))
+        $ui.Bar.Text.Inlines.Add((New-Object System.Windows.Documents.Run (' выбрано · ' + (Format-Size $bytes))))
+    }
     $ui.CleanBtn.IsEnabled = ($sel.Count -gt 0)
     # Полоса по группам
     $ui.BarGrid.Children.Clear(); $ui.BarGrid.ColumnDefinitions.Clear(); $ui.Legend.Children.Clear()
@@ -256,4 +309,347 @@ function Start-CleanRun {
         $script:CleanUi.Scanned = $false
         Start-CleanScan
     } | Out-Null
+}
+
+# ---------- Что занимает место (дерево папок, как WinDirStat) ----------
+
+$script:SpaceMaxKids = 150
+
+function Initialize-PotatoDisk {
+    if ('PotatoDisk' -as [type]) { return $true }
+    try { Add-Type -TypeDefinition ([System.IO.File]::ReadAllText((Join-Path $AssetsFolder 'PotatoDisk.cs'), [System.Text.Encoding]::UTF8)) -ErrorAction Stop; return $true }
+    catch { Write-Log ('Модуль обхода диска не загрузился: ' + $_.Exception.Message) 'err'; return $false }
+}
+
+function Get-SpaceDrives {
+    $out = @()
+    foreach ($d in @([System.IO.DriveInfo]::GetDrives())) {
+        try {
+            if ($d.DriveType -ne 'Fixed' -or -not $d.IsReady) { continue }
+            $label = $d.Name.TrimEnd('\')
+            if ($d.VolumeLabel) { $label += ' ' + $d.VolumeLabel }
+            $out += @{ Root = $d.Name; Label = $label; Total = [double]$d.TotalSize; Free = [double]$d.TotalFreeSpace }
+        } catch {}
+    }
+    return $out
+}
+
+function Get-SpaceHint {
+    # Подсказка к папке или файлу: что это и где это безопасно почистить.
+    # Kind: ok (можно чистить) | warn (осторожно) | mute (справка). Go: куда ведёт кнопка в нижней панели.
+    param($Node)
+    $p = [string]$Node.Path
+    $n = [string]$Node.Name
+    $win = $env:WINDIR.TrimEnd('\')
+    if ($Node.IsRest) { return $null }
+    if ($Node.Denied) { return @{ Text = 'нет доступа'; Kind = 'mute'; Go = '' } }
+    if ($p -match '(?i)\\AppData\\Local\\Temp$' -or $p -ieq ($win + '\Temp')) { return @{ Text = 'временные файлы - можно чистить'; Kind = 'ok'; Go = 'junk' } }
+    if ($p -match '(?i)\\(Cache|Code Cache|GPUCache)$' -and $p -match '(?i)\\User Data\\|\\Mozilla\\|\\Opera') { return @{ Text = 'кэш браузера - можно чистить'; Kind = 'ok'; Go = 'junk' } }
+    if ($p -match '(?i)\\(NVIDIA\\DXCache|NVIDIA\\GLCache|D3DSCache|AMD\\DxCache)$') { return @{ Text = 'кэш шейдеров - можно чистить'; Kind = 'ok'; Go = 'junk' } }
+    if ($p -ieq ($win + '\SoftwareDistribution\Download')) { return @{ Text = 'скачанные обновления - можно чистить'; Kind = 'ok'; Go = 'junk' } }
+    if ($p -match '(?i)^[A-Z]:\\\$Recycle\.Bin$') { return @{ Text = 'корзина - можно очистить'; Kind = 'ok'; Go = 'junk' } }
+    if ($p -match '(?i)\\CrashDumps$' -or $p -ieq ($win + '\MEMORY.DMP') -or $p -ieq ($win + '\Minidump')) { return @{ Text = 'отчёты о сбоях - можно чистить'; Kind = 'ok'; Go = 'junk' } }
+    if ($p -ieq ($win + '\WinSxS')) { return @{ Text = 'компоненты Windows - сжимаются в «Твиках»'; Kind = 'warn'; Go = 'tweaks' } }
+    if (-not $Node.IsDir -and $n -ieq 'hiberfil.sys') { return @{ Text = 'гибернация - можно отключить в «Твиках»'; Kind = 'warn'; Go = 'tweaks' } }
+    if (-not $Node.IsDir -and ($n -ieq 'pagefile.sys' -or $n -ieq 'swapfile.sys')) { return @{ Text = 'файл подкачки Windows'; Kind = 'mute'; Go = '' } }
+    if ($p -match '(?i)\\steamapps\\common$') { return @{ Text = 'игры Steam - удалять через Steam'; Kind = 'warn'; Go = '' } }
+    if ($p -match '(?i)^[A-Z]:\\Program Files( \(x86\))?$') { return @{ Text = 'программы - удалять через «Удаление программ»'; Kind = 'warn'; Go = 'uninstall' } }
+    if ($p -ieq $win -or $p -match '(?i)^[A-Z]:\\(System Volume Information|Recovery)$') { return @{ Text = 'система - не трогать'; Kind = 'mute'; Go = '' } }
+    if ($p -match '(?i)^[A-Z]:\\Users\\[^\\]+\\Downloads$') { return @{ Text = 'загрузки - проверьте старые установщики'; Kind = 'warn'; Go = '' } }
+    if ($p -match '(?i)\\Telegram Desktop\\tdata\\user_data$') { return @{ Text = 'кэш Telegram - чистится в настройках Telegram'; Kind = 'warn'; Go = '' } }
+    if (-not $Node.IsDir -and $n -match '(?i)\.(iso|msi|exe|zip|rar|7z)$' -and $p -match '(?i)\\Downloads\\') { return @{ Text = 'установщик или архив'; Kind = 'warn'; Go = '' } }
+    return $null
+}
+
+function New-SpaceGrid {
+    $g = New-Object System.Windows.Controls.Grid
+    foreach ($w in @(0, 150, 46, 90, 90)) {
+        $cd = New-Object System.Windows.Controls.ColumnDefinition
+        if ($w -eq 0) { $cd.Width = New-Object System.Windows.GridLength 1, 'Star' } else { $cd.Width = New-Object System.Windows.GridLength $w }
+        [void]$g.ColumnDefinitions.Add($cd)
+    }
+    return $g
+}
+
+function New-SpaceView {
+    $ui = $script:CleanUi
+    $sp = New-Stack
+    # Диски + кнопка
+    $top = New-Object System.Windows.Controls.DockPanel
+    $top.Margin = New-Thickness 0, 0, 0, 6
+    $btn = New-Button -Text 'Сканировать' -Icon 'search' -Kind Primary -OnClick {
+        if ($script:CleanUi.SpBusy) { if ('PotatoDisk' -as [type]) { [PotatoDisk]::Cancel = $true } } else { Start-SpaceScan }
+    }
+    $btn.VerticalAlignment = 'Top'
+    [System.Windows.Controls.DockPanel]::SetDock($btn, 'Right')
+    [void]$top.Children.Add($btn)
+    $drv = New-Object System.Windows.Controls.WrapPanel
+    [void]$top.Children.Add($drv)
+    [void]$sp.Children.Add($top)
+    $status = New-Text -Text '' -Size 12 -Color 'Muted' -Wrap -Margin (2, 0, 0, 12)
+    [void]$sp.Children.Add($status)
+    # Дерево
+    $sec = New-Section -Title 'Папки и файлы'
+    $hdr = New-SpaceGrid
+    $hdr.Margin = New-Thickness 16, 0, 16, 6
+    $cols = @('Имя', 'Доля от папки выше', '', 'Размер', 'Файлов')
+    for ($i = 0; $i -lt $cols.Count; $i++) {
+        $t = New-Text -Text $cols[$i] -Size 12 -Color 'Muted'
+        if ($i -ge 3) { $t.TextAlignment = 'Right' }
+        [System.Windows.Controls.Grid]::SetColumn($t, $i)
+        [void]$hdr.Children.Add($t)
+    }
+    [void]$sec.Body.Children.Add($hdr)
+    $tree = New-Stack
+    $tree.Margin = New-Thickness 0, 0, 0, 8
+    [void]$tree.Children.Add((New-Placeholder 'Выберите диск и нажмите «Сканировать».'))
+    [void]$sec.Body.Children.Add($tree)
+    [void]$sp.Children.Add($sec.Root)
+    [void]$sp.Children.Add((New-Hint -Text 'Отсюда ничего не удаляется: можно только посмотреть, открыть папку в Проводнике или перейти туда, где это безопасно почистить. Цвет подсказки: зелёный - можно чистить, жёлтый - осторожно, серый - не трогать.' -Kind 'info'))
+    $ui.SpScanBtn = $btn
+    $ui.SpDrives = $drv
+    $ui.SpStatus = $status
+    $ui.SpTree = $tree
+    if (-not $ui.SpDrive) { $ui.SpDrive = $env:SystemDrive + '\' }
+    Update-SpaceDrives
+    return $sp
+}
+
+function Update-SpaceDrives {
+    $ui = $script:CleanUi
+    $ui.SpDrives.Children.Clear()
+    foreach ($d in @(Get-SpaceDrives)) {
+        $b = New-Button -Kind Chip -Tag $d.Root -OnClick {
+            if ($script:CleanUi.SpBusy) { return }
+            $script:CleanUi.SpDrive = [string]$this.Tag
+            Update-SpaceDrives
+            Start-SpaceScan
+        }
+        $b.Padding = New-Thickness 14, 8, 14, 8
+        $b.HorizontalContentAlignment = 'Stretch'
+        $st = New-Stack
+        $st.Width = 230
+        $row = New-Object System.Windows.Controls.DockPanel
+        $free = New-Text -Text ('свободно ' + (Format-Size $d.Free) + ' из ' + (Format-Size $d.Total)) -Size 11 -Color 'Muted'
+        [System.Windows.Controls.DockPanel]::SetDock($free, 'Right')
+        [void]$row.Children.Add($free)
+        [void]$row.Children.Add((New-Text -Text $d.Label -Size 13 -Weight 'SemiBold' -Margin (0, 0, 8, 0)))
+        [void]$st.Children.Add($row)
+        $m = New-Meter -Height 6
+        $m.Margin = New-Thickness 0, 7, 0, 0
+        $used = if ($d.Total -gt 0) { 1 - $d.Free / $d.Total } else { 0 }
+        Set-Meter -Meter $m -Value $used -Color $(if ($used -ge 0.9) { 'Bad' } elseif ($used -ge 0.75) { 'Warn' } else { 'Accent' })
+        [void]$st.Children.Add($m)
+        $b.Content = $st
+        if ($d.Root -ieq $ui.SpDrive) { $b.BorderBrush = Get-Brush 'Accent'; $b.BorderThickness = New-Thickness 1.5 }
+        [void]$ui.SpDrives.Children.Add($b)
+    }
+}
+
+function Start-SpaceScan {
+    $ui = $script:CleanUi
+    if ($ui.SpBusy) { return }
+    if (-not (Initialize-PotatoDisk)) { return }
+    $ui.SpBusy = $true
+    $ui.SpRoot = $null
+    $ui.SpSel = $null
+    $ui.SpSelRow = $null
+    $ui.SpSelHint = $null
+    Update-SpaceBar
+    Set-ButtonText -Button $ui.SpScanBtn -Text 'Остановить'
+    $ui.SpTree.Children.Clear()
+    [void]$ui.SpTree.Children.Add((New-Placeholder ('Сканирую ' + $ui.SpDrive + ' - на большом диске это займёт от 20 секунд до пары минут.')))
+    $ui.SpStatus.Text = ''
+    [PotatoDisk]::Cancel = $false
+    $ui.SpStart = Get-Date
+    $ui.SpTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $ui.SpTimer.Interval = [TimeSpan]::FromMilliseconds(300)
+    $ui.SpTimer.Add_Tick({
+        $ui = $script:CleanUi
+        $cur = [string][PotatoDisk]::Current
+        if ($cur.Length -gt 90) { $cur = $cur.Substring(0, 40) + '…' + $cur.Substring($cur.Length - 45) }
+        $ui.SpStatus.Text = 'Просмотрено ' + ('{0:N0}' -f [PotatoDisk]::FilesSeen) + ' файлов · ' + (Format-Size ([double][PotatoDisk]::BytesSeen)) + '  ·  ' + $cur
+    })
+    $ui.SpTimer.Start()
+    Write-Log ('Что занимает место: сканирую ' + $ui.SpDrive) 'head'
+    Start-BgTask -Name 'Что занимает место' -Vars @{ Root = $ui.SpDrive } -Script {
+        $n = [PotatoDisk]::Scan($Root)
+        return @{ Node = $n; Cancelled = [bool][PotatoDisk]::Cancel }
+    } -OnDone {
+        param($r, $err)
+        $ui = $script:CleanUi
+        try { $ui.SpTimer.Stop() } catch {}
+        $ui.SpBusy = $false
+        Set-ButtonText -Button $ui.SpScanBtn -Text 'Сканировать'
+        $ui.SpTree.Children.Clear()
+        Update-SpaceDrives
+        if (-not $r -or -not $r.Node) {
+            [void]$ui.SpTree.Children.Add((New-Placeholder 'Сканирование не удалось - подробности в журнале.'))
+            $ui.SpStatus.Text = ''
+            if ($err) { Write-Log ('Сканирование диска: ' + $err) 'err' }
+            Update-SpaceBar
+            return
+        }
+        if ($r.Cancelled) {
+            [void]$ui.SpTree.Children.Add((New-Placeholder 'Остановлено. Нажмите «Сканировать», чтобы начать заново.'))
+            $ui.SpStatus.Text = ''
+            Update-SpaceBar
+            return
+        }
+        $ui.SpRoot = $r.Node
+        $sec = [Math]::Round(((Get-Date) - $ui.SpStart).TotalSeconds)
+        $txt = ('{0:N0}' -f $r.Node.Files) + ' файлов, ' + (Format-Size ([double]$r.Node.Size)) + ', за ' + (Format-Duration $sec)
+        try {
+            $d = New-Object System.IO.DriveInfo ($ui.SpDrive)
+            $gap = ([double]$d.TotalSize - [double]$d.TotalFreeSpace) - [double]$r.Node.Size
+            if ($gap -gt 1GB) { $txt += '. Ещё ' + (Format-Size $gap) + ' занято служебными данными Windows (теневые копии, метаданные диска) - в дереве их не видно.' }
+        } catch {}
+        $ui.SpStatus.Text = $txt
+        Write-Log ('Что занимает место: ' + $txt) 'ok'
+        $row = New-SpaceRow -Node $r.Node -Depth 0 -ParentSize 0
+        [void]$ui.SpTree.Children.Add($row)
+        Switch-SpaceRow -Row $row
+        Select-SpaceRow -Row $row
+    } | Out-Null
+}
+
+function New-SpaceRow {
+    param($Node, [int]$Depth, [double]$ParentSize)
+    $hasKids = $Node.IsDir -and @($Node.Kids).Count -gt 0
+    $b = New-Object System.Windows.Controls.Border
+    $b.Padding = New-Thickness 16, 0, 16, 0
+    $b.MinHeight = 32
+    $b.Background = [System.Windows.Media.Brushes]::Transparent
+    $b.Cursor = 'Hand'
+    $g = New-SpaceGrid
+    # Имя: отступ, стрелка, значок, название, подсказка
+    $name = New-Stack -Orientation Horizontal
+    $name.Margin = New-Thickness ($Depth * 18), 0, 8, 0
+    $name.ClipToBounds = $true
+    $chev = New-Icon -Name 'chevR' -Size 14 -Color 'Muted' -Stroke 2.2
+    $chev.Margin = New-Thickness 0, 0, 6, 0
+    if (-not $hasKids) { $chev.Visibility = 'Hidden' }
+    [void]$name.Children.Add($chev)
+    $isFolder = $Node.IsDir -and -not $Node.IsRest
+    [void]$name.Children.Add((New-Icon -Name $(if ($isFolder) { 'folder' } else { 'file' }) -Size 16 -Color $(if ($isFolder) { 'Accent' } else { 'Muted' })))
+    [void]$name.Children.Add((New-Text -Text ([string]$Node.Name) -Size 13 -Weight $(if ($Depth -eq 0) { 'Bold' } else { 'Normal' }) -Color $(if ($Node.IsRest) { 'Muted' } else { 'Text' }) -Margin (8, 0, 0, 0)))
+    $hint = Get-SpaceHint -Node $Node
+    if ($hint) {
+        [void]$name.Children.Add((New-Text -Text $hint.Text -Size 12 -Color $(switch ($hint.Kind) { 'ok' { 'Ok' } 'warn' { 'Warn' } default { 'Muted' } }) -Margin (10, 0, 0, 0)))
+    }
+    [void]$g.Children.Add($name)
+    # Доля от папки выше, размер, число файлов
+    $share = if ($ParentSize -gt 0) { [double]$Node.Size / $ParentSize } else { 1.0 }
+    $m = New-Meter -Height 8
+    $m.VerticalAlignment = 'Center'
+    Set-Meter -Meter $m -Value $share -Color $(if ($Depth -eq 0) { 'Accent' } else { '#B98A35' })
+    [System.Windows.Controls.Grid]::SetColumn($m, 1); [void]$g.Children.Add($m)
+    $pt = New-Text -Text ([string][Math]::Round($share * 100) + '%') -Size 12 -Color 'Muted'
+    $pt.TextAlignment = 'Right'
+    [System.Windows.Controls.Grid]::SetColumn($pt, 2); [void]$g.Children.Add($pt)
+    $st = New-Text -Text (Format-Size ([double]$Node.Size)) -Size 13 -Weight 'SemiBold'
+    $st.TextAlignment = 'Right'
+    [System.Windows.Controls.Grid]::SetColumn($st, 3); [void]$g.Children.Add($st)
+    $ft = New-Text -Text $(if ($isFolder -or $Node.IsRest) { '{0:N0}' -f [long]$Node.Files } else { '—' }) -Size 12 -Color 'Muted'
+    $ft.TextAlignment = 'Right'
+    [System.Windows.Controls.Grid]::SetColumn($ft, 4); [void]$g.Children.Add($ft)
+    $b.Child = $g
+    $b.ToolTip = [string]$Node.Path
+    $b.Tag = @{ Node = $Node; Depth = $Depth; Open = $false; HasKids = $hasKids; Chev = $chev; Hint = $hint }
+    $b.Add_MouseEnter({ if ($this -ne $script:CleanUi.SpSelRow) { $this.Background = Get-Brush 'Hover' } })
+    $b.Add_MouseLeave({ if ($this -ne $script:CleanUi.SpSelRow) { $this.Background = [System.Windows.Media.Brushes]::Transparent } })
+    $b.Add_MouseLeftButtonUp({
+        Select-SpaceRow -Row $this
+        if ($this.Tag.HasKids) { Switch-SpaceRow -Row $this }
+    })
+    return $b
+}
+
+function Switch-SpaceRow {
+    # Раскрыть или свернуть папку: дочерние строки вставляются сразу под ней.
+    param($Row)
+    $ui = $script:CleanUi
+    $t = $Row.Tag
+    $list = $ui.SpTree.Children
+    $idx = $list.IndexOf($Row)
+    if ($idx -lt 0) { return }
+    if ($t.Open) {
+        while ($idx + 1 -lt $list.Count -and $list[$idx + 1].Tag.Depth -gt $t.Depth) { $list.RemoveAt($idx + 1) }
+        $t.Open = $false
+        $t.Chev.Child.Children[0].Data = [System.Windows.Media.Geometry]::Parse($script:IconPaths['chevR'])
+        return
+    }
+    $kids = @($t.Node.Kids)
+    $pos = $idx + 1
+    $shown = 0
+    foreach ($k in $kids) {
+        if ($shown -ge $script:SpaceMaxKids) { break }
+        $list.Insert($pos, (New-SpaceRow -Node $k -Depth ($t.Depth + 1) -ParentSize ([double]$t.Node.Size)))
+        $pos++; $shown++
+    }
+    if ($kids.Count -gt $shown) {
+        $restSize = 0.0; for ($i = $shown; $i -lt $kids.Count; $i++) { $restSize += [double]$kids[$i].Size }
+        $mb = New-Object System.Windows.Controls.Border
+        $mb.MinHeight = 28
+        $mb.Padding = New-Thickness (16 + ($t.Depth + 1) * 18 + 20), 0, 16, 0
+        $mb.Child = New-Text -Text ('… и ещё ' + ($kids.Count - $shown) + ' элементов, ' + (Format-Size $restSize) + ' - откройте папку в Проводнике') -Size 12 -Color 'Muted'
+        $mb.Tag = @{ Depth = $t.Depth + 1 }
+        $list.Insert($pos, $mb)
+    }
+    $t.Open = $true
+    $t.Chev.Child.Children[0].Data = [System.Windows.Media.Geometry]::Parse($script:IconPaths['chevD'])
+}
+
+function Select-SpaceRow {
+    param($Row)
+    $ui = $script:CleanUi
+    if ($ui.SpSelRow -and $ui.SpSelRow -ne $Row) { $ui.SpSelRow.Background = [System.Windows.Media.Brushes]::Transparent }
+    $ui.SpSelRow = $Row
+    $Row.Background = Get-Brush 'AccentDim'
+    $ui.SpSel = $Row.Tag.Node
+    $ui.SpSelHint = $Row.Tag.Hint
+    Update-SpaceBar
+}
+
+function Update-SpaceBar {
+    $ui = $script:CleanUi
+    if ($ui.Mode -ne 'space') { return }
+    $ui.Bar.Text.Inlines.Clear()
+    $n = $ui.SpSel
+    if (-not $n) {
+        $ui.Bar.Text.Inlines.Add((New-Object System.Windows.Documents.Run $(if ($ui.SpBusy) { 'Сканирую…' } else { 'Нажмите на папку, чтобы раскрыть её' })))
+        foreach ($b in @($ui.SpGo, $ui.SpCopy, $ui.SpOpen)) { $b.Visibility = 'Collapsed' }
+        return
+    }
+    $ui.Bar.Text.Inlines.Add((New-Object System.Windows.Documents.Bold (New-Object System.Windows.Documents.Run (Format-Size ([double]$n.Size)))))
+    $ui.Bar.Text.Inlines.Add((New-Object System.Windows.Documents.Run ('  ·  ' + [string]$n.Path)))
+    $ui.Bar.Text.ToolTip = [string]$n.Path
+    $ui.SpCopy.Visibility = 'Visible'
+    $ui.SpOpen.Visibility = 'Visible'
+    $go = if ($ui.SpSelHint) { [string]$ui.SpSelHint.Go } else { '' }
+    $ui.SpGo.Tag = $go
+    switch ($go) {
+        'junk' { Set-ButtonText -Button $ui.SpGo -Text 'Почистить в «Мусоре»'; $ui.SpGo.Visibility = 'Visible' }
+        'tweaks' { Set-ButtonText -Button $ui.SpGo -Text 'Открыть «Твики»'; $ui.SpGo.Visibility = 'Visible' }
+        'uninstall' { Set-ButtonText -Button $ui.SpGo -Text 'Открыть «Удаление программ»'; $ui.SpGo.Visibility = 'Visible' }
+        default { $ui.SpGo.Visibility = 'Collapsed' }
+    }
+}
+
+function Invoke-SpaceGo {
+    switch ([string]$script:CleanUi.SpGo.Tag) {
+        'junk' { Set-CleanMode -Mode 'junk' }
+        'tweaks' { Show-Page -Id 'tweaks' }
+        'uninstall' { Show-Page -Id 'uninstall' }
+    }
+}
+
+function Open-SpaceSelected {
+    $n = $script:CleanUi.SpSel
+    if (-not $n) { return }
+    $p = [string]$n.Path
+    try {
+        if ($n.IsDir -or $n.IsRest) { Start-Process -FilePath 'explorer.exe' -ArgumentList ('"' + $p + '"') }
+        else { Start-Process -FilePath 'explorer.exe' -ArgumentList ('/select,"' + $p + '"') }
+    } catch { Write-Log ('Не удалось открыть: ' + $p) 'warn' }
 }

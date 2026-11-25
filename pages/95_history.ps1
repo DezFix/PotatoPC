@@ -5,7 +5,7 @@
 # NAV: footer
 
 $script:HiUi = $null
-$script:HistoryIcons = @{ plugin = 'bolt'; clean = 'broom'; startup = 'power'; app = 'box'; drivers = 'chip'; users = 'users'; protect = 'shield'; service = 'wrench'; maintenance = 'clock'; test = 'gauge'; report = 'report'; restore = 'flag'; optimize = 'play'; network = 'network'; uninstall = 'trash' }
+$script:HistoryIcons = @{ plugin = 'bolt'; clean = 'broom'; startup = 'power'; app = 'box'; drivers = 'chip'; users = 'users'; protect = 'shield'; service = 'wrench'; maintenance = 'clock'; test = 'gauge'; report = 'report'; restore = 'flag'; optimize = 'play'; network = 'network'; uninstall = 'trash'; firewall = 'ban' }
 
 function Build-Page_history {
     $ui = @{}
@@ -71,6 +71,14 @@ function Show-Page_history {
                 }
                 $right = @($rb) + $right
             }
+        }
+        # Запрет доступа в интернет (страница «Сеть») снимается одной кнопкой, пока правило ещё есть
+        if ($ok -and [string]$x.Kind -eq 'firewall' -and $x.Ref -and (Get-NetFirewallRule -Name ([string]$x.Ref) -ErrorAction SilentlyContinue)) {
+            $fb = New-Button -Text 'Разрешить снова' -Icon 'undo' -Kind Small -Tag ([string]$x.Ref) -OnClick {
+                $id = [string]$this.Tag
+                Start-BgTask -Name 'Снятие запрета' -Vars @{ Id = $id } -Script { Remove-NetAppBlock -Id $Id } -OnDone { Show-Page_history } | Out-Null
+            }
+            $right = @($fb) + $right
         }
         $main = New-Text -Text ([string]$x.Name) -Size 13
         if ($x.Detail) { $main.ToolTip = [string]$x.Detail }
