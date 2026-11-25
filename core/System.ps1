@@ -199,19 +199,82 @@ function Get-StartupItems {
         $it.Never = $never; $it.Recommend = $rec; $it.Impact = $impact
         $it.Id = ($it.Kind + '|' + $it.Hive + '|' + $it.Key + '|' + $it.TaskPath + '|' + $it.Name + '|' + $it.File + '|' + $it.ServiceName)
         $it.Icon = $null
-        if ($WithIcons -and $path) {
-            try {
-                Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
-                $ico = [System.Drawing.Icon]::ExtractAssociatedIcon($path)
-                if ($ico) {
-                    $bmp = $ico.ToBitmap(); $ms = New-Object System.IO.MemoryStream
-                    $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
-                    $it.Icon = $ms.ToArray(); $ms.Dispose(); $bmp.Dispose(); $ico.Dispose()
-                }
-            } catch {}
-        }
+        if ($WithIcons -and $path) { $it.Icon = ConvertTo-IconPng -Path $path }
     }
     return @($items)
+}
+
+function ConvertTo-IconPng {
+    # Значок файла (exe, dll, ico, png) -> PNG-байты для New-AppIcon. $null, если не вышло.
+    param([string]$Path)
+    if (-not $Path) { return $null }
+    $Path = ([Environment]::ExpandEnvironmentVariables($Path)).Trim('"', ' ')
+    try { if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null } } catch { return $null }
+    try {
+        Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
+        $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
+        if ($ext -eq '.png') { return , ([System.IO.File]::ReadAllBytes($Path)) }
+        $ico = if ($ext -eq '.ico') { New-Object System.Drawing.Icon ($Path, 48, 48) } else { [System.Drawing.Icon]::ExtractAssociatedIcon($Path) }
+        if (-not $ico) { return $null }
+        $bmp = $ico.ToBitmap(); $ms = New-Object System.IO.MemoryStream
+        $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+        $out = $ms.ToArray(); $ms.Dispose(); $bmp.Dispose(); $ico.Dispose()
+        return , $out
+    } catch { return $null }
+}
+
+function Get-MsiProductIcon {
+    # Значок MSI-программы: HKCR\Installer\Products\<упакованный GUID>\ProductIcon.
+    param([string]$Guid)
+    $g = $Guid.Trim('{}').Replace('-', '')
+    if ($g.Length -ne 32) { return '' }
+    $p = ''
+    foreach ($seg in @($g.Substring(0, 8), $g.Substring(8, 4), $g.Substring(12, 4))) { $a = $seg.ToCharArray(); [array]::Reverse($a); $p += -join $a }
+    for ($i = 16; $i -lt 32; $i += 2) { $p += [string]$g[$i + 1] + [string]$g[$i] }
+    # Напрямую через .NET и HKLM: HKCR через провайдер PowerShell - ~0,3 с на каждый запрос.
+    try {
+        $k = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Classes\Installer\Products\' + $p)
+        if (-not $k) { return '' }
+        $v = [string]$k.GetValue('ProductIcon'); $k.Close()
+        return $v
+    } catch { return '' }
+}
+
+function Find-ProgramIconPath {
+    # Где взять значок программы из «Удаления программ», если DisplayIcon нет или он битый:
+    # значок MSI, главный exe в папке установки, деинсталлятор.
+    param([string]$DisplayIcon, [string]$Msi, [string]$Location, [string]$Exe, [string]$Name)
+    $c = ([Environment]::ExpandEnvironmentVariables(([string]$DisplayIcon -replace ',\s*-?\d+$', ''))).Trim('"', ' ')
+    if ($c -and (Test-Path -LiteralPath $c -PathType Leaf -ErrorAction SilentlyContinue)) { return $c }
+    if ($Msi) { $c = Get-MsiProductIcon -Guid $Msi; if ($c -and (Test-Path -LiteralPath $c -PathType Leaf -ErrorAction SilentlyContinue)) { return $c } }
+    if ($Location -and (Test-Path -LiteralPath $Location -PathType Container -ErrorAction SilentlyContinue)) {
+        $exes = @(Get-ChildItem -LiteralPath $Location -Filter '*.exe' -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch '(?i)^(unins|uninst|setup|install|update|crash|helper|elevat|notif|vc_?redist)' })
+        if ($exes.Count) {
+            $words = @(([string]$Name).ToLowerInvariant() -split '[^a-zа-я0-9]+' | Where-Object { $_.Length -ge 3 })
+            $hit = @($exes | Where-Object { $bn = $_.BaseName.ToLowerInvariant(); @($words | Where-Object { $bn.Contains($_) -or $_.Contains($bn) }).Count })
+            if ($hit.Count) { return ($hit | Sort-Object Length -Descending | Select-Object -First 1).FullName }
+            return ($exes | Sort-Object Length -Descending | Select-Object -First 1).FullName
+        }
+    }
+    if ($Exe -and $Exe -notmatch '(?i)\\(msiexec|rundll32|cmd|powershell)\.exe$' -and (Test-Path -LiteralPath $Exe -PathType Leaf -ErrorAction SilentlyContinue)) { return $Exe }
+    return ''
+}
+
+function Get-StoreAppIconPng {
+    # Значок приложения из Microsoft Store: Logo из манифеста (файлы лежат с суффиксами scale-100 и т.п.).
+    param([string]$InstallLocation, [string]$Logo)
+    if (-not $InstallLocation -or -not $Logo) { return $null }
+    try {
+        $dir = Join-Path $InstallLocation (Split-Path $Logo -Parent)
+        $base = [System.IO.Path]::GetFileNameWithoutExtension($Logo)
+        $ext = [System.IO.Path]::GetExtension($Logo)
+        $f = @(Get-ChildItem -LiteralPath $dir -Filter ($base + '*' + $ext) -File -ErrorAction Stop)
+        if (-not $f.Count) { return $null }
+        $pick = @($f | Where-Object { $_.Name -match '(?i)scale-200|targetsize-48' })[0]
+        if (-not $pick) { $pick = @($f | Where-Object { $_.Name -match '(?i)scale-100' })[0] }
+        if (-not $pick) { $pick = $f[0] }
+        return , ([System.IO.File]::ReadAllBytes($pick.FullName))
+    } catch { return $null }
 }
 
 function Set-StartupItemEnabled {

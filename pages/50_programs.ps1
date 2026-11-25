@@ -6,7 +6,7 @@
 $script:PgUi = $null
 
 function Build-Page_programs {
-    $ui = @{ Tab = 'install'; Checks = @{}; UpdChecks = @{}; Installed = @{}; Tabs = @{} }
+    $ui = @{ Tab = 'install'; Checks = @{}; UpdChecks = @{}; Installed = @{}; Tabs = @{}; IconTargets = (New-Object System.Collections.ArrayList); IconData = $null }
     $script:PgUi = $ui
     $ui.Search = New-TextInput -Placeholder 'Найти программу' -Width 260
     $ui.Search.Add_TextChanged({ Update-ProgramFilter })
@@ -128,6 +128,7 @@ function New-ProgramTile {
     $card.Tag = $chk
     $card.Add_MouseLeftButtonUp({ if ($this.Tag.IsEnabled) { $this.Tag.IsChecked = -not $this.Tag.IsChecked } })
     $script:PgUi.Checks[$App.Id] = @{ Check = $chk; State = $state; App = $App; Card = $card }
+    Register-ProgramIcon -Icon $ic -Id $App.Id -Name $App.Name
     return $card
 }
 
@@ -153,6 +154,46 @@ function Set-ProgramTab {
 function Show-Page_programs {
     param($Arg)
     if (-not $script:PgUi.InstLoaded) { Update-ProgramInstalled }
+    if (-not $script:PgUi.IconsStarted) { Start-ProgramIcons }
+}
+
+function Start-ProgramIcons {
+    # Настоящие значки вместо квадратов с буквой: каталог - с сайта программы (один раз, потом из data\icons),
+    # остальное - из exe установленных программ.
+    $ui = $script:PgUi
+    $ui.IconsStarted = $true
+    $apps = @()
+    foreach ($cn in $ui.Catalog.Categories.Keys) { foreach ($a in $ui.Catalog.Categories[$cn]) { $apps += @{ Id = $a.Id; Site = $a.Site } } }
+    Start-BgTask -Name 'Значки программ' -Silent -Vars @{ Apps = $apps } -Script {
+        $byName = @{}; $byId = @{}
+        try { $byName = Get-ProgramIconIndex } catch {}
+        try { $byId = Get-CatalogIcons -Apps $Apps } catch {}
+        return @{ ById = $byId; ByName = $byName }
+    } -OnDone {
+        param($r)
+        $ui = $script:PgUi
+        if (-not $r) { $ui.IconsStarted = $false; return }
+        $ui.IconData = $r
+        foreach ($t in @($ui.IconTargets)) { Set-ProgramIcon -Target $t }
+    } | Out-Null
+}
+
+function Register-ProgramIcon {
+    param($Icon, [string]$Id, [string]$Name)
+    $ui = $script:PgUi
+    $t = @{ Icon = $Icon; Id = $Id; Name = $Name }
+    [void]$ui.IconTargets.Add($t)
+    if ($ui.IconData) { Set-ProgramIcon -Target $t }
+}
+
+function Set-ProgramIcon {
+    param($Target)
+    $d = $script:PgUi.IconData
+    if (-not $d) { return }
+    $png = $null
+    if ($Target.Id -and $d.ById -and $d.ById.ContainsKey($Target.Id)) { $png = $d.ById[$Target.Id] }
+    if (-not $png -and $d.ByName) { $png = Find-ProgramIconByName -Index $d.ByName -Names @($Target.Name, $Target.Id, (([string]$Target.Id) -split '\.')[-1]) }
+    if ($png) { [void](Set-AppIconPng -Icon $Target.Icon -Png $png) }
 }
 
 function Update-ProgramInstalled {
@@ -164,6 +205,7 @@ function Update-ProgramInstalled {
         param($r)
         $ui = $script:PgUi
         $ui.InstPane.Body.Children.Clear()
+        Clear-ProgramIconTargets -Kind 'inst'
         if (-not $r -or $r.Missing) { $ui.Missing.Visibility = 'Visible'; $ui.InstLoaded = $false; return }
         $ui.Installed = @{}
         foreach ($p in $r.List) { $ui.Installed[$p.Id] = $p.Version }
@@ -180,7 +222,10 @@ function Update-ProgramInstalled {
                 if (-not (Show-Confirm -Message ('Удалить программу ' + $id + '?') -Warning)) { return }
                 Start-BgTask -Name ('Удаление ' + $id) -Vars @{ Id = $id } -Script { Install-WingetPackages -Ids @($Id) -Mode uninstall } -OnDone { Update-ProgramInstalled; if ($script:UnUi) { $script:UnUi.Loaded = $false } } | Out-Null
             }
-            $row = New-Row -Left (New-AppIcon -Name $nm -Size 32) -Main (New-TitleBlock -Title $nm -Sub ($p.Id + '  ·  ' + $p.Version)) -Right @($un) -Padding (16, 8, 12, 8)
+            $ic = New-AppIcon -Name $nm -Size 32
+            Register-ProgramIcon -Icon $ic -Id $p.Id -Name $nm
+            $ic.Tag = 'inst'
+            $row = New-Row -Left $ic -Main (New-TitleBlock -Title $nm -Sub ($p.Id + '  ·  ' + $p.Version)) -Right @($un) -Padding (16, 8, 12, 8)
             [void]$ui.InstPane.Body.Children.Add($row)
         }
         $ui.InstPane.Header.Text = 'Установленные программы (известные winget) · ' + $r.List.Count
@@ -198,12 +243,16 @@ function Update-ProgramUpdates {
         $ui = $script:PgUi
         $ui.UpdPane.Body.Children.Clear()
         $ui.UpdChecks = @{}
+        Clear-ProgramIconTargets -Kind 'upd'
         if (-not $r -or $r.Missing) { $ui.Missing.Visibility = 'Visible'; $ui.UpdLoaded = $false; return }
         if ($r.List.Count -eq 0) { [void]$ui.UpdPane.Body.Children.Add((New-Placeholder 'Все программы, которые знает winget, обновлены.')) }
         foreach ($u in $r.List) {
             $chk = New-CheckBox -Checked $true -Tag $u.Id -OnChange { Update-ProgramSelection }
             $ver = New-Text -Text ($u.Version + '  →  ' + $u.Available) -Size 12 -Color 'Muted' -Mono
-            $row = New-Row -Left $chk -Main (New-Stack -Orientation Horizontal -Children @((New-AppIcon -Name $u.Name -Size 30), (New-TitleBlock -Title $u.Name -Sub $u.Id))) -Right @($ver) -Padding (16, 8, 16, 8)
+            $ic = New-AppIcon -Name $u.Name -Size 30
+            $ic.Tag = 'upd'
+            Register-ProgramIcon -Icon $ic -Id $u.Id -Name $u.Name
+            $row = New-Row -Left $chk -Main (New-Stack -Orientation Horizontal -Children @($ic, (New-TitleBlock -Title $u.Name -Sub $u.Id))) -Right @($ver) -Padding (16, 8, 16, 8)
             $row.Child.Children[1].Children[1].Margin = New-Thickness 12, 0, 0, 0
             [void]$ui.UpdPane.Body.Children.Add($row)
             $ui.UpdChecks[$u.Id] = $chk
@@ -212,6 +261,13 @@ function Update-ProgramUpdates {
         Set-ButtonText -Button $ui.Tabs['updates'] -Text ('Обновления · ' + $r.List.Count)
         Update-ProgramSelection
     } | Out-Null
+}
+
+function Clear-ProgramIconTargets {
+    # Строки списка пересоздаются - старые квадраты больше не нужны.
+    param([string]$Kind)
+    $ui = $script:PgUi
+    foreach ($t in @($ui.IconTargets)) { if ([string]$t.Icon.Tag -eq $Kind) { $ui.IconTargets.Remove($t) } }
 }
 
 function Update-ProgramFilter {
@@ -241,6 +297,7 @@ function Start-WingetSearch {
         param($r)
         $ui = $script:PgUi
         $ui.SearchPane.Body.Children.Clear()
+        Clear-ProgramIconTargets -Kind 'search'
         if (-not $r -or $r.Missing) { $ui.Missing.Visibility = 'Visible'; return }
         if ($r.List.Count -eq 0) { [void]$ui.SearchPane.Body.Children.Add((New-Placeholder 'Ничего не нашлось.')); return }
         foreach ($a in $r.List) {
@@ -248,7 +305,12 @@ function Start-WingetSearch {
             $chk = New-CheckBox -Tag $a.Id -OnChange { Update-ProgramSelection }
             $inst = if ($ui.Installed.ContainsKey($a.Id)) { New-Badge 'Установлено' 'ok' } else { $null }
             if ($inst) { $chk.IsEnabled = $false }
-            $row = New-Row -Left $chk -Main (New-TitleBlock -Title $a.Name -Sub ($a.Id + '  ·  ' + $a.Version)) -Right @($inst) -Padding (16, 8, 16, 8)
+            $ic = New-AppIcon -Name $a.Name -Size 30
+            $ic.Tag = 'search'
+            Register-ProgramIcon -Icon $ic -Id $a.Id -Name $a.Name
+            $tb = New-TitleBlock -Title $a.Name -Sub ($a.Id + '  ·  ' + $a.Version)
+            $tb.Margin = New-Thickness 12, 0, 0, 0
+            $row = New-Row -Left $chk -Main (New-Stack -Orientation Horizontal -Children @($ic, $tb)) -Right @($inst) -Padding (16, 8, 16, 8)
             [void]$ui.SearchPane.Body.Children.Add($row)
             $ui.Checks[$a.Id] = @{ Check = $chk; State = (New-Text ''); App = @{ Name = $a.Name; Id = $a.Id; Desc = '' }; Card = $row; Search = $true }
         }

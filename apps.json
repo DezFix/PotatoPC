@@ -4,31 +4,37 @@
       {
         "Name": "Opera",
         "Id": "Opera.Opera",
+        "Site": "opera.com",
         "Description": "Быстрый браузер со встроенным VPN и блокировщиком рекламы."
       },
       {
         "Name": "OperaGX",
         "Id": "Opera.OperaGX",
+        "Site": "opera.com/gx",
         "Description": "Браузер для геймеров с контролем ресурсов."
       },
       {
         "Name": "Google Chrome",
         "Id": "Google.Chrome",
+        "Site": "google.com/chrome",
         "Description": "Популярный веб-браузер от Google."
       },
       {
         "Name": "LibreWolf",
         "Id": "LibreWolf.LibreWolf",
+        "Site": "librewolf.net",
         "Description": "Форк Firefox, ориентированный на приватность, защиту от телеметрии и блокировку слежки."
       },
       {
         "Name": "Mozilla Firefox",
         "Id": "Mozilla.Firefox",
+        "Site": "firefox.com",
         "Description": "Открытый веб-браузер, ориентированный на конфиденциальность."
       },
       {
         "Name": "Brave",
         "Id": "Brave.Brave",
+        "Site": "brave.com",
         "Description": "Быстрый браузер с блокировкой рекламы."
       }
     ],
@@ -36,51 +42,61 @@
       {
         "Name": "VLC Media Player",
         "Id": "VideoLAN.VLC",
+        "Site": "videolan.org",
         "Description": "Универсальный медиаплеер."
       },
       {
         "Name": "GIMP",
         "Id": "GIMP.GIMP.3",
+        "Site": "gimp.org",
         "Description": "Бесплатный редактор изображений, альтернатива Photoshop."
       },
       {
         "Name": "IrfanView",
         "Id": "IrfanSkiljan.IrfanView",
+        "Site": "irfanview.com",
         "Description": "Бесплатный просмоторщик изображений"
       },
       {
         "Name": "Audacity",
         "Id": "Audacity.Audacity",
+        "Site": "audacityteam.org",
         "Description": "Бесплатный аудиоредактор и звукозаписывающее приложение."
       },
       {
         "Name": "Shotcut",
         "Id": "Meltytech.Shotcut",
+        "Site": "shotcut.org",
         "Description": "Бесплатный видеоредактор с открытым исходным кодом."
       },
       {
         "Name": "Kdenlive",
         "Id": "KDE.Kdenlive",
+        "Site": "kdenlive.org",
         "Description": "Бесплатный и открытый видеоредактор."
       },
       {
         "Name": "OBS Studio",
         "Id": "OBSProject.OBSStudio",
+        "Site": "obsproject.com",
         "Description": "Бесплатное ПО для записи видео и потокового вещания."
       },
       {
         "Name": "Spotify",
         "Id": "Spotify.Spotify",
+        "Site": "spotify.com",
         "Description": "Музыка и подкасты."
       },
       {
         "Name": "foobar2000",
         "Id": "PeterPawlowski.foobar2000",
+        "Site": "foobar2000.org",
         "Description": "Очень лёгкий аудиоплеер."
       },
       {
         "Name": "HandBrake",
         "Id": "HandBrake.HandBrake",
+        "Site": "handbrake.fr",
         "Description": "Конвертер видео."
       }
     ],
@@ -88,36 +104,43 @@
       {
         "Name": "Onlyoffice",
         "Id": "ONLYOFFICE.DesktopEditors",
+        "Site": "onlyoffice.com",
         "Description": "Пакет офисных программ."
       },
       {
         "Name": "FreeOffice 2024",
         "Id": "SoftMaker.FreeOffice.2024",
+        "Site": "freeoffice.com",
         "Description": "Бесплатный офисный пакет от SoftMaker с поддержкой форматов Microsoft Office."
       },
       {
         "Name": "LibreOffice",
         "Id": "TheDocumentFoundation.LibreOffice",
+        "Site": "libreoffice.org",
         "Description": "Бесплатный офисный пакет, совместимый с Microsoft Office."
       },
       {
         "Name": "SumatraPDF",
         "Id": "SumatraPDF.SumatraPDF",
+        "Site": "sumatrapdfreader.org",
         "Description": "Легкий просмотрщик PDF и других форматов."
       },
       {
         "Name": "Notepad++",
         "Id": "Notepad++.Notepad++",
+        "Site": "notepad-plus-plus.org",
         "Description": "Бесплатный текстовый редактор с открытым исходным кодом."
       },
       {
         "Name": "Thunderbird",
         "Id": "Mozilla.Thunderbird",
+        "Site": "thunderbird.net",
         "Description": "Почта и календарь."
       },
       {
         "Name": "calibre",
         "Id": "calibre.calibre",
+        "Site": "calibre-ebook.com",
         "Description": "Библиотека электронных книг."
       }
     ],
@@ -125,41 +148,49 @@
       {
         "Name": "7-Zip",
         "Id": "7zip.7zip",
+        "Site": "7-zip.org",
         "Description": "Бесплатный архиватор с высокой степенью сжатия."
       },
       {
         "Name": "PeaZip",
         "Id": "Giorgiotani.Peazip",
+        "Site": "peazip.github.io",
         "Description": "Свободный и открытый архиватор с поддержкой более 200 форматов и упором на безопасность."
       },
       {
         "Name": "Free Download Manager",
         "Id": "SoftDeluxe.FreeDownloadManager",
+        "Site": "freedownloadmanager.org",
         "Description": "Мощный современный менеджер загрузок и ускоритель с поддержкой HTTP, FTP и BitTorrent."
       },
       {
         "Name": "File Converter",
         "Id": "AdrienAllard.FileConverter",
+        "Site": "file-converter.io",
         "Description": "Инструмент для конвертации файлов через контекстное меню."
       },
       {
         "Name": "ShareX",
         "Id": "ShareX.ShareX",
+        "Site": "getsharex.com",
         "Description": "Инструмент для захвата экрана и обмена файлами."
       },
       {
         "Name": "NanaZip",
         "Id": "M2Team.NanaZip",
+        "Site": "",
         "Description": "Современный архиватор."
       },
       {
         "Name": "WinSCP",
         "Id": "WinSCP.WinSCP",
+        "Site": "winscp.net",
         "Description": "Файлы по SFTP и FTP."
       },
       {
         "Name": "qBittorrent",
         "Id": "qBittorrent.qBittorrent",
+        "Site": "qbittorrent.org",
         "Description": "Торрент-клиент без рекламы."
       }
     ],
@@ -167,61 +198,73 @@
       {
         "Name": "AnyDesk",
         "Id": "AnyDesk.AnyDesk",
+        "Site": "anydesk.com",
         "Description": "Программа для удаленного доступа и управления."
       },
       {
         "Name": "BCUninstaller",
         "Id": "Klocman.BulkCrapUninstaller",
+        "Site": "www.bcuninstaller.com",
         "Description": "Бесплатный деинсталлятор программ с расширенными возможностями."
       },
       {
         "Name": "QuickLook",
         "Id": "QL-Win.QuickLook",
+        "Site": "",
         "Description": "Быстрый предварительный просмотр файлов по нажатию пробела."
       },
       {
         "Name": "EarTrumpet",
         "Id": "File-New-Project.EarTrumpet",
+        "Site": "",
         "Description": "Расширенный регулятор громкости для Windows."
       },
       {
         "Name": "ExplorerPatcher",
         "Id": "valinet.ExplorerPatcher",
+        "Site": "",
         "Description": "Патч для Проводника Windows, возвращающий старый вид. (WIN-11)"
       },
       {
         "Name": "NetTime",
         "Id": "MarkGriffiths.NetTime",
+        "Site": "timesynctool.com",
         "Description": "Утилита для синхронизации времени с NTP-серверами."
       },
       {
         "Name": "NormCap",
         "Id": "dynobo.NormCap",
+        "Site": "dynobo.github.io/normcap",
         "Description": "Инструмент для захвата экрана с функцией OCR, позволяющий извлекать текст из любого места на рабочем столе."
       },
       {
         "Name": "LockHunter",
         "Id": "CrystalRich.LockHunter",
+        "Site": "lockhunter.com",
         "Description": "Бесплатный инструмент для разблокировки файлов, занятых неизвестными процессами, с возможностью их удаления или переименования."
       },
       {
         "Name": "Flameshot",
         "Id": "Flameshot.Flameshot",
+        "Site": "flameshot.org",
         "Description": "Мощный инструмент для создания скриншотов."
       },
       {
         "Name": "Everything",
         "Id": "voidtools.Everything",
+        "Site": "voidtools.com",
         "Description": "Мгновенный поиск файлов."
       },
       {
         "Name": "WizTree",
         "Id": "AntibodySoftware.WizTree",
+        "Site": "diskanalyzer.com",
         "Description": "Показывает, чем забит диск."
       },
       {
         "Name": "KeePassXC",
         "Id": "KeePassXCTeam.KeePassXC",
+        "Site": "keepassxc.org",
         "Description": "Хранилище паролей."
       }
     ],
@@ -229,26 +272,31 @@
       {
         "Name": "Telegram",
         "Id": "Telegram.TelegramDesktop",
+        "Site": "telegram.org",
         "Description": "Быстрый и безопасный мессенджер."
       },
       {
         "Name": "Viber",
         "Id": "Rakuten.Viber",
+        "Site": "viber.com",
         "Description": "Мессенджер для бесплатных звонков и сообщений."
       },
       {
         "Name": "Microsoft Teams",
         "Id": "Microsoft.Teams",
+        "Site": "teams.microsoft.com",
         "Description": "Платформа для совместной работы от Microsoft."
       },
       {
         "Name": "Zoom",
         "Id": "Zoom.Zoom",
+        "Site": "zoom.us",
         "Description": "Приложение для видеоконференций и онлайн-встреч."
       },
       {
         "Name": "Signal",
         "Id": "OpenWhisperSystems.Signal",
+        "Site": "signal.org",
         "Description": "Мессенджер, ориентированный на конфиденциальность."
       }
     ],
@@ -256,26 +304,31 @@
       {
         "Name": "VS Code",
         "Id": "Microsoft.VisualStudioCode",
+        "Site": "code.visualstudio.com",
         "Description": "Мощный редактор кода от Microsoft."
       },
       {
         "Name": "Git",
         "Id": "Git.Git",
+        "Site": "git-scm.com",
         "Description": "Система контроля версий для отслеживания изменений."
       },
       {
         "Name": "Python",
         "Id": "Python.Python.3.13",
+        "Site": "python.org",
         "Description": "Популярный язык программирования."
       },
       {
         "Name": "Docker Desktop",
         "Id": "Docker.DockerDesktop",
+        "Site": "docker.com",
         "Description": "Платформа для разработки и запуска приложений в контейнерах."
       },
       {
         "Name": "GitHub Desktop",
         "Id": "GitHub.GitHubDesktop",
+        "Site": "desktop.github.com",
         "Description": "Git без командной строки."
       }
     ],
@@ -283,31 +336,37 @@
       {
         "Name": "Steam",
         "Id": "Valve.Steam",
+        "Site": "steampowered.com",
         "Description": "Крупнейшая платформа для цифровой дистрибуции игр."
       },
       {
         "Name": "Discord",
         "Id": "Discord.Discord",
+        "Site": "discord.com",
         "Description": "Платформа для голосового, видео и текстового общения."
       },
       {
         "Name": "Heroic Games Launcher",
         "Id": "HeroicGamesLauncher.HeroicGamesLauncher",
+        "Site": "heroicgameslauncher.com",
         "Description": "Открытый игровой лаунчер для Epic Games, GOG и Amazon Games."
       },
       {
         "Name": "GOG Galaxy",
         "Id": "GOG.Galaxy",
+        "Site": "gog.com",
         "Description": "Магазин игр без DRM."
       },
       {
         "Name": "Epic Games",
         "Id": "EpicGames.EpicGamesLauncher",
+        "Site": "epicgames.com",
         "Description": "Магазин Epic Games."
       },
       {
         "Name": "Prism Launcher",
         "Id": "PrismLauncher.PrismLauncher",
+        "Site": "prismlauncher.org",
         "Description": "Запуск Minecraft."
       }
     ],
@@ -315,36 +374,43 @@
       {
         "Name": "CPU-Z",
         "Id": "CPUID.CPU-Z",
+        "Site": "cpuid.com",
         "Description": "Подробности о процессоре, памяти и материнской плате."
       },
       {
         "Name": "HWiNFO",
         "Id": "REALiX.HWiNFO",
+        "Site": "hwinfo.com",
         "Description": "Датчики температур, напряжений и полная информация о железе."
       },
       {
         "Name": "CrystalDiskInfo",
         "Id": "CrystalDewWorld.CrystalDiskInfo",
+        "Site": "crystalmark.info",
         "Description": "Здоровье дисков по SMART."
       },
       {
         "Name": "CrystalDiskMark",
         "Id": "CrystalDewWorld.CrystalDiskMark",
+        "Site": "crystalmark.info",
         "Description": "Тест скорости дисков."
       },
       {
         "Name": "Ventoy",
         "Id": "Ventoy.Ventoy",
+        "Site": "ventoy.net",
         "Description": "Загрузочная флешка с несколькими образами."
       },
       {
         "Name": "Rufus",
         "Id": "Rufus.Rufus",
+        "Site": "rufus.ie",
         "Description": "Запись образов Windows и Linux на флешку."
       },
       {
         "Name": "OCCT",
         "Id": "OCBase.OCCT.Personal",
+        "Site": "ocbase.com",
         "Description": "Стресс-тесты процессора, видеокарты и блока питания."
       }
     ]

@@ -66,13 +66,9 @@ function Get-InstalledPrograms {
             if (-not $msi -and $un) { $exe = (Split-CommandLine $un)[0] }
             $broken = (-not $msi) -and $exe -and -not (Test-Path -LiteralPath $exe)
             $icon = $null
-            $iconPath = ([string]$v.DisplayIcon -replace ',\s*-?\d+$', '').Trim('"')
-            if ($WithIcons -and $iconPath -and $iconPath -notmatch '(?i)\.ico$' -and (Test-Path -LiteralPath $iconPath)) {
-                try {
-                    Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
-                    $ico = [System.Drawing.Icon]::ExtractAssociatedIcon($iconPath)
-                    if ($ico) { $bmp = $ico.ToBitmap(); $ms = New-Object System.IO.MemoryStream; $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png); $icon = $ms.ToArray(); $ms.Dispose(); $bmp.Dispose(); $ico.Dispose() }
-                } catch {}
+            if ($WithIcons) {
+                $iconPath = Find-ProgramIconPath -DisplayIcon ([string]$v.DisplayIcon) -Msi $msi -Location ([string]$v.InstallLocation).Trim('"', ' ') -Exe $exe -Name $name
+                if ($iconPath) { $icon = ConvertTo-IconPng -Path $iconPath }
             }
             [void]$out.Add(@{
                 Kind = 'win32'; Id = [string]$sub.PSPath; Name = $name; Publisher = ([string]$v.Publisher).Trim(); Version = [string]$v.DisplayVersion
@@ -86,18 +82,22 @@ function Get-InstalledPrograms {
 
 function Get-StoreAppsList {
     # Фон. Приложения Microsoft Store, которые можно удалить.
+    param([switch]$WithIcons)
     $out = @()
     foreach ($p in @(Get-AppxPackage -ErrorAction SilentlyContinue | Where-Object { -not $_.IsFramework -and -not $_.NonRemovable -and $_.SignatureKind -eq 'Store' -and -not $_.IsResourcePackage })) {
         $name = [string]$p.Name
         $pretty = ($name -replace '^[A-Za-z0-9]+\.', '' -replace '([a-z])([A-Z])', '$1 $2').Trim()
+        $m = $null
         try {
             $m = Get-AppxPackageManifest -Package $p.PackageFullName -ErrorAction Stop
             $dn = [string]$m.Package.Properties.DisplayName
             if ($dn -and $dn -notlike 'ms-resource:*') { $pretty = $dn }
         } catch {}
         $size = 0
+        $icon = $null
+        if ($WithIcons -and $m) { $icon = Get-StoreAppIconPng -InstallLocation ([string]$p.InstallLocation) -Logo ([string]$m.Package.Properties.Logo) }
         $out += @{ Kind = 'store'; Id = [string]$p.PackageFullName; Name = $pretty; Publisher = ([string]$p.Publisher -replace '^CN=([^,]+).*$', '$1'); Version = [string]$p.Version
-            Date = $(try { (Get-Item -LiteralPath $p.InstallLocation -ErrorAction Stop).CreationTime } catch { $null }); Size = $size; Package = [string]$p.PackageFullName; Family = [string]$p.PackageFamilyName; Broken = $false; Icon = $null }
+            Date = $(try { (Get-Item -LiteralPath $p.InstallLocation -ErrorAction Stop).CreationTime } catch { $null }); Size = $size; Package = [string]$p.PackageFullName; Family = [string]$p.PackageFamilyName; Broken = $false; Icon = $icon }
     }
     return $out
 }
@@ -330,7 +330,7 @@ function Update-UninstallPage {
     $ui.List.Body.Children.Clear()
     [void]$ui.List.Body.Children.Add((New-Placeholder 'Собираю список программ…'))
     Start-BgTask -Name 'Список программ' -Script {
-        return @{ Win = @(Get-InstalledPrograms -WithIcons); Store = @(Get-StoreAppsList) }
+        return @{ Win = @(Get-InstalledPrograms -WithIcons); Store = @(Get-StoreAppsList -WithIcons) }
     } -OnDone {
         param($r, $err)
         $ui = $script:UnUi

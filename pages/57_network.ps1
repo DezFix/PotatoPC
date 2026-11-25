@@ -790,7 +790,14 @@ function Set-NetWho {
         $more = New-Button -Text '⋯' -Kind Small -Tag $x -ToolTip 'Действия' -OnClick { Show-NetWhoMenu -Anchor $this -Item $this.Tag }
         $more.Padding = New-Thickness 10, 0, 10, 0
         $right += $more
-        $row = New-Row -Left (New-AppIcon -Name $x.Name -Size 30) -Main $main -Right $right -Padding (16, 7, 12, 7)
+        # Значок из exe программы; кэш - список перерисовывается каждые 3 секунды.
+        if (-not $script:NetIconCache) { $script:NetIconCache = @{} }
+        $png = $null
+        if ($x.Path) {
+            if (-not $script:NetIconCache.ContainsKey($x.Path)) { $script:NetIconCache[$x.Path] = ConvertTo-IconPng -Path $x.Path }
+            $png = $script:NetIconCache[$x.Path]
+        }
+        $row = New-Row -Left (New-AppIcon -Name $x.Name -Png $png -Size 30) -Main $main -Right $right -Padding (16, 7, 12, 7)
         if ($x.Path) { $row.ToolTip = $x.Path + "`nPID " + $x.Pid }
         [void]$b.Children.Add($row)
     }

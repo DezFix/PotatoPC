@@ -400,17 +400,7 @@ function New-AppIcon {
     param([string]$Name, [byte[]]$Png = $null, [double]$Size = 36)
     $b = New-Object System.Windows.Controls.Border
     $b.Width = $Size; $b.Height = $Size; $b.CornerRadius = New-Object System.Windows.CornerRadius 9
-    if ($Png) {
-        try {
-            $ms = New-Object System.IO.MemoryStream (, $Png)
-            $img = New-Object System.Windows.Media.Imaging.BitmapImage
-            $img.BeginInit(); $img.StreamSource = $ms; $img.CacheOption = 'OnLoad'; $img.EndInit(); $img.Freeze()
-            $im = New-Object System.Windows.Controls.Image
-            $im.Source = $img; $im.Width = $Size * 0.7; $im.Height = $Size * 0.7
-            $b.Background = Get-Brush 'Panel'; $b.Child = $im
-            return $b
-        } catch {}
-    }
+    if ($Png -and (Set-AppIconPng -Icon $b -Png $Png)) { return $b }
     $palette = @('#60A5FA','#818CF8','#38BDF8','#F87171','#FBBF24','#4ADE80','#A78BFA','#F472B6','#FB923C','#2DD4BF')
     $h = 0; foreach ($ch in $Name.ToCharArray()) { $h = ($h * 31 + [int]$ch) % 1000 }
     $b.Background = Get-Brush $palette[$h % $palette.Count]
@@ -419,6 +409,23 @@ function New-AppIcon {
     $t.HorizontalAlignment = 'Center'
     $b.Child = $t
     return $b
+}
+
+function Set-AppIconPng {
+    # Ставит настоящий значок (PNG-байты) в квадрат от New-AppIcon - можно и позже, когда значок догрузится.
+    param($Icon, [byte[]]$Png)
+    if (-not $Icon -or -not $Png -or $Png.Length -lt 8) { return $false }
+    try {
+        $ms = New-Object System.IO.MemoryStream (, $Png)
+        $img = New-Object System.Windows.Media.Imaging.BitmapImage
+        $img.BeginInit(); $img.StreamSource = $ms; $img.CacheOption = 'OnLoad'; $img.EndInit(); $img.Freeze()
+        $im = New-Object System.Windows.Controls.Image
+        $s = [double]$Icon.Width * 0.72
+        $im.Source = $img; $im.Width = $s; $im.Height = $s
+        [System.Windows.Media.RenderOptions]::SetBitmapScalingMode($im, 'HighQuality')
+        $Icon.Background = Get-Brush 'Panel'; $Icon.Child = $im
+        return $true
+    } catch { return $false }
 }
 
 function New-IconTile {

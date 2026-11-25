@@ -155,12 +155,85 @@ function Get-AppCatalog {
         $j = Get-Content -LiteralPath $AppsJsonPath -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         $cats = if ($j.Categories) { $j.Categories } else { $j.ManualCategories }
         foreach ($p in $cats.PSObject.Properties) {
-            $cat.Categories[$p.Name] = @($p.Value | ForEach-Object { @{ Name = [string]$_.Name; Id = [string]$_.Id; Desc = [string]$_.Description } })
+            $cat.Categories[$p.Name] = @($p.Value | ForEach-Object { @{ Name = [string]$_.Name; Id = [string]$_.Id; Desc = [string]$_.Description; Site = [string]$_.Site } })
         }
         if ($j.Kits) { $cat.Kits = @($j.Kits | ForEach-Object { @{ Name = [string]$_.Name; Desc = [string]$_.Desc; Ids = @($_.Ids) } }) }
         elseif ($j.Presets) { foreach ($p in $j.Presets.PSObject.Properties) { $cat.Kits += @{ Name = $p.Name; Desc = ''; Ids = @($p.Value) } } }
     } catch {}
     return $cat
+}
+
+function Get-CatalogIcons {
+    <#
+      Фон. Значки программ из каталога (apps.json, поле Site): favicon сайта программы через
+      сервис значков Google, 64 px. Скачиваются один раз и лежат в data\icons; не нашлось -
+      пустой файл .none, повтор через неделю. Возвращает Id -> PNG-байты.
+    #>
+    param([object[]]$Apps)
+    $dir = Join-Path $DataRoot 'icons'
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $out = @{}
+    $todo = @()
+    foreach ($a in $Apps) {
+        if (-not $a.Site -or -not $a.Id) { continue }
+        $safe = ($a.Id -replace '[^A-Za-z0-9._-]', '_')
+        $f = Join-Path $dir ($safe + '.png')
+        $none = Join-Path $dir ($safe + '.none')
+        if (Test-Path -LiteralPath $f) { try { $out[$a.Id] = [System.IO.File]::ReadAllBytes($f) } catch {}; continue }
+        if ((Test-Path -LiteralPath $none) -and ((Get-Item -LiteralPath $none).LastWriteTime -gt (Get-Date).AddDays(-7))) { continue }
+        $todo += @{ Id = $a.Id; Site = $a.Site; File = $f; None = $none }
+    }
+    if ($todo.Count) {
+        try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
+        foreach ($t in $todo) {
+            if ($Job -and $Job.Cancel) { break }
+            $u = 'https://www.google.com/s2/favicons?sz=64&domain_url=' + [uri]::EscapeDataString('https://' + $t.Site)
+            try {
+                $wc = New-Object System.Net.WebClient
+                $b = $wc.DownloadData($u); $wc.Dispose()
+                # Должна быть картинка (PNG 89 50, JPEG FF D8, GIF 47 49, ICO 00 00), а не страница с ошибкой.
+                if ($b.Length -gt 100 -and (($b[0] -eq 0x89 -and $b[1] -eq 0x50) -or ($b[0] -eq 0xFF -and $b[1] -eq 0xD8) -or ($b[0] -eq 0x47 -and $b[1] -eq 0x49) -or ($b[0] -eq 0 -and $b[1] -eq 0))) {
+                    [System.IO.File]::WriteAllBytes($t.File, $b); $out[$t.Id] = $b
+                } else { [System.IO.File]::WriteAllText($t.None, '') }
+            } catch {
+                # 404 - у сайта значка нет, не спрашиваем неделю. Нет интернета и т.п. - попробуем в следующий раз.
+                $code = 0; try { $code = [int]$_.Exception.InnerException.Response.StatusCode } catch {}
+                if ($code -eq 404) { try { [System.IO.File]::WriteAllText($t.None, '') } catch {} }
+            }
+        }
+        Write-Log ('Значки каталога: скачано ' + @($todo | Where-Object { $out.ContainsKey($_.Id) }).Count + ' из ' + $todo.Count)
+    }
+    return $out
+}
+
+function Get-ProgramIconIndex {
+    # Фон. Значки установленных программ по имени (для списков winget, где есть только имя и Id).
+    $map = @{}
+    foreach ($p in @(Get-InstalledPrograms -WithIcons)) {
+        if (-not $p.Icon) { continue }
+        $k = Get-ProgramNameKey $p.Name
+        if ($k -and -not $map.ContainsKey($k)) { $map[$k] = $p.Icon }
+    }
+    return $map
+}
+
+function Find-ProgramIconByName {
+    # Сначала точное совпадение ключа имени, потом «начинается с» (не короче 5 букв).
+    param([hashtable]$Index, [string[]]$Names)
+    $keys = @($Names | ForEach-Object { Get-ProgramNameKey $_ } | Where-Object { $_.Length -ge 3 })
+    foreach ($k in $keys) { if ($Index.ContainsKey($k)) { return , $Index[$k] } }
+    foreach ($k in $keys) {
+        if ($k.Length -lt 5) { continue }
+        foreach ($rk in $Index.Keys) { if ($rk.StartsWith($k) -or ($rk.Length -ge 5 -and $k.StartsWith($rk))) { return , $Index[$rk] } }
+    }
+    return $null
+}
+
+function Get-ProgramNameKey {
+    # «Mozilla Firefox (x64 ru)» -> «mozillafirefox»: без скобок, версий и знаков.
+    param([string]$Name)
+    $n = ([string]$Name).ToLowerInvariant() -replace '\(.*?\)', '' -replace '\b(x64|x86|64-bit|32-bit|amd64)\b', '' -replace '\d+(\.\d+)+', ''
+    return ($n -replace '[^a-zа-яё0-9]', '')
 }
 
 function Install-WingetClient {
