@@ -4,7 +4,7 @@
 $script:Clr = @{
     Bg = '#14161B'; Panel = '#1B1E25'; Card = '#20242C'; Line = '#2C313B'; Text = '#E8EAF0'; Muted = '#9AA3B2'
     Accent = '#F5B544'; AccentDim = '#2A2416'; OnAccent = '#1A1407'; Ok = '#4ADE80'; OkDim = '#123222'
-    Warn = '#FBBF24'; WarnDim = '#33290F'; Bad = '#F87171'; BadDim = '#3A1A1A'; Info = '#7CC4FA'; InfoDim = '#13283A'
+    Warn = '#FBBF24'; WarnDim = '#33290F'; Bad = '#F87171'; BadDim = '#3A1A1A'; Info = '#7CC4FA'; InfoDim = '#13283A'; Hover = '#14FFFFFF'
 }
 
 # Значки: контуры 24x24 (stroke). Только линии и дуги - без заливки.
