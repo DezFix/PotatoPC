@@ -106,6 +106,12 @@ function Initialize-TweakList {
             if (-not $p.Trusted) { $right += New-Badge 'Сторонний плагин' 'info' }
             foreach ($pr in $p.Presets) { if ($script:PresetInfo.Contains($pr)) { $right += New-OutlineChip $script:PresetInfo[$pr].Title } }
             $right += New-RiskBadge $p.Risk
+            $undoTip = if ($p.UndoId) { 'Откатить этот твик' } else { 'Разовое действие - откатывать нечего' }
+            $ub = New-Button -Text '' -Icon 'undo' -Kind Ghost -Tag $p.Id -ToolTip $undoTip -OnClick { Start-TweakUndo -Id $this.Tag }
+            $ub.Content.Children[1].Visibility = 'Collapsed'
+            if (-not $p.UndoId) { $ub.IsEnabled = $false; $ub.Opacity = 0.35 }
+            [System.Windows.Controls.ToolTipService]::SetShowOnDisabled($ub, $true)
+            $right += $ub
             $code = New-Button -Text '' -Icon 'term' -Kind Ghost -Tag $p.Path -ToolTip 'Показать код скрипта' -OnClick { Start-Process notepad.exe -ArgumentList ('"' + $this.Tag + '"') }
             $code.Content.Children[1].Visibility = 'Collapsed'
             $right += $code
@@ -227,11 +233,20 @@ function Start-TweakApply {
 }
 
 function Start-TweakUndo {
-    param([string]$CatNum)
-    $undo = @(Get-UndoPlugins -CatNum $CatNum)
-    if ($undo.Count -eq 0) { return }
-    $cat = @($script:TwUi.Plugins | Where-Object { $_.CatNum -eq $CatNum } | Select-Object -First 1).Category
-    $msg = 'Вернуть настройки раздела «' + $cat + '» к заводским?' + "`n`n" + (($undo | ForEach-Object { '  • ' + $_.Name + "`n    " + $_.Desc }) -join "`n")
+    # -CatNum: откатить весь раздел; -Id: откатить один твик.
+    param([string]$CatNum = '', [string]$Id = '')
+    if ($Id) {
+        $u = Get-UndoPlugin -Id $Id
+        if (-not $u) { return }
+        $cat = $u.Name
+        $msg = 'Откатить твик?' + "`n`n  • " + $u.Name + "`n    " + $u.Desc
+        $undo = @($u)
+    } else {
+        $undo = @(Get-UndoPlugins -CatNum $CatNum)
+        if ($undo.Count -eq 0) { return }
+        $cat = @($script:TwUi.Plugins | Where-Object { $_.CatNum -eq $CatNum } | Select-Object -First 1).Category
+        $msg = 'Вернуть настройки раздела «' + $cat + '» к заводским?' + "`n`n" + (($undo | ForEach-Object { '  • ' + $_.Name }) -join "`n")
+    }
     if (-not (Show-Confirm -Message $msg -Title 'Откат' -Warning)) { return }
     Start-BgTask -Name ('Откат: ' + $cat) -Vars @{ U = $undo } -Script { Invoke-PluginBatch -Plugins $U -RestorePoint $false -Title 'Откат' } -OnDone {
         Initialize-TweakList

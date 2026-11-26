@@ -53,12 +53,21 @@ try {
         $proc.Dispose()
     }
 } catch {}
-if ($gitOk) {
-    $files = @($allFiles | Where-Object {
-        $rel = $_.FullName.Substring($Root.Length).TrimStart('\', '/')
-        $tracked.Contains($rel)
-    })
-} else { $files = @($allFiles) }
+# Папки с export-ignore в .gitattributes (tests/, tools/) GitHub не кладёт в
+# архив ветки - их нет и в манифесте, иначе запуск по ссылке не найдёт файлы.
+$skipDirs = @()
+$ga = Join-Path $Root '.gitattributes'
+if (Test-Path -LiteralPath $ga) {
+    foreach ($l in [System.IO.File]::ReadAllLines($ga)) {
+        if ($l -match '^\s*([^#\s]+)/\s+.*\bexport-ignore\b') { $skipDirs += (($Matches[1] -replace '/', '\') + '\') }
+    }
+}
+$files = @($allFiles | Where-Object {
+    $rel = $_.FullName.Substring($Root.Length).TrimStart('\', '/')
+    $skip = $false
+    foreach ($d in $skipDirs) { if ($rel.StartsWith($d, [StringComparison]::OrdinalIgnoreCase)) { $skip = $true } }
+    (-not $skip) -and ((-not $gitOk) -or $tracked.Contains($rel))
+})
 # Ordinal, not Sort-Object: the current culture orders Install-PotatoPC.ps1,
 # LICENSE and README.md differently, so every culture re-writes the manifest.
 $byPath = @{}
@@ -71,7 +80,7 @@ function Test-RepoManifestTextFile {
     param([string]$Path)
     $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
     $name = [System.IO.Path]::GetFileName($Path).ToLowerInvariant()
-    return (@('.bat', '.cfg', '.cmd', '.conf', '.cs', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.psm1', '.toml', '.txt', '.svg', '.xml', '.xaml', '.yaml', '.yml', '.yar', '.yara') -contains $ext) -or ($name -match '^(license|notice|copying|readme)$')
+    return (@('.bat', '.cfg', '.cmd', '.conf', '.cs', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.psm1', '.toml', '.txt', '.svg', '.xml', '.xaml', '.yaml', '.yml') -contains $ext) -or ($name -match '^(license|notice|copying|readme)$')
 }
 
 function Get-RepoManifestHash {

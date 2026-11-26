@@ -46,7 +46,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 # --- 2. Where the app lives ---
 function Get-PotatoHash([string]$Path) {
     $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
-    $text = @('.bat', '.cfg', '.cmd', '.conf', '.cs', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.psm1', '.toml', '.txt', '.svg', '.xml', '.xaml', '.yaml', '.yml', '.yar', '.yara')
+    $text = @('.bat', '.cfg', '.cmd', '.conf', '.cs', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.psm1', '.toml', '.txt', '.svg', '.xml', '.xaml', '.yaml', '.yml')
     $bytes = [System.IO.File]::ReadAllBytes($Path)
     if ($text -contains $ext -or [System.IO.Path]::GetFileName($Path) -match '^(?i)(license|notice|copying|readme)$') {
         $bytes = [System.Text.Encoding]::UTF8.GetBytes([System.Text.Encoding]::UTF8.GetString($bytes).Replace("`r`n", "`n").Replace("`r", "`n"))
@@ -64,7 +64,10 @@ if ($PSCommandPath -and (Test-Path -LiteralPath $PSCommandPath)) {
     # moved (not deleted) to _archive_v6. Retired plugins are found by file name,
     # so this file stays pure ASCII.
     $legacy = @('modules', 'protect', 'assets\window.xaml', 'assets\icons')
-    foreach ($old in @('04_foreground_boost.ps1', '05_game_mode.ps1', '09_clean_autostart.ps1')) {
+    foreach ($old in @('04_foreground_boost.ps1', '05_game_mode.ps1', '09_clean_autostart.ps1',
+                         # v7.1: section undo scripts moved into <section>\Otkat\ (one per tweak)
+                         '01_undo_cleanup.ps1', '02_undo_defender.ps1', '04_undo_power.ps1', '05_undo_privacy.ps1',
+                         '07_undo_speed.ps1', '08_undo_security.ps1', '09_undo_autostart.ps1')) {
         foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $script:AppRoot 'scripts') -Filter $old -File -Recurse -ErrorAction SilentlyContinue)) {
             $legacy += $f.FullName.Substring($script:AppRoot.Length).TrimStart('\')
         }

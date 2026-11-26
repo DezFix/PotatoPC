@@ -8,6 +8,16 @@
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 try {
+    # Снимок «как было» для отката (Откат\01_firewall_on.ps1).
+    $before = @(Get-NetFirewallProfile -PolicyStore PersistentStore -ErrorAction Stop)
+    if (@($before | Where-Object { $_.Enabled -ne 'True' }).Count -gt 0) {
+        try {
+            $bd = Join-Path $env:ProgramData 'PotatoPC\backups'
+            if (-not (Test-Path -LiteralPath $bd)) { New-Item -ItemType Directory -Path $bd -Force | Out-Null }
+            @{ Time = (Get-Date -Format 's'); Profiles = @($before | ForEach-Object { @{ Name = [string]$_.Name; Enabled = ([string]$_.Enabled -eq 'True') } }) } |
+                ConvertTo-Json -Depth 4 | Out-File -LiteralPath (Join-Path $bd ('firewall-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.json')) -Encoding UTF8 -Force
+        } catch { Write-Output ("[!] Снимок не сохранён: " + $_.Exception.Message) }
+    }
     Set-NetFirewallProfile -Profile Domain, Public, Private -Enabled True -ErrorAction Stop
     $local = @(Get-NetFirewallProfile -PolicyStore PersistentStore -ErrorAction Stop | Where-Object { -not $_.Enabled })
     if ($local.Count -gt 0) {

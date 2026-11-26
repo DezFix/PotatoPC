@@ -3,13 +3,13 @@
     PotatoPC: общий модуль очистки (правила cleaner/rules.json + защита от самоудаления).
 .DESCRIPTION
     Единственная реализация движка чистки. Используется дважды:
-      1) modules/_clean.ps1 - вкладка «Очистка» в GUI;
+      1) pages/30_clean.ps1 - вкладка «Очистка» в GUI;
       2) scripts/02 Очистка/01_clean_junk.ps1 - скрипт из общего списка модулей.
     Оба места раньше держали свои копии одних и тех же функций, поэтому любая
     правка защиты расходилась с реальностью.
 
     ЗАЩИТА. Модуль ничего не удаляет, пока не доказано обратное:
-      - свои папки PotatoPC (рабочая, кэш репозитория, карантин, YARA-тулы) и
+      - свои папки PotatoPC (рабочая, данные, бэкапы) и
         корень репозитория, из которого запущен скрипт, защищены всегда;
       - папки пользователя с данными (Рабочий стол, Документы, Загрузки...)
         защищены целиком - правила туда не ходят;
@@ -52,18 +52,6 @@ function ConvertTo-CleanFullPath {
         if ($p.Length -gt 3) { $p = $p.TrimEnd('\','/') }
         return $p
     } catch { return '' }
-}
-
-function Test-CleanPathWithin {
-    # Чистая арифметика префиксов: лежит ли Path внутри Root.
-    param([string]$Path, [string]$Root)
-    $p = ConvertTo-CleanFullPath $Path
-    $r = ConvertTo-CleanFullPath $Root
-    if (-not $p -or -not $r) { return $false }
-    if ($p.Equals($r, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
-    $prefix = $r
-    if (-not $prefix.EndsWith('\')) { $prefix = $prefix + '\' }
-    return $p.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 function Add-CleanGuardRoot {
@@ -463,14 +451,6 @@ function Get-CleanSkippedReport {
 
 function Clear-CleanSkipped {
     $script:CleanGuardSkipped = @()
-}
-
-function Format-CleanSize {
-    param([long]$Bytes)
-    if ($Bytes -le 0) { return "нет" }
-    if ($Bytes -ge 1GB) { return ("{0} ГБ" -f [math]::Round($Bytes / 1GB, 1)) }
-    if ($Bytes -ge 1MB) { return ("{0} МБ" -f [math]::Round($Bytes / 1MB, 1)) }
-    return ("{0} КБ" -f [math]::Max(1, [int]($Bytes / 1KB)))
 }
 
 function Invoke-CleanAction {

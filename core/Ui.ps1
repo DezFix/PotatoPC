@@ -54,7 +54,7 @@ $script:IconPaths = @{
     copy    = 'M8,8 H20 V20 H8 Z M4,16 V4 H16'
     ban     = 'M12,3 A9,9 0 1 1 12,21 A9,9 0 1 1 12,3 M5.6,5.6 L18.4,18.4'
 }
-$script:CategoryIcons = @{ '01' = 'bolt'; '02' = 'broom'; '03' = 'eye'; '05' = 'mem'; '08' = 'shield'; '09' = 'undo' }
+$script:CategoryIcons = @{ '01' = 'bolt'; '02' = 'broom'; '03' = 'eye'; '05' = 'mem'; '08' = 'shield'; '09' = 'wrench' }
 
 $script:BrushCache = @{}
 function Get-Brush {
@@ -108,11 +108,6 @@ function New-Stack {
     if ($null -ne $Margin) { $s.Margin = New-Thickness $Margin }
     foreach ($c in $Children) { if ($null -ne $c) { [void]$s.Children.Add($c) } }
     return $s
-}
-
-function New-Wrap {
-    $w = New-Object System.Windows.Controls.WrapPanel
-    return $w
 }
 
 function New-Button {

@@ -2,8 +2,8 @@
 # Все пути, которые нужны фоновым задачам, перечислены в $script:ConfigVarNames:
 # Start-BgTask передаёт их в каждый фоновый поток.
 
-$script:AppVersion = '7.0.0'
-$script:BuildTag   = '2026-11-17-v7'
+$script:AppVersion = '7.1.0'
+$script:BuildTag   = '2026-11-26-v7.1'
 
 # Корень приложения: папка, где лежит menu.ps1.
 if (-not $script:AppRoot) { $script:AppRoot = Split-Path $script:CoreDir -Parent }
@@ -38,6 +38,23 @@ $script:UIStatePath    = Join-Path $script:DataRoot 'ui.json'
 
 foreach ($d in @($script:DataRoot, $script:WorkFolder, $script:LogFolder, $script:SnapshotFolder, $script:ReportFolder)) {
     try { if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force -ErrorAction Stop | Out-Null } } catch {}
+}
+
+# v6 качал сканер YARA (tools\yara64.exe, potato.yar) и правила (protect-rules).
+# v7 их не использует - убираем остатки. Трогаем только эти файлы, а папку
+# tools удаляем, лишь если в ней больше ничего нет.
+foreach ($yaraRoot in @($script:DataRoot, (Join-Path $env:ProgramData 'PotatoPC')) | Select-Object -Unique) {
+    try {
+        $rules = Join-Path $yaraRoot 'protect-rules'
+        if (Test-Path -LiteralPath $rules) { Remove-Item -LiteralPath $rules -Recurse -Force -ErrorAction SilentlyContinue }
+        $tools = Join-Path $yaraRoot 'tools'
+        if (Test-Path -LiteralPath $tools) {
+            Get-ChildItem -LiteralPath $tools -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -like 'yara*.exe' -or $_.Extension -in @('.yar', '.yara') } |
+                Remove-Item -Force -ErrorAction SilentlyContinue
+            if (-not (Get-ChildItem -LiteralPath $tools -Force -ErrorAction SilentlyContinue)) { Remove-Item -LiteralPath $tools -Force -ErrorAction SilentlyContinue }
+        }
+    } catch {}
 }
 
 function Get-WindowsInfo {

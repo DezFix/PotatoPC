@@ -32,18 +32,22 @@ function Show-Page_history {
     $ui = $script:HiUi
     # Откаты
     $ui.Undo.Body.Children.Clear()
+    # Одна строка на раздел: все откаты его твиков разом. Откатить отдельный
+    # твик можно кнопкой у самого твика на странице «Твики».
     $cats = @{}
     foreach ($p in @(Get-Plugins | Where-Object { -not $_.IsUndo })) { $cats[$p.CatNum] = $p.Category }
-    foreach ($u in @(Get-UndoPlugins)) {
-        $for = @($u.UndoFor | ForEach-Object { if ($cats[$_]) { $cats[$_] } else { $_ } })
-        $sub = $u.Desc
-        if ($for.Count) { $sub = 'Раздел «' + ($for -join '», «') + '». ' + $sub }
-        $b = New-Button -Text 'Откатить' -Icon 'undo' -Kind Small -Tag $u -OnClick {
-            $p = $this.Tag
-            if (-not (Show-Confirm -Message ('Запустить откат «' + $p.Name + '»?' + "`n`n" + $p.Desc) -Title 'Откат' -Warning)) { return }
-            Start-BgTask -Name ('Откат: ' + $p.Name) -Vars @{ P = $p } -Script { Invoke-PluginBatch -Plugins @($P) -RestorePoint $true -Title 'Откат' } -OnDone { Show-Page_history } | Out-Null
+    $all = @(Get-UndoPlugins)
+    foreach ($num in @($all | ForEach-Object { $_.UndoFor } | Where-Object { $_ } | Sort-Object -Unique)) {
+        $list = @($all | Where-Object { $_.UndoFor -contains $num })
+        $cat = if ($cats[$num]) { $cats[$num] } else { $num }
+        $sub = 'Откатов: ' + $list.Count + '. ' + ((@($list | ForEach-Object { $_.Name -replace '^Откат:\s*', '' }) | Select-Object -First 4) -join '; ') + $(if ($list.Count -gt 4) { '…' } else { '' })
+        $b = New-Button -Text 'Откатить раздел' -Icon 'undo' -Kind Small -Tag @{ Cat = $cat; List = $list } -OnClick {
+            $t = $this.Tag
+            $msg = 'Вернуть настройки раздела «' + $t.Cat + '» к заводским?' + "`n`n" + (($t.List | ForEach-Object { '  • ' + $_.Name }) -join "`n")
+            if (-not (Show-Confirm -Message $msg -Title 'Откат' -Warning)) { return }
+            Start-BgTask -Name ('Откат: ' + $t.Cat) -Vars @{ P = $t.List } -Script { Invoke-PluginBatch -Plugins @($P) -RestorePoint $true -Title 'Откат' } -OnDone { Show-Page_history } | Out-Null
         }
-        [void]$ui.Undo.Body.Children.Add((New-Row -Left (New-IconTile -Icon 'undo' -Color 'Info') -Main (New-TitleBlock -Title $u.Name -Sub $sub) -Right @($b)))
+        [void]$ui.Undo.Body.Children.Add((New-Row -Left (New-IconTile -Icon 'undo' -Color 'Info') -Main (New-TitleBlock -Title ('Раздел «' + $cat + '»') -Sub $sub) -Right @($b)))
     }
     # Журнал
     $ui.Log.Body.Children.Clear()

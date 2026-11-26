@@ -13,3 +13,8 @@
 *.woff binary
 *.woff2 binary
 *.ttf binary
+
+# Нужны только разработчику: в архив ветки (его качает запуск по ссылке) не попадают.
+# tools/New-ReleaseHashes.ps1 не вносит их в SHA256SUMS.
+tests/ export-ignore
+tools/ export-ignore

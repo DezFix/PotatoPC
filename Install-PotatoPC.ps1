@@ -47,11 +47,11 @@ function Resolve-ExtractedPath {
 }
 
 function Test-RepoManifestTextFile {
-    # Тот же список, что в tools/New-ReleaseHashes.ps1 и modules/_core.ps1.
+    # Тот же список, что в tools/New-ReleaseHashes.ps1, core/Plugins.ps1 и menu.ps1.
     param([string]$Path)
     $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
     $name = [System.IO.Path]::GetFileName($Path).ToLowerInvariant()
-    return (@('.bat', '.cfg', '.cmd', '.conf', '.cs', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.psm1', '.toml', '.txt', '.svg', '.xml', '.xaml', '.yaml', '.yml', '.yar', '.yara') -contains $ext) -or ($name -match '^(license|notice|copying|readme)$')
+    return (@('.bat', '.cfg', '.cmd', '.conf', '.cs', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.psm1', '.toml', '.txt', '.svg', '.xml', '.xaml', '.yaml', '.yml') -contains $ext) -or ($name -match '^(license|notice|copying|readme)$')
 }
 
 function Get-RepoManifestHash {

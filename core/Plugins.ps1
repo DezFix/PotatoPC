@@ -9,8 +9,13 @@
 #   # CHECK:   (необязательно) выражение PowerShell; $true = твик уже применён.
 #              Есть помощник Test-Reg 'HKCU:\...' 'Имя' значение
 #   # UNDO:    (необязательно) путь к своему скрипту отката относительно scripts\
-#   # UNDOFOR: (для откатов) номер раздела, который откатывает скрипт, например 01
+#   # UNDOFOR: (необязательно) номер раздела для отката, лежащего вне папки «Откат»
 #   # TIMEOUT: (необязательно) секунд на выполнение, по умолчанию 300
+#
+# Откат твика лежит рядом, в подпапке «Откат» его раздела, под тем же именем:
+#   scripts\01 Скорость\02_fast_login.ps1  ->  scripts\01 Скорость\Откат\02_fast_login.ps1
+# Все откаты раздела вместе = «Откатить раздел». У разовых действий (чистка)
+# отката нет - откатывать там нечего.
 #
 # Скрипт выполняется отдельным процессом powershell.exe от администратора и
 # сообщает результат кодом выхода: 0 - успех, иначе ошибка.
@@ -58,7 +63,7 @@ function Get-RepoFileHash {
     # Та же нормализация, что в tools/New-ReleaseHashes.ps1: текст -> LF.
     param([string]$Path)
     $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
-    $text = @('.bat', '.cfg', '.cmd', '.conf', '.cs', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.psm1', '.toml', '.txt', '.svg', '.xml', '.xaml', '.yaml', '.yml', '.yar', '.yara')
+    $text = @('.bat', '.cfg', '.cmd', '.conf', '.cs', '.css', '.csv', '.editorconfig', '.gitattributes', '.gitignore', '.htm', '.html', '.ini', '.js', '.json', '.md', '.ps1', '.psd1', '.psm1', '.toml', '.txt', '.svg', '.xml', '.xaml', '.yaml', '.yml')
     $bytes = [System.IO.File]::ReadAllBytes($Path)
     if ($text -contains $ext -or [System.IO.Path]::GetFileName($Path) -match '^(?i)(license|notice|copying|readme)$') {
         $s = [System.Text.Encoding]::UTF8.GetString($bytes).Replace("`r`n", "`n").Replace("`r", "`n")
@@ -86,9 +91,12 @@ function Get-Plugins {
     $files = @(Get-ChildItem -LiteralPath $ScriptsFolder -Filter '*.ps1' -File -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName)
     foreach ($f in $files) {
         $h = Read-PluginHeader -Path $f.FullName
-        $dir = $f.Directory.Name
+        $catDir = $f.Directory
+        $inUndoDir = $catDir.Name -match '^(?i)откат$'
+        if ($inUndoDir) { $catDir = $catDir.Parent }
+        $dir = $catDir.Name
         $catNum = '99'; $catName = 'Другое'
-        if ($f.Directory.FullName.TrimEnd('\') -ne $ScriptsFolder.TrimEnd('\')) {
+        if ($catDir.FullName.TrimEnd('\') -ne $ScriptsFolder.TrimEnd('\')) {
             if ($dir -match '^(\d{1,2})\s*(.+)$') { $catNum = ('{0:D2}' -f [int]$Matches[1]); $catName = $Matches[2].Trim() }
             else { $catName = $dir }
         }
@@ -98,7 +106,8 @@ function Get-Plugins {
         $risk = 2
         if ($tags -match '^\s*([123])') { $risk = [int]$Matches[1] }
         $undoFor = [string]$h['UNDOFOR']
-        $isUndo = [bool]$undoFor -or ($catName -match '(?i)^откат')
+        if ($inUndoDir -and -not $undoFor) { $undoFor = $catNum }
+        $isUndo = $inUndoDir -or [bool]$undoFor -or ($catName -match '(?i)^откат')
         $timeout = 300
         if ([string]$h['TIMEOUT'] -match '^\d+$') { $timeout = [int]$h['TIMEOUT'] }
         $presets = @()
@@ -117,6 +126,9 @@ function Get-Plugins {
             Presets   = $presets
             Check     = [string]$h['CHECK']
             Undo      = [string]$h['UNDO']
+            UndoId    = ''
+            FileName  = $f.Name
+            InUndoDir = $inUndoDir
             UndoFor   = @(($undoFor -split '[,\s]+') | Where-Object { $_ } | ForEach-Object { '{0:D2}' -f [int]$_ })
             IsUndo    = $isUndo
             Timeout   = $timeout
@@ -126,6 +138,15 @@ function Get-Plugins {
             Trusted   = (Test-FileInManifest -Path $f.FullName)
             Applicable = -not (($tags -match '(?i)win11') -and $WindowsMajorVersion -lt 11)
         })
+    }
+    # Твик -> его откат: тот же файл в подпапке «Откат» раздела или путь из # UNDO:.
+    $byId = @{}
+    foreach ($p in $list) { $byId[$p.Id] = $p }
+    foreach ($p in @($list | Where-Object { -not $_.IsUndo })) {
+        $u = $null
+        if ($p.Undo) { $u = $byId[($p.Undo -replace '/', '\').TrimStart('\')] }
+        if (-not $u) { $u = @($list | Where-Object { $_.InUndoDir -and $_.CatNum -eq $p.CatNum -and $_.FileName -ieq $p.FileName } | Select-Object -First 1)[0] }
+        if ($u) { $p.UndoId = $u.Id }
     }
     $script:PluginCache = @($list | Sort-Object CatNum, Num, Name)
     return $script:PluginCache
@@ -204,6 +225,14 @@ function Invoke-PluginBatch {
     $sum = 'Выполнено: ' + $ok + ' из ' + $list.Count
     if ($fail -gt 0) { Write-Log ($sum + '; с ошибкой: ' + ($failed -join ', ')) 'warn' } else { Write-Log $sum 'ok' }
     return @{ Ok = $ok; Fail = $fail; Failed = $failed }
+}
+
+function Get-UndoPlugin {
+    # Откат одного твика (или $null, если у твика его нет - разовое действие).
+    param([string]$Id)
+    $p = @(Get-Plugins | Where-Object { $_.Id -eq $Id } | Select-Object -First 1)[0]
+    if (-not $p -or -not $p.UndoId) { return $null }
+    return @(Get-Plugins | Where-Object { $_.Id -eq $p.UndoId } | Select-Object -First 1)[0]
 }
 
 function Get-UndoPlugins {
