@@ -153,10 +153,24 @@ $script:Window.Dispatcher.Add_UnhandledException({
 })
 
 # Window size and state between runs.
+$ui = $null
 try {
     if (Test-Path -LiteralPath $script:UIStatePath) {
         $ui = Get-Content -LiteralPath $script:UIStatePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        if ($ui.Width -ge 980 -and $ui.Height -ge 620) { $script:Window.Width = [double]$ui.Width; $script:Window.Height = [double]$ui.Height }
+    }
+} catch { $ui = $null }
+# Scale: auto (fits the screen) unless the user picked one in the title bar.
+try {
+    if ($ui -and $ui.PSObject.Properties['Scale'] -and -not [bool]$ui.ScaleAuto) { Set-UiScale -Scale ([double]$ui.Scale) } else { Set-UiScale -Auto }
+} catch {}
+try {
+    if ($ui) {
+        $wa = [System.Windows.SystemParameters]::WorkArea
+        # A size saved at another scale (or before scaling existed) is ignored.
+        $sameScale = $ui.PSObject.Properties['Scale'] -and [Math]::Abs([double]$ui.Scale - $script:UiScale) -lt 0.001
+        if ($sameScale -and $ui.Width -ge $script:Window.MinWidth -and $ui.Height -ge $script:Window.MinHeight -and $ui.Width -le $wa.Width -and $ui.Height -le $wa.Height) {
+            $script:Window.Width = [double]$ui.Width; $script:Window.Height = [double]$ui.Height
+        }
         if ($ui.Maximized) { $script:Window.WindowState = 'Maximized' }
         if ([bool]$ui.LogOpen) { Set-LogVisible $true }
     }
@@ -165,7 +179,8 @@ $script:Window.Add_Closing({
     foreach ($j in @(Get-RunningTasks)) { Stop-BgTask $j }
     try {
         @{ Width = $script:Window.RestoreBounds.Width; Height = $script:Window.RestoreBounds.Height
-           Maximized = ($script:Window.WindowState -eq 'Maximized'); LogOpen = ($script:LogPanel.Visibility -eq 'Visible') } |
+           Maximized = ($script:Window.WindowState -eq 'Maximized'); LogOpen = ($script:LogPanel.Visibility -eq 'Visible')
+           Scale = $script:UiScale; ScaleAuto = $script:UiScaleAuto } |
             ConvertTo-Json | Set-Content -LiteralPath $script:UIStatePath -Encoding UTF8 -ErrorAction Stop
     } catch {}
 })

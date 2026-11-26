@@ -1099,6 +1099,7 @@ function New-UsPopup {
     $sh = New-Object System.Windows.Media.Effects.DropShadowEffect
     $sh.BlurRadius = 18; $sh.ShadowDepth = 4; $sh.Opacity = 0.5; $sh.Color = [System.Windows.Media.Colors]::Black
     $card.Effect = $sh
+    Add-UiScale $card
     $pp.Child = $card
     $pp.IsOpen = $true
     return $pp

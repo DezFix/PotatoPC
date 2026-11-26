@@ -533,7 +533,7 @@ function Show-FormDialog {
     param([string]$Title, [scriptblock]$Build, [scriptblock]$OnOk, [string]$OkText = 'Готово', [double]$Width = 420)
     $w = New-Object System.Windows.Window
     $w.Owner = $script:Window; $w.WindowStartupLocation = 'CenterOwner'
-    $w.Width = $Width; $w.SizeToContent = 'Height'; $w.ResizeMode = 'NoResize'
+    $w.Width = $Width * $script:UiScale; $w.SizeToContent = 'Height'; $w.ResizeMode = 'NoResize'
     $w.Title = $Title; $w.Background = Get-Brush 'Bg'; $w.Foreground = Get-Brush 'Text'
     $w.FontFamily = $script:Window.FontFamily
     foreach ($k in $script:Window.Resources.MergedDictionaries) { [void]$w.Resources.MergedDictionaries.Add($k) }
@@ -544,7 +544,7 @@ function Show-FormDialog {
     # Высокие окна (много дисков, много программ) прокручиваются, а не уходят за край экрана.
     $sv = New-Object System.Windows.Controls.ScrollViewer
     $sv.VerticalScrollBarVisibility = 'Auto'; $sv.HorizontalScrollBarVisibility = 'Disabled'
-    $sv.MaxHeight = [Math]::Max(320, [System.Windows.SystemParameters]::WorkArea.Height - 230)
+    $sv.MaxHeight = [Math]::Max(320, [System.Windows.SystemParameters]::WorkArea.Height / $script:UiScale - 230)
     $sv.Content = $fields
     [void]$sp.Children.Add($sv)
     & $Build $fields
@@ -565,6 +565,7 @@ function Show-FormDialog {
     $script:DlgState.Ok = $ok
     [void]$btns.Children.Add($cancel); [void]$btns.Children.Add($ok)
     [void]$sp.Children.Add($btns)
+    Add-UiScale $sp
     $w.Content = $sp
     try { Enable-DarkTitleBar -Target $w } catch {}
     [void]$w.ShowDialog()
@@ -590,6 +591,7 @@ function Show-ActionMenu {
         if ($i.OnClick) { $mi.Add_Click($i.OnClick) }
         [void]$cm.Items.Add($mi)
     }
+    Add-UiScale $cm
     $cm.PlacementTarget = $Anchor
     $cm.Placement = if ($AtMouse) { 'MousePoint' } else { 'Bottom' }
     # Пока меню открыто, живые списки (например «Кто сейчас в сети») не перерисовываются.
@@ -626,6 +628,88 @@ function Enable-DarkTitleBar {
         $v = 1
         [void][PotatoPC.Dwm]::DwmSetWindowAttribute($h, 20, [ref]$v, 4)
     } catch {}
+}
+
+# --- Масштаб окна ---
+# Всё содержимое окна рисуется через LayoutTransform, поэтому на маленьких
+# экранах (ноутбуки 1366×768, 125–150 % в Windows) окно целиком становится меньше.
+
+$script:UiBaseW = 1240; $script:UiBaseH = 800      # размер окна при 100 %
+$script:UiMinW = 980;   $script:UiMinH = 620
+$script:UiScale = 1.0
+$script:UiScaleAuto = $true
+$script:UiScaleSteps = @(0.7, 0.75, 0.8, 0.85, 0.9, 1.0, 1.1, 1.25)
+
+function Get-AutoUiScale {
+    # Самый крупный шаг, при котором окно занимает не больше ~90 % рабочей области.
+    $wa = [System.Windows.SystemParameters]::WorkArea
+    $fit = [Math]::Min(($wa.Width * 0.92) / $script:UiBaseW, ($wa.Height * 0.9) / $script:UiBaseH)
+    $best = $script:UiScaleSteps[0]
+    foreach ($s in $script:UiScaleSteps) { if ($s -le 1.0 -and $s -le $fit) { $best = $s } }
+    return $best
+}
+
+function Add-UiScale {
+    # Для отдельных окон и всплывающих меню: они не наследуют масштаб главного окна.
+    param($Element)
+    if ($Element -and [Math]::Abs($script:UiScale - 1.0) -gt 0.001) {
+        $Element.LayoutTransform = New-Object System.Windows.Media.ScaleTransform $script:UiScale, $script:UiScale
+    }
+}
+
+function Set-UiScale {
+    param([double]$Scale = 1.0, [switch]$Auto, [switch]$KeepSize)
+    $w = $script:Window
+    if ($Auto) { $Scale = Get-AutoUiScale }
+    $Scale = [Math]::Max(0.6, [Math]::Min(1.5, $Scale))
+    $old = $script:UiScale
+    $script:UiScale = $Scale
+    $script:UiScaleAuto = [bool]$Auto
+    $content = $w.FindName('RootBorder').Child
+    $content.LayoutTransform = if ([Math]::Abs($Scale - 1.0) -lt 0.001) { [System.Windows.Media.Transform]::Identity } else { New-Object System.Windows.Media.ScaleTransform $Scale, $Scale }
+    try { [System.Windows.Shell.WindowChrome]::GetWindowChrome($w).CaptionHeight = 36 * $Scale } catch {}
+    $wa = [System.Windows.SystemParameters]::WorkArea
+    $w.MinWidth = [Math]::Min($script:UiMinW * $Scale, $wa.Width)
+    $w.MinHeight = [Math]::Min($script:UiMinH * $Scale, $wa.Height)
+    $w.FindName('ScaleText').Text = ([string][int][Math]::Round($Scale * 100)) + '%'
+    if ($KeepSize -or $w.WindowState -ne 'Normal') { return }
+    # Окно меняет размер вместе с масштабом, центр остаётся на месте и окно не уходит за экран.
+    $loaded = $w.IsLoaded
+    if ($loaded) {
+        $cx = $w.Left + $w.ActualWidth / 2; $cy = $w.Top + $w.ActualHeight / 2
+        $nw = $w.ActualWidth * $Scale / $old; $nh = $w.ActualHeight * $Scale / $old
+    } else {
+        $nw = $script:UiBaseW * $Scale; $nh = $script:UiBaseH * $Scale
+    }
+    $nw = [Math]::Max($w.MinWidth, [Math]::Min($nw, $wa.Width))
+    $nh = [Math]::Max($w.MinHeight, [Math]::Min($nh, $wa.Height))
+    $w.Width = $nw; $w.Height = $nh
+    if ($loaded) {
+        $w.Left = [Math]::Max($wa.Left, [Math]::Min($cx - $nw / 2, $wa.Right - $nw))
+        $w.Top = [Math]::Max($wa.Top, [Math]::Min($cy - $nh / 2, $wa.Bottom - $nh))
+    }
+}
+
+function Step-UiScale {
+    param([int]$Dir)
+    $steps = $script:UiScaleSteps
+    $i = 0
+    for ($k = 0; $k -lt $steps.Count; $k++) { if ([Math]::Abs($steps[$k] - $script:UiScale) -lt 0.001 -or $steps[$k] -lt $script:UiScale) { $i = $k } }
+    $j = [Math]::Max(0, [Math]::Min($steps.Count - 1, $i + $Dir))
+    if ($j -ne $i -or -not ([Math]::Abs($steps[$i] - $script:UiScale) -lt 0.001)) { Set-UiScale -Scale $steps[$j] }
+}
+
+function Show-UiScaleMenu {
+    $auto = Get-AutoUiScale
+    $items = @(@{ Text = 'По размеру экрана (' + [int][Math]::Round($auto * 100) + '%)'; Tag = 'auto'; Checked = $script:UiScaleAuto
+                  OnClick = { Set-UiScale -Auto } }
+               @{ Separator = $true })
+    foreach ($s in $script:UiScaleSteps) {
+        $items += @{ Text = ([string][int][Math]::Round($s * 100)) + '%'; Tag = $s
+                     Checked = (-not $script:UiScaleAuto -and [Math]::Abs($s - $script:UiScale) -lt 0.001)
+                     OnClick = { Set-UiScale -Scale ([double]$this.Tag) } }
+    }
+    Show-ActionMenu -Anchor $script:Window.FindName('ScaleBtn') -Items $items
 }
 
 $script:Pages = [ordered]@{}
@@ -752,6 +836,23 @@ function Initialize-ShellEvents {
     $w.FindName('MinBtn').Add_Click({ $script:Window.WindowState = 'Minimized' })
     $w.FindName('MaxBtn').Add_Click({ if ($script:Window.WindowState -eq 'Maximized') { $script:Window.WindowState = 'Normal' } else { $script:Window.WindowState = 'Maximized' } })
     $w.FindName('CloseBtn').Add_Click({ $script:Window.Close() })
+    $w.FindName('ScaleBtn').Add_Click({ Show-UiScaleMenu })
+    # Ctrl + колесо мыши, Ctrl +/-, Ctrl + 0 (по размеру экрана).
+    $w.Add_PreviewMouseWheel({
+        param($s, $e)
+        if ([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control) {
+            Step-UiScale $(if ($e.Delta -gt 0) { 1 } else { -1 }); $e.Handled = $true
+        }
+    })
+    $w.Add_PreviewKeyDown({
+        param($s, $e)
+        if (-not ([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control)) { return }
+        switch ([string]$e.Key) {
+            { $_ -in 'OemPlus', 'Add' } { Step-UiScale 1; $e.Handled = $true }
+            { $_ -in 'OemMinus', 'Subtract' } { Step-UiScale -1; $e.Handled = $true }
+            { $_ -in 'D0', 'NumPad0' } { Set-UiScale -Auto; $e.Handled = $true }
+        }
+    })
     $w.Add_StateChanged({
         # WindowStyle=None в развёрнутом виде вылезает за край экрана на ~7 px.
         $rb = $script:Window.FindName('RootBorder')

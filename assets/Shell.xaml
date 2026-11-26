@@ -23,6 +23,12 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="CaptionText" Text="PotatoPC" Margin="16,0,0,0" VerticalAlignment="Center" FontSize="12" Foreground="#9AA3B2"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button x:Name="ScaleBtn" Style="{StaticResource BtnCaption}" Width="60" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Масштаб окна (Ctrl + колесо мыши, Ctrl + 0 — по размеру экрана)">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="M4.5,0.5 A4,4 0 1 1 4.49,0.5 M7.5,7.5 L10.5,10.5" Stroke="#9AA3B2" StrokeThickness="1" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="ScaleText" Text="100%" FontSize="11" Foreground="#9AA3B2" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                         <Button x:Name="MinBtn" Style="{StaticResource BtnCaption}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Свернуть">
                             <Path Data="M0,0.5 L10,0.5" Stroke="#9AA3B2" StrokeThickness="1"/>
                         </Button>
