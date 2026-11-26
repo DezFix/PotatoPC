@@ -1068,6 +1068,162 @@ function New-UsToggleLine {
 
 function Add-UsFieldHint { param($Field, [string]$Text) [void]$Field.Children.Add((New-Text -Text $Text -Size 11 -Color 'Muted' -Wrap -Margin (0, 5, 0, 0))); return $Field }
 
+# ---------- Выпадающие календарь и часы (в стиле приложения) ----------
+
+$script:UsMonths = @('Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь')
+
+function New-UsPickField {
+    # Поле-кнопка «значение ⌄»: по клику выпадает выбор.
+    param([double]$Width, [scriptblock]$OnClick)
+    $b = New-Object System.Windows.Controls.Button
+    $b.Style = $script:Window.FindResource('BtnSecondary')
+    $b.Background = Get-Brush 'Panel'; $b.Width = $Width; $b.Padding = New-Thickness 12, 0, 10, 0
+    $b.HorizontalContentAlignment = 'Stretch'; $b.FontWeight = 'Normal'
+    $dp = New-Object System.Windows.Controls.DockPanel
+    $ch = New-Text -Text '⌄' -Size 14 -Color 'Muted' -Margin (6, -6, 0, 0)
+    [System.Windows.Controls.DockPanel]::SetDock($ch, 'Right')
+    [void]$dp.Children.Add($ch)
+    $t = New-Text -Text '' -Size 14
+    [void]$dp.Children.Add($t)
+    $b.Content = $dp; $b.Tag = $t
+    $b.Add_Click($OnClick)
+    return $b
+}
+
+function New-UsPopup {
+    param($Anchor, $Child)
+    $pp = New-Object System.Windows.Controls.Primitives.Popup
+    $pp.PlacementTarget = $Anchor; $pp.Placement = 'Bottom'; $pp.VerticalOffset = 6
+    $pp.StaysOpen = $false; $pp.AllowsTransparency = $true; $pp.PopupAnimation = 'Fade'
+    $card = New-Card -Child $Child -Padding (12, 10, 12, 12) -Margin (0, 0, 12, 12) -Background 'Panel'
+    $sh = New-Object System.Windows.Media.Effects.DropShadowEffect
+    $sh.BlurRadius = 18; $sh.ShadowDepth = 4; $sh.Opacity = 0.5; $sh.Color = [System.Windows.Media.Colors]::Black
+    $card.Effect = $sh
+    $pp.Child = $card
+    $pp.IsOpen = $true
+    return $pp
+}
+
+function New-UsCell {
+    # Ячейка календаря / часов: прозрачная, выбранная - акцентом.
+    param([string]$Text, $Tag, [bool]$Selected, [scriptblock]$OnClick, [double]$W = 38, [double]$H = 34)
+    $b = New-Button -Text $Text -Kind Ghost -Tag $Tag -OnClick $OnClick
+    $b.Width = $W; $b.Height = $H; $b.MinHeight = 0; $b.Padding = New-Thickness 0; $b.Margin = New-Thickness 1
+    $b.FontWeight = 'Normal'; $b.Foreground = Get-Brush 'Text'
+    if ($Selected) { $b.Background = Get-Brush 'Accent'; $b.Foreground = Get-Brush 'OnAccent'; $b.FontWeight = 'Bold' }
+    return $b
+}
+
+function Update-UsExpFields {
+    $up = $script:UpUi
+    $wd = @('вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб')
+    $d = [datetime]$up.ExpDay
+    $up.ExpDate.Tag.Text = $d.ToString('dd.MM.yyyy') + ', ' + $wd[[int]$d.DayOfWeek]
+    $up.ExpTime.Tag.Text = '{0:00}:{1:00}' -f [Math]::Floor($up.ExpMin / 60), ($up.ExpMin % 60)
+}
+
+function Show-UsCalendar {
+    param($Anchor)
+    $up = $script:UpUi
+    $d = [datetime]$up.ExpDay
+    $c = @{ Month = (New-Object datetime $d.Year, $d.Month, 1); Popup = $null }
+    $root = New-Stack
+    $head = New-Object System.Windows.Controls.DockPanel
+    $head.Margin = New-Thickness 0, 0, 0, 6
+    $c.Prev = New-Button -Text '‹' -Kind Ghost -OnClick { $k = $script:UsCal; $k.Month = $k.Month.AddMonths(-1); Update-UsCalendar }
+    $c.Next = New-Button -Text '›' -Kind Ghost -OnClick { $k = $script:UsCal; $k.Month = $k.Month.AddMonths(1); Update-UsCalendar }
+    foreach ($x in @($c.Prev, $c.Next)) { $x.FontSize = 20; $x.Foreground = Get-Brush 'Text'; $x.Width = 36; $x.Padding = New-Thickness 0 }
+    [System.Windows.Controls.DockPanel]::SetDock($c.Prev, 'Left'); [System.Windows.Controls.DockPanel]::SetDock($c.Next, 'Right')
+    $c.Title = New-Text -Text '' -Size 15 -Weight 'Bold'
+    $c.Title.HorizontalAlignment = 'Center'
+    [void]$head.Children.Add($c.Prev); [void]$head.Children.Add($c.Next); [void]$head.Children.Add($c.Title)
+    [void]$root.Children.Add($head)
+    $wg = New-Object System.Windows.Controls.Primitives.UniformGrid
+    $wg.Columns = 7
+    foreach ($n in @('Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс')) { $t = New-Text -Text $n -Size 12 -Color 'Muted' -Margin (0, 0, 0, 4); $t.HorizontalAlignment = 'Center'; [void]$wg.Children.Add($t) }
+    [void]$root.Children.Add($wg)
+    $c.Grid = New-Object System.Windows.Controls.Primitives.UniformGrid
+    $c.Grid.Columns = 7
+    [void]$root.Children.Add($c.Grid)
+    # Быстрый выбор
+    $q = New-Object System.Windows.Controls.WrapPanel
+    $q.Margin = New-Thickness 0, 8, 0, 0
+    $today = (Get-Date).Date
+    foreach ($o in @(@('Завтра', $today.AddDays(1)), @('Через неделю', $today.AddDays(7)), @('Через месяц', $today.AddMonths(1)))) {
+        $b = New-Button -Text $o[0] -Kind Chip -Tag $o[1] -OnClick { Set-UsExpDay $this.Tag }
+        $b.Margin = New-Thickness 0, 0, 6, 0
+        [void]$q.Children.Add($b)
+    }
+    [void]$root.Children.Add($q)
+    $script:UsCal = $c
+    Update-UsCalendar
+    $c.Popup = New-UsPopup -Anchor $Anchor -Child $root
+}
+
+function Update-UsCalendar {
+    $c = $script:UsCal
+    $up = $script:UpUi
+    $m = $c.Month
+    $today = (Get-Date).Date
+    $c.Title.Text = $script:UsMonths[$m.Month - 1] + ' ' + $m.Year
+    $c.Prev.IsEnabled = ($m -gt (New-Object datetime $today.Year, $today.Month, 1))
+    $c.Grid.Children.Clear()
+    $sel = ([datetime]$up.ExpDay).Date
+    $start = $m.AddDays(-(([int]$m.DayOfWeek + 6) % 7))
+    for ($i = 0; $i -lt 42; $i++) {
+        $d = $start.AddDays($i)
+        $b = New-UsCell -Text ([string]$d.Day) -Tag $d -Selected ($d -eq $sel) -OnClick { Set-UsExpDay $this.Tag }
+        if ($d -ne $sel -and $d -eq $today) { $b.BorderBrush = Get-Brush 'Accent'; $b.BorderThickness = New-Thickness 1 }
+        if ($d.Month -ne $m.Month -and $d -ne $sel) { $b.Foreground = Get-Brush 'Muted' }
+        if ($d -lt $today) { $b.IsEnabled = $false; $b.Opacity = 0.3 }
+        [void]$c.Grid.Children.Add($b)
+    }
+}
+
+function Set-UsExpDay {
+    param($Day)
+    $up = $script:UpUi
+    $up.ExpDay = ([datetime]$Day).Date
+    Update-UsExpFields
+    if ($script:UsCal -and $script:UsCal.Popup) { $script:UsCal.Popup.IsOpen = $false }
+}
+
+function Show-UsTimePicker {
+    param($Anchor)
+    $root = New-Stack
+    $t = @{ Popup = $null }
+    [void]$root.Children.Add((New-Text -Text 'Часы' -Size 12 -Color 'Muted' -Margin (2, 0, 0, 4)))
+    $t.H = New-Object System.Windows.Controls.Primitives.UniformGrid
+    $t.H.Columns = 6
+    [void]$root.Children.Add($t.H)
+    [void]$root.Children.Add((New-Text -Text 'Минуты' -Size 12 -Color 'Muted' -Margin (2, 10, 0, 4)))
+    $t.M = New-Object System.Windows.Controls.Primitives.UniformGrid
+    $t.M.Columns = 4
+    [void]$root.Children.Add($t.M)
+    $script:UsTime = $t
+    Update-UsTimePicker
+    $t.Popup = New-UsPopup -Anchor $Anchor -Child $root
+}
+
+function Update-UsTimePicker {
+    $t = $script:UsTime
+    $up = $script:UpUi
+    $h = [int][Math]::Floor($up.ExpMin / 60); $mi = $up.ExpMin % 60
+    $t.H.Children.Clear()
+    for ($i = 0; $i -lt 24; $i++) {
+        [void]$t.H.Children.Add((New-UsCell -Text ('{0:00}' -f $i) -Tag $i -Selected ($i -eq $h) -W 44 -OnClick {
+            $p = $script:UpUi; $p.ExpMin = [int]$this.Tag * 60 + ($p.ExpMin % 60); Update-UsExpFields; Update-UsTimePicker
+        }))
+    }
+    $t.M.Children.Clear()
+    foreach ($x in @(0, 15, 30, 45)) {
+        [void]$t.M.Children.Add((New-UsCell -Text (':{0:00}' -f $x) -Tag $x -Selected ($x -eq $mi) -W 66 -OnClick {
+            $p = $script:UpUi; $p.ExpMin = [int][Math]::Floor($p.ExpMin / 60) * 60 + [int]$this.Tag; Update-UsExpFields
+            $script:UsTime.Popup.IsOpen = $false
+        }))
+    }
+}
+
 function Show-UserProps {
     param($User)
     $u = $User
@@ -1162,26 +1318,12 @@ function Show-UserProps {
         $up.ExpOn = New-Toggle -Checked ([bool]$u.AccountExpires)
         [void]$f.Children.Add((New-UsToggleLine -Title 'Действует до даты и времени' -Sub 'Например, дали компьютер до 15 числа - с 8:00 войти уже не получится' -Toggle $up.ExpOn))
         $ed = if ($u.AccountExpires) { [datetime]$u.AccountExpires } else { (Get-Date).Date.AddDays(7).AddHours(8) }
-        $up.ExpDate = New-TextInput -Width 130 -Placeholder 'дд.мм.гггг' -Text $ed.ToString('dd.MM.yyyy')
-        $up.ExpTime = New-TextInput -Width 80 -Placeholder 'чч:мм' -Text $ed.ToString('HH:mm')
-        $cb = New-Button -Text 'Календарь' -Kind Small -OnClick {
-            $p = $script:UpUi
-            $p.ExpCal.Visibility = if ($p.ExpCal.Visibility -eq 'Visible') { 'Collapsed' } else { 'Visible' }
-        }
-        $cb.Margin = New-Thickness 10, 0, 0, 0
+        $up.ExpDay = $ed.Date; $up.ExpMin = [int]$ed.TimeOfDay.TotalMinutes
+        $up.ExpDate = New-UsPickField -Width 150 -OnClick { Show-UsCalendar -Anchor $this }
+        $up.ExpTime = New-UsPickField -Width 100 -OnClick { Show-UsTimePicker -Anchor $this }
+        Update-UsExpFields
         $up.ExpRow = New-Stack -Margin (0, -4, 0, 14)
-        [void]$up.ExpRow.Children.Add((New-Stack -Orientation Horizontal -Children @((New-Text -Text 'Заблокировать' -Size 13 -Color 'Muted' -Margin (0, 0, 10, 0)), $up.ExpDate, (New-Text -Text 'в' -Size 13 -Color 'Muted' -Margin (10, 0, 10, 0)), $up.ExpTime, $cb)))
-        $up.ExpCal = New-Object System.Windows.Controls.Calendar
-        $up.ExpCal.HorizontalAlignment = 'Left'; $up.ExpCal.Margin = New-Thickness 0, 8, 0, 0
-        $up.ExpCal.Visibility = 'Collapsed'
-        $up.ExpCal.LayoutTransform = New-Object System.Windows.Media.ScaleTransform 1.25, 1.25
-        $up.ExpCal.DisplayDateStart = (Get-Date).Date
-        if ($ed -ge (Get-Date).Date) { $up.ExpCal.SelectedDate = $ed.Date; $up.ExpCal.DisplayDate = $ed.Date }
-        $up.ExpCal.Add_SelectedDatesChanged({
-            $p = $script:UpUi
-            if ($p.ExpCal.SelectedDate) { $p.ExpDate.Text = ([datetime]$p.ExpCal.SelectedDate).ToString('dd.MM.yyyy'); $p.ExpCal.Visibility = 'Collapsed' }
-        })
-        [void]$up.ExpRow.Children.Add($up.ExpCal)
+        [void]$up.ExpRow.Children.Add((New-Stack -Orientation Horizontal -Children @((New-Text -Text 'Заблокировать' -Size 13 -Color 'Muted' -Margin (0, 0, 10, 0)), $up.ExpDate, (New-Text -Text 'в' -Size 13 -Color 'Muted' -Margin (10, 0, 10, 0)), $up.ExpTime)))
         [void]$up.ExpRow.Children.Add((New-Text -Text 'Кто в этот момент уже сидит за компьютером, продолжит работать до выхода - Windows не пустит только новый вход.' -Size 11 -Color 'Muted' -Wrap -Margin (0, 6, 0, 0)))
         $up.ExpRow.Visibility = if ($u.AccountExpires) { 'Visible' } else { 'Collapsed' }
         $up.ExpOn.Add_Click({ $p = $script:UpUi; $p.ExpRow.Visibility = if ($p.ExpOn.IsChecked) { 'Visible' } else { 'Collapsed' } })
@@ -1282,13 +1424,8 @@ function Save-UserProps {
     }
     $exp = $null
     if ($up.ExpOn.IsChecked) {
-        $dt = [datetime]::MinValue
-        $tm = ([string]$up.ExpTime.Text).Trim()
-        if (-not $tm) { $tm = '00:00' }
-        if ($tm -match '^\d{1,2}$') { $tm += ':00' }
-        if (-not [datetime]::TryParseExact((([string]$up.ExpDate.Text).Trim() + ' ' + $tm), @('dd.MM.yyyy H:mm', 'd.M.yyyy H:mm'), [Globalization.CultureInfo]::InvariantCulture, 'None', [ref]$dt)) { return 'Дату и время введите так: 15.11.2026 и 08:00' }
         # Ровно с этого момента учётка не действует.
-        $exp = $dt
+        $exp = ([datetime]$up.ExpDay).Date.AddMinutes($up.ExpMin)
         if ($exp -le (Get-Date) -and -not ($u.AccountExpires -and ([datetime]$u.AccountExpires) -eq $exp)) { return 'Это время уже прошло' }
     }
     $hours = 'keep'
