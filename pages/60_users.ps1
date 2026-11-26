@@ -525,7 +525,7 @@ function Update-UsersList {
         if ($ht) { $info += $ht }
         if ($u.AccountExpires) {
             $ex = [datetime]$u.AccountExpires
-            $info += $(if ($ex -lt (Get-Date)) { 'учётка истекла ' } else { 'действует до ' }) + $ex.ToString('dd.MM.yyyy')
+            $info += $(if ($ex -lt (Get-Date)) { 'учётка истекла ' } else { 'действует до ' }) + $ex.ToString($(if ($ex.TimeOfDay.TotalMinutes -eq 0) { 'dd.MM.yyyy' } else { 'dd.MM.yyyy HH:mm' }))
         }
         if ($u.LastLogon) { $info += 'входил ' + ([datetime]$u.LastLogon).ToString('dd.MM.yyyy HH:mm') }
         $infoLine = New-Text -Text ($info -join ' · ') -Size 12 -Color 'Muted' -Margin (0, 3, 0, 0)
@@ -1160,9 +1160,29 @@ function Show-UserProps {
             [void]$f.Children.Add((New-UsToggleLine -Title 'Учётная запись включена' -Sub 'Выключенная не видна на экране входа, файлы остаются' -Toggle $up.Enabled))
         }
         $up.ExpOn = New-Toggle -Checked ([bool]$u.AccountExpires)
-        [void]$f.Children.Add((New-UsToggleLine -Title 'Действует до даты' -Sub 'После неё войти не получится - удобно для временных гостей' -Toggle $up.ExpOn))
-        $up.ExpDate = New-TextInput -Width 130 -Placeholder 'дд.мм.гггг' -Text $(if ($u.AccountExpires) { ([datetime]$u.AccountExpires).ToString('dd.MM.yyyy') } else { (Get-Date).AddDays(30).ToString('dd.MM.yyyy') })
-        $up.ExpRow = New-Stack -Orientation Horizontal -Margin (0, -4, 0, 14) -Children @((New-Text -Text 'Последний день:' -Size 13 -Color 'Muted' -Margin (0, 0, 10, 0)), $up.ExpDate)
+        [void]$f.Children.Add((New-UsToggleLine -Title 'Действует до даты и времени' -Sub 'Например, дали компьютер до 15 числа - с 8:00 войти уже не получится' -Toggle $up.ExpOn))
+        $ed = if ($u.AccountExpires) { [datetime]$u.AccountExpires } else { (Get-Date).Date.AddDays(7).AddHours(8) }
+        $up.ExpDate = New-TextInput -Width 130 -Placeholder 'дд.мм.гггг' -Text $ed.ToString('dd.MM.yyyy')
+        $up.ExpTime = New-TextInput -Width 80 -Placeholder 'чч:мм' -Text $ed.ToString('HH:mm')
+        $cb = New-Button -Text 'Календарь' -Kind Small -OnClick {
+            $p = $script:UpUi
+            $p.ExpCal.Visibility = if ($p.ExpCal.Visibility -eq 'Visible') { 'Collapsed' } else { 'Visible' }
+        }
+        $cb.Margin = New-Thickness 10, 0, 0, 0
+        $up.ExpRow = New-Stack -Margin (0, -4, 0, 14)
+        [void]$up.ExpRow.Children.Add((New-Stack -Orientation Horizontal -Children @((New-Text -Text 'Заблокировать' -Size 13 -Color 'Muted' -Margin (0, 0, 10, 0)), $up.ExpDate, (New-Text -Text 'в' -Size 13 -Color 'Muted' -Margin (10, 0, 10, 0)), $up.ExpTime, $cb)))
+        $up.ExpCal = New-Object System.Windows.Controls.Calendar
+        $up.ExpCal.HorizontalAlignment = 'Left'; $up.ExpCal.Margin = New-Thickness 0, 8, 0, 0
+        $up.ExpCal.Visibility = 'Collapsed'
+        $up.ExpCal.LayoutTransform = New-Object System.Windows.Media.ScaleTransform 1.25, 1.25
+        $up.ExpCal.DisplayDateStart = (Get-Date).Date
+        if ($ed -ge (Get-Date).Date) { $up.ExpCal.SelectedDate = $ed.Date; $up.ExpCal.DisplayDate = $ed.Date }
+        $up.ExpCal.Add_SelectedDatesChanged({
+            $p = $script:UpUi
+            if ($p.ExpCal.SelectedDate) { $p.ExpDate.Text = ([datetime]$p.ExpCal.SelectedDate).ToString('dd.MM.yyyy'); $p.ExpCal.Visibility = 'Collapsed' }
+        })
+        [void]$up.ExpRow.Children.Add($up.ExpCal)
+        [void]$up.ExpRow.Children.Add((New-Text -Text 'Кто в этот момент уже сидит за компьютером, продолжит работать до выхода - Windows не пустит только новый вход.' -Size 11 -Color 'Muted' -Wrap -Margin (0, 6, 0, 0)))
         $up.ExpRow.Visibility = if ($u.AccountExpires) { 'Visible' } else { 'Collapsed' }
         $up.ExpOn.Add_Click({ $p = $script:UpUi; $p.ExpRow.Visibility = if ($p.ExpOn.IsChecked) { 'Visible' } else { 'Collapsed' } })
         [void]$f.Children.Add($up.ExpRow)
@@ -1263,10 +1283,13 @@ function Save-UserProps {
     $exp = $null
     if ($up.ExpOn.IsChecked) {
         $dt = [datetime]::MinValue
-        if (-not [datetime]::TryParseExact(([string]$up.ExpDate.Text).Trim(), 'dd.MM.yyyy', [Globalization.CultureInfo]::InvariantCulture, 'None', [ref]$dt)) { return 'Дату введите так: 31.12.2026' }
-        # «Последний день» включительно: учётка перестаёт действовать в полночь после него.
-        $exp = $dt.Date.AddDays(1)
-        if ($exp -le (Get-Date) -and -not ($u.AccountExpires -and ([datetime]$u.AccountExpires).Date -eq $exp)) { return 'Эта дата уже прошла' }
+        $tm = ([string]$up.ExpTime.Text).Trim()
+        if (-not $tm) { $tm = '00:00' }
+        if ($tm -match '^\d{1,2}$') { $tm += ':00' }
+        if (-not [datetime]::TryParseExact((([string]$up.ExpDate.Text).Trim() + ' ' + $tm), @('dd.MM.yyyy H:mm', 'd.M.yyyy H:mm'), [Globalization.CultureInfo]::InvariantCulture, 'None', [ref]$dt)) { return 'Дату и время введите так: 15.11.2026 и 08:00' }
+        # Ровно с этого момента учётка не действует.
+        $exp = $dt
+        if ($exp -le (Get-Date) -and -not ($u.AccountExpires -and ([datetime]$u.AccountExpires) -eq $exp)) { return 'Это время уже прошло' }
     }
     $hours = 'keep'
     if ($up.HoursDirty) {
@@ -1314,7 +1337,7 @@ function Save-UserProps {
             if ($enable) { Enable-LocalUser -SID $sid -ErrorAction Stop; $ch += 'включён' } else { Disable-LocalUser -SID $sid -ErrorAction Stop; $ch += 'выключен' }
         }
         $oldExp = if ($u.AccountExpires) { [datetime]$u.AccountExpires } else { $null }
-        if ($exp -and (-not $oldExp -or $oldExp -ne $exp)) { Set-LocalUser -SID $sid -AccountExpires $exp -ErrorAction Stop; $ch += ('действует до ' + $exp.AddDays(-1).ToString('dd.MM.yyyy')) }
+        if ($exp -and (-not $oldExp -or $oldExp -ne $exp)) { Set-LocalUser -SID $sid -AccountExpires $exp -ErrorAction Stop; $ch += ('действует до ' + $exp.ToString('dd.MM.yyyy HH:mm')) }
         elseif (-not $exp -and $oldExp) { Set-LocalUser -SID $sid -AccountNeverExpires -ErrorAction Stop; $ch += 'действует всегда' }
         if ($hours -isnot [string]) {
             Set-UserLoginHours -Name $u.Name -Bytes $hours
