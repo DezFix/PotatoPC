@@ -14,9 +14,20 @@ function Build-Page_tweaks {
     $ab = New-ActionBar
     $ui.Bar = $ab
     $ui.RpChk = New-CheckBox -Text 'Точка восстановления' -Checked $true -ToolTip 'Создать точку восстановления Windows перед изменениями'
-    $ui.RebootChk = New-CheckBox -Text 'Перезагрузить после'
+    $ui.RebootChk = New-CheckBox -Text 'После:' -ToolTip 'Перезагрузить или выключить компьютер после применения (даже если были ошибки)'
+    # Переключатель режима: по умолчанию перезагрузка, щелчок - выключение, ещё щелчок - обратно.
+    $ui.PowerOff = $false
+    $ui.PowerBtn = New-Button -Text 'Перезагрузить' -Icon 'refresh' -Kind Chip -ToolTip 'Щёлкните, чтобы переключить: перезагрузить / выключить' -OnClick {
+        $u = $script:TwUi
+        $u.PowerOff = -not $u.PowerOff
+        if ($u.PowerOff) { $t = 'Выключить'; $i = 'power' } else { $t = 'Перезагрузить'; $i = 'refresh' }
+        $this.Content.Children[0] = New-Icon -Name $i -Size 16 -Color 'Text' -Stroke 2
+        Set-ButtonText -Button $this -Text $t
+        $u.RebootChk.IsChecked = $true
+    }
     $ui.ApplyBtn = New-Button -Text 'Применить' -Icon 'play' -Kind Primary -OnClick { Start-TweakApply }
-    foreach ($x in @($ui.RpChk, $ui.RebootChk, $ui.ApplyBtn)) { $x.Margin = New-Thickness 22, 0, 0, 0; $x.VerticalAlignment = 'Center'; [void]$ab.Right.Children.Add($x) }
+    foreach ($x in @($ui.RpChk, $ui.RebootChk, $ui.PowerBtn, $ui.ApplyBtn)) { $x.Margin = New-Thickness 22, 0, 0, 0; $x.VerticalAlignment = 'Center'; [void]$ab.Right.Children.Add($x) }
+    $ui.PowerBtn.Margin = New-Thickness 8, 0, 0, 0
     $L = New-PageLayout -Title 'Твики' -Subtitle 'Каждый твик - отдельный скрипт-плагин. Отметьте нужные и примените.' -HeaderRight @($ui.Search, $reload) -ActionBar $ab.Root
     $ui.Body = $L.Body
     $ui.Scroll = $L.Scroll
@@ -216,13 +227,18 @@ function Start-TweakApply {
     if ($sel.Count -gt 25) { $msg += "`n  … и ещё " + ($sel.Count - 25) }
     if ($third.Count) { $msg += "`n`nСторонние плагины (не из поставки PotatoPC, выполняются от администратора):`n  • " + (($third | ForEach-Object { $_.Name }) -join "`n  • ") }
     $reboot = [bool]$ui.RebootChk.IsChecked
-    if ($reboot) { $msg += "`n`nПосле выполнения компьютер перезагрузится (если не будет ошибок)." }
+    $off = [bool]$ui.PowerOff
+    if ($reboot) { $msg += "`n`nПосле выполнения компьютер " + $(if ($off) { 'выключится' } else { 'перезагрузится' }) + ' (даже если будут ошибки).' }
     if (-not (Show-Confirm -Message $msg -Title 'Применение твиков' -Warning:([bool]$third.Count))) { return }
     $ui.Running = $true
     Update-TweakSelection
-    Start-BgTask -Name 'Применение твиков' -Vars @{ Sel = $sel; Rp = [bool]$ui.RpChk.IsChecked; Reboot = $reboot } -Script {
-        $r = Invoke-PluginBatch -Plugins $Sel -RestorePoint $Rp -Title 'Применение твиков'
-        if ($Reboot -and $r.Fail -eq 0 -and -not (Test-JobCancel)) { Request-Reboot -DelaySec 30 -Reason 'PotatoPC: твики применены' }
+    Start-BgTask -Name 'Применение твиков' -Vars @{ Sel = $sel; Rp = [bool]$ui.RpChk.IsChecked; Reboot = $reboot; PowerOff = $off } -Script {
+        $r = $null
+        try { $r = Invoke-PluginBatch -Plugins $Sel -RestorePoint $Rp -Title 'Применение твиков' }
+        finally {
+            # Перезагрузка/выключение выполняется даже при ошибках твиков; не выполняется только при отмене.
+            if ($Reboot -and -not (Test-JobCancel)) { Request-Reboot -DelaySec 30 -Reason 'PotatoPC: твики применены' -Shutdown:$PowerOff }
+        }
         return $r
     } -OnDone {
         param($r)

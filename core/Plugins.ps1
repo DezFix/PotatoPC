@@ -243,10 +243,12 @@ function Get-UndoPlugins {
 }
 
 function Request-Reboot {
-    param([int]$DelaySec = 60, [string]$Reason = 'PotatoPC')
+    param([int]$DelaySec = 60, [string]$Reason = 'PotatoPC', [switch]$Shutdown)
+    $what = if ($Shutdown) { 'Выключение' } else { 'Перезагрузка' }
     try {
         $exe = Join-Path $env:WINDIR 'System32\shutdown.exe'
-        Start-Process -FilePath $exe -ArgumentList @('/r', '/t', [string]$DelaySec, '/c', ('"' + $Reason + '"')) -WindowStyle Hidden
-        Write-Log ('Перезагрузка через ' + $DelaySec + ' с. Отменить: shutdown /a') 'warn'
-    } catch { Write-Log ('Перезагрузка не запланирована: ' + $_.Exception.Message) 'err' }
+        $mode = if ($Shutdown) { '/s' } else { '/r' }
+        Start-Process -FilePath $exe -ArgumentList @($mode, '/t', [string]$DelaySec, '/c', ('"' + $Reason + '"')) -WindowStyle Hidden
+        Write-Log ($what + ' через ' + $DelaySec + ' с. Отменить: shutdown /a') 'warn'
+    } catch { Write-Log ($what + ' не запланировано: ' + $_.Exception.Message) 'err' }
 }
