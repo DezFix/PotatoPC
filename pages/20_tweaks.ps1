@@ -15,16 +15,21 @@ function Build-Page_tweaks {
     $ui.Bar = $ab
     $ui.RpChk = New-CheckBox -Text 'Точка восстановления' -Checked $true -ToolTip 'Создать точку восстановления Windows перед изменениями'
     $ui.RebootChk = New-CheckBox -Text 'После:' -ToolTip 'Перезагрузить или выключить компьютер после применения (даже если были ошибки)'
-    # Переключатель режима: по умолчанию перезагрузка, щелчок - выключение, ещё щелчок - обратно.
+    # Переключатель режима: влево - перезагрузка (по умолчанию), вправо - выключение.
     $ui.PowerOff = $false
-    $ui.PowerBtn = New-Button -Text 'Перезагрузить' -Icon 'refresh' -Kind Chip -ToolTip 'Щёлкните, чтобы переключить: перезагрузить / выключить' -OnClick {
+    $ui.PowerBtn = New-Stack -Orientation Horizontal
+    $ui.PowerBtn.ToolTip = 'Влево - перезагрузить, вправо - выключить'
+    $ui.PwrRestartLbl = New-Text -Text 'Перезагрузить' -Size 13 -Color 'Text'
+    $ui.PwrOffLbl = New-Text -Text 'Выключить' -Size 13 -Color 'Muted'
+    $ui.PwrToggle = New-Toggle -Checked $false -OnClick {
         $u = $script:TwUi
-        $u.PowerOff = -not $u.PowerOff
-        if ($u.PowerOff) { $t = 'Выключить'; $i = 'power' } else { $t = 'Перезагрузить'; $i = 'refresh' }
-        $this.Content.Children[0] = New-Icon -Name $i -Size 16 -Color 'Text' -Stroke 2
-        Set-ButtonText -Button $this -Text $t
+        $u.PowerOff = [bool]$this.IsChecked
+        $u.PwrRestartLbl.Foreground = Get-Brush $(if ($u.PowerOff) { 'Muted' } else { 'Text' })
+        $u.PwrOffLbl.Foreground = Get-Brush $(if ($u.PowerOff) { 'Text' } else { 'Muted' })
         $u.RebootChk.IsChecked = $true
     }
+    $ui.PwrToggle.Margin = New-Thickness 8, 0, 8, 0
+    foreach ($x in @($ui.PwrRestartLbl, $ui.PwrToggle, $ui.PwrOffLbl)) { $x.VerticalAlignment = 'Center'; [void]$ui.PowerBtn.Children.Add($x) }
     $ui.ApplyBtn = New-Button -Text 'Применить' -Icon 'play' -Kind Primary -OnClick { Start-TweakApply }
     foreach ($x in @($ui.RpChk, $ui.RebootChk, $ui.PowerBtn, $ui.ApplyBtn)) { $x.Margin = New-Thickness 22, 0, 0, 0; $x.VerticalAlignment = 'Center'; [void]$ab.Right.Children.Add($x) }
     $ui.PowerBtn.Margin = New-Thickness 8, 0, 0, 0
