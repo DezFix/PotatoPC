@@ -53,6 +53,9 @@ $script:IconPaths = @{
     file    = 'M6,3 H14 L19,8 V21 H6 Z M14,3 V8 H19'
     copy    = 'M8,8 H20 V20 H8 Z M4,16 V4 H16'
     ban     = 'M12,3 A9,9 0 1 1 12,21 A9,9 0 1 1 12,3 M5.6,5.6 L18.4,18.4'
+    monitor = 'M3,4 H21 V16 H3 Z M8,20 H16 M12,16 V20'
+    router  = 'M3,13 H21 V20 H3 Z M7,16.5 V16.6 M11,16.5 V16.6 M8.5,9.5 A5,5 0 0 1 15.5,9.5 M5.5,6.5 A9.5,9.5 0 0 1 18.5,6.5'
+    building = 'M3,21 H21 M5,21 V9 L12,4 L19,9 V21 M10,21 V15 H14 V21'
 }
 $script:CategoryIcons = @{ '01' = 'bolt'; '02' = 'broom'; '03' = 'eye'; '05' = 'mem'; '08' = 'shield'; '09' = 'wrench' }
 

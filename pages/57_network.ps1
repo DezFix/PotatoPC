@@ -537,7 +537,7 @@ function Remove-NetAppBlock {
 # ---------- Интерфейс ----------
 
 function Build-Page_network {
-    $ui = @{ Tab = 'adapters' }
+    $ui = @{ Tab = 'who'; TracePick = 'google.com' }
     $script:NetUi = $ui
     $diag = New-Button -Text 'Запустить диагностику' -Icon 'play' -OnClick { Start-NetDiagnostics }
     $ui.DiagBtn = $diag
@@ -632,9 +632,6 @@ function Build-Page_network {
     $grid.Margin = New-Thickness 0, 0, 0, 16
     [void]$L.Body.Children.Add($grid)
 
-    # Кто сейчас в сети
-    [void]$L.Body.Children.Add((New-NetWhoSection))
-
     # DNS
     $ui.DnsSec = New-Section -Title 'DNS'
     $ui.DnsSec.Right.Children.Add((New-Text -Text 'защита от вредоносных сайтов и рекламы' -Size 12 -Color 'Muted')) | Out-Null
@@ -646,7 +643,8 @@ function Build-Page_network {
     $tabs = New-Object System.Windows.Controls.WrapPanel
     $tabs.Margin = New-Thickness 16, 0, 16, 8
     $ui.Tabs = @{}
-    foreach ($t in @(@('adapters', 'Адаптеры'), @('wifi', 'Сохранённые Wi-Fi'), @('trace', 'Трассировка'))) {
+    New-NetWhoSection
+    foreach ($t in @(@('who', 'Кто в сети'), @('adapters', 'Адаптеры'), @('wifi', 'Сохранённые Wi-Fi'), @('trace', 'Трассировка'))) {
         $b = New-Button -Text $t[1] -Kind Chip -Tag $t[0] -OnClick { $script:NetUi.Tab = $this.Tag; Update-NetInfoTab }
         $ui.Tabs[$t[0]] = $b
         [void]$tabs.Children.Add($b)
@@ -666,14 +664,14 @@ function Show-Page_network {
         Update-NetDns
         Update-NetInfoTab
     }
-    Update-NetWho
+    if ($ui.Tab -eq 'who') { Update-NetWho }
     if (-not $ui.WhoTimer) {
         # Живое обновление: только пока открыта страница «Сеть», не на паузе и не открыто меню «⋯».
         $ui.WhoTimer = New-Object System.Windows.Threading.DispatcherTimer
         $ui.WhoTimer.Interval = [TimeSpan]::FromSeconds(3)
         $ui.WhoTimer.Add_Tick({
             $ui = $script:NetUi
-            if ($script:CurrentPage -ne 'network' -or $ui.WhoPaused -or $ui.WhoBusy -or $script:ActionMenuOpen) { return }
+            if ($script:CurrentPage -ne 'network' -or $ui.Tab -ne 'who' -or $ui.WhoPaused -or $ui.WhoBusy -or $script:ActionMenuOpen) { return }
             if (-not $script:Window.IsActive) { return }
             Update-NetWho
         })
@@ -703,9 +701,14 @@ function New-NetWhoSection {
         $ui.WhoLive.Foreground = Get-Brush $c; $ui.WhoDot.Fill = Get-Brush $c
         if (-not $ui.WhoPaused) { Update-NetWho }
     }
-    $sec = New-Section -Title 'Кто сейчас в сети' -Right @($live, $pause)
+    # Живёт во вкладке «Сведения → Кто в сети»: панель создаётся один раз и подставляется при переключении.
+    $panel = New-Stack
+    $top = New-Object System.Windows.Controls.DockPanel
+    $top.Margin = New-Thickness 16, 2, 12, 6
+    $right = New-Stack -Orientation Horizontal -Children @($live, $pause)
+    [System.Windows.Controls.DockPanel]::SetDock($right, 'Right'); [void]$top.Children.Add($right)
     $chips = New-Object System.Windows.Controls.WrapPanel
-    $chips.Margin = New-Thickness 16, 0, 16, 4
+    $chips.VerticalAlignment = 'Center'
     $ui.WhoChips = @{}
     foreach ($f in @(@('active', 'Активные'), @('listen', 'Слушают порты'), @('all', 'Все'))) {
         $b = New-Button -Text $f[1] -Kind Chip -Tag $f[0] -OnClick { $script:NetUi.WhoFilter = [string]$this.Tag; Set-NetWho }
@@ -715,13 +718,13 @@ function New-NetWhoSection {
     $ui.WhoStats = New-Text -Text '' -Size 12 -Color 'Muted' -Margin (8, 0, 0, 8)
     $ui.WhoStats.VerticalAlignment = 'Center'
     [void]$chips.Children.Add($ui.WhoStats)
-    [void]$sec.Body.Children.Add($chips)
+    [void]$top.Children.Add($chips)
+    [void]$panel.Children.Add($top)
     $ui.WhoBody = New-Stack
     [void]$ui.WhoBody.Children.Add((New-Placeholder))
-    [void]$sec.Body.Children.Add($ui.WhoBody)
-    [void]$sec.Body.Children.Add((New-Text -Text 'Запрет пишется правилом брандмауэра Windows и попадает в «Историю» - оттуда его можно снять одной кнопкой.' -Size 12 -Color 'Muted' -Wrap -Margin (16, 8, 16, 12)))
-    $ui.WhoSec = $sec
-    return $sec.Root
+    [void]$panel.Children.Add($ui.WhoBody)
+    [void]$panel.Children.Add((New-Text -Text 'Запрет пишется правилом брандмауэра Windows и попадает в «Историю» - оттуда его можно снять одной кнопкой.' -Size 12 -Color 'Muted' -Wrap -Margin (16, 8, 16, 12)))
+    $ui.WhoPanel = $panel
 }
 
 function Update-NetWho {
@@ -1079,23 +1082,37 @@ function Update-NetInfoTab {
     $b = $ui.InfoBody
     $b.Children.Clear()
     switch ($ui.Tab) {
+        'who' {
+            [void]$b.Children.Add($ui.WhoPanel)
+            Update-NetWho
+            return
+        }
         'trace' {
-            $in = New-TextInput -Placeholder 'Сайт или адрес, например google.com' -Width 300 -Text 'google.com'
-            $go = New-Button -Text 'Трассировать' -Kind Small -OnClick {
-                $h = ([string]$script:NetUi.TraceIn.Text).Trim()
-                if ($h -notmatch '^[A-Za-z0-9\.\-:]{1,253}$') { Show-Info 'Введите адрес сайта (например, google.com) или IP.'; return }
-                $script:NetUi.TraceOut.Text = 'Трассирую ' + $h + '… (до минуты)'
-                $this.IsEnabled = $false
-                $script:NetUi.TraceBtn = $this
-                Start-BgTask -Name 'Трассировка' -Vars @{ H = $h } -Script {
-                    $r = Invoke-ProcessLive -FilePath (Join-Path $env:WINDIR 'System32\tracert.exe') -Arguments ('-d -w 800 -h 20 ' + $H) -TimeoutSec 150 -Prefix '   tracert: '
-                    return [string]$r.Output
-                } -OnDone { param($t) $script:NetUi.TraceBtn.IsEnabled = $true; $script:NetUi.TraceOut.Text = $(if ($t) { $t.Trim() } else { 'Нет данных' }) } | Out-Null
+            [void]$b.Children.Add((New-Text -Text 'Куда проверить путь:' -Size 13 -Color 'Muted' -Margin (16, 4, 16, 8)))
+            $chips = New-Object System.Windows.Controls.WrapPanel
+            $chips.Margin = New-Thickness 16, 0, 16, 8
+            $ui.TraceChips = @()
+            foreach ($p in ($script:TracePresets + , @('Свой адрес…', ''))) {
+                $c = New-Button -Text $p[0] -Kind Chip -Tag $p[1] -OnClick {
+                    $ui = $script:NetUi
+                    $ui.TracePick = [string]$this.Tag
+                    foreach ($x in $ui.TraceChips) { Set-ChipActive -Button $x -Active ([object]::ReferenceEquals($x, $this)) }
+                    $ui.TraceIn.Text = [string]$this.Tag
+                    if (-not $this.Tag) { [void]$ui.TraceIn.Focus() }
+                }
+                Set-ChipActive -Button $c -Active ($p[1] -eq $ui.TracePick)
+                $ui.TraceChips += $c
+                [void]$chips.Children.Add($c)
             }
-            $ui.TraceIn = $in
+            [void]$b.Children.Add($chips)
+            $in = New-TextInput -Placeholder 'Сайт или IP, например google.com' -Width 320 -Text $ui.TracePick
+            $go = New-Button -Text 'Проверить путь' -Icon 'play' -Kind Primary -OnClick { Start-NetTrace }
+            $ui.TraceIn = $in; $ui.TraceBtn = $go
             $go.Margin = New-Thickness 10, 0, 0, 0
-            [void]$b.Children.Add((New-Stack -Orientation Horizontal -Margin (16, 4, 16, 10) -Children @($in, $go)))
-            $ui.TraceOut = New-Text -Text 'Покажет, на каком участке пути до сайта теряется связь или растёт задержка: первые строки - ваш роутер и провайдер.' -Size 12 -Color 'Muted' -Wrap -Mono -Margin (16, 0, 16, 14)
+            [void]$b.Children.Add((New-Stack -Orientation Horizontal -Margin (16, 0, 16, 12) -Children @($in, $go)))
+            $ui.TraceOut = New-Stack -Margin (16, 0, 16, 14)
+            if ($ui.TraceLast) { Show-NetTrace -R $ui.TraceLast }
+            else { [void]$ui.TraceOut.Children.Add((New-Text -Text 'Покажет путь от вашего ПК до сайта и на каком участке теряется связь или растёт задержка: у вас дома, у провайдера или дальше в интернете.' -Size 12 -Color 'Muted' -Wrap)) }
             [void]$b.Children.Add($ui.TraceOut)
             return
         }
@@ -1164,4 +1181,225 @@ function Set-NetInfo {
         }
     }
     if ($ui.Tab -eq 'wifi') { [void]$b.Children.Add((New-Text -Text 'Пароли хранит сама Windows - PotatoPC их только показывает. Нужны права администратора (они у PotatoPC есть).' -Size 12 -Color 'Muted' -Wrap -Margin (16, 8, 16, 12))) }
+}
+
+# --- Трассировка ---
+
+$script:TracePresets = @(
+    @('Google', 'google.com'),
+    @('YouTube', 'youtube.com'),
+    @('Cloudflare 1.1.1.1', '1.1.1.1'),
+    @('Discord', 'discord.com'),
+    @('Steam', 'store.steampowered.com'),
+    @('Microsoft', 'microsoft.com')
+)
+
+function Start-NetTrace {
+    $ui = $script:NetUi
+    $h = ([string]$ui.TraceIn.Text).Trim()
+    if ($h -notmatch '^[A-Za-z0-9\.\-:]{1,253}$') { Show-Info 'Введите адрес сайта (например, google.com) или IP.'; return }
+    $ui.TraceBtn.IsEnabled = $false
+    $ui.TraceOut.Children.Clear()
+    [void]$ui.TraceOut.Children.Add((New-Text -Text ('Проверяю путь до ' + $h + '… Обычно 10-40 секунд, если сайт не отвечает - до минуты.') -Size 13 -Color 'Muted' -Wrap))
+    Start-BgTask -Name 'Трассировка' -Vars @{ H = $h } -Script {
+        $r = Invoke-ProcessLive -FilePath (Join-Path $env:WINDIR 'System32\tracert.exe') -Arguments ('-d -4 -w 800 -h 20 ' + $H) -TimeoutSec 150 -Prefix '   tracert: '
+        return [string]$r.Output
+    } -Context $h -OnDone {
+        param($t, $err, $job)
+        $ui = $script:NetUi
+        $ui.TraceBtn.IsEnabled = $true
+        $r = ConvertFrom-Tracert -Text ([string]$t) -Target ([string]$job.Context)
+        $ui.TraceLast = $r
+        if ($ui.Tab -eq 'trace') { Show-NetTrace -R $r }
+    } | Out-Null
+}
+
+function Test-NetPrivateIp {
+    param([string]$Ip)
+    return ($Ip -match '^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|169\.254\.)')
+}
+
+function ConvertFrom-Tracert {
+    # Разбирает вывод tracert (русский или английский) в участки и вердикт.
+    param([string]$Text, [string]$Target)
+    $tip = if ($Target -match '^\d{1,3}(\.\d{1,3}){3}$') { $Target } else { '' }
+    $hops = @()
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -match '^\s*(\d{1,2})\s+(.*)$') {
+            $n = [int]$Matches[1]; $rest = $Matches[2]; $times = @(); $ok = $true
+            for ($i = 0; $i -lt 3; $i++) {
+                if ($rest -match '^\*\s*(.*)$') { $times += -1; $rest = $Matches[1] }
+                elseif ($rest -match '^<?(\d+)\s*\S+\s*(.*)$') { $times += [int]$Matches[1]; $rest = $Matches[2] }
+                else { $ok = $false; break }
+            }
+            if (-not $ok) { continue }
+            $ip = if ($rest -match '(\d{1,3}(?:\.\d{1,3}){3})') { $Matches[1] } else { '' }
+            $got = @($times | Where-Object { $_ -ge 0 })
+            $ms = if ($got.Count) { [int][Math]::Round((($got | Measure-Object -Average).Average)) } else { -1 }
+            $hops += @{ N = $n; Ip = $ip; Ms = $ms; Lost = (3 - $got.Count) }
+        } elseif (-not $tip -and $line -match '\[(\d{1,3}(?:\.\d{1,3}){3})\]') { $tip = $Matches[1] }
+    }
+    # Хвост из одних «*» сворачиваем в один участок
+    $lastOk = -1
+    for ($i = 0; $i -lt $hops.Count; $i++) { if ($hops[$i].Ms -ge 0) { $lastOk = $i } }
+    if ($lastOk -ge 0 -and $lastOk -lt $hops.Count - 1) { $hops = @($hops[0..($lastOk + 1)]) }
+    $reached = ($lastOk -ge 0 -and $tip -and $hops[$lastOk].Ip -eq $tip)
+
+    # Подписи и группы: router -> isp -> net -> target
+    $seenPublic = $false
+    foreach ($h in $hops) {
+        if ($h.Ms -lt 0) { $h.Kind = 'none'; $h.Label = 'Не отвечает'; continue }
+        $priv = Test-NetPrivateIp $h.Ip
+        if ($reached -and $h.Ip -eq $tip) { $h.Kind = 'target'; $h.Label = $Target }
+        elseif ($h.N -eq 1 -and $priv) { $h.Kind = 'router'; $h.Label = 'Ваш роутер' }
+        elseif ($priv -and -not $seenPublic) { $h.Kind = 'isp'; $h.Label = 'Провайдер' }
+        elseif (-not $seenPublic) { $h.Kind = 'isp'; $h.Label = 'Сеть провайдера'; $seenPublic = $true }
+        else { $h.Kind = 'net'; $h.Label = 'Интернет' }
+    }
+    $groups = @(@{ Kind = 'pc'; Title = 'Этот ПК'; Sub = 'старт'; Ms = 0; Icon = 'monitor' })
+    foreach ($def in @(@('router', 'Роутер', 'router'), @('isp', 'Провайдер', 'building'), @('net', 'Интернет', 'network'), @('target', $Target, 'globe'))) {
+        $in = @($hops | Where-Object { $_.Kind -eq $def[0] })
+        if (-not $in.Count) { continue }
+        $g = @{ Kind = $def[0]; Title = $def[1]; Icon = $def[2]; Ms = $in[-1].Ms }
+        $g.Sub = if ($def[0] -eq 'target') { [string]$in[-1].Ms + ' мс' } elseif ($in.Count -gt 1) { [string]$in.Count + ' узла' } else { $in[0].Ip }
+        if ($def[0] -eq 'net' -and $in.Count -ge 5) { $g.Sub = [string]$in.Count + ' узлов' }
+        $groups += $g
+    }
+    if (-not $reached) { $groups += @{ Kind = 'nope'; Title = $Target; Sub = 'не ответил'; Ms = -1; Icon = 'globe' } }
+    $prev = 0
+    foreach ($g in $groups) {
+        if ($g.Ms -ge 0) { $g.Delta = [Math]::Max(0, $g.Ms - $prev); $prev = [Math]::Max($prev, $g.Ms) } else { $g.Delta = -1 }
+    }
+
+    # Вердикт
+    $v = @{ Level = 'ok'; Title = ''; Text = '' }
+    $resp = @($hops | Where-Object { $_.Ms -ge 0 })
+    $router = @($groups | Where-Object { $_.Kind -eq 'router' })
+    $worst = $null
+    foreach ($g in $groups) { if ($g.Kind -ne 'pc' -and $g.Delta -ge 50 -and (-not $worst -or $g.Delta -gt $worst.Delta)) { $worst = $g } }
+    $tgtLost = if ($reached) { $hops[$lastOk].Lost } else { 0 }
+    if (-not $hops.Count -or -not $resp.Count) {
+        $v = @{ Level = 'bad'; Title = 'Нет ответа даже от первого узла'; Text = 'Похоже, интернета нет совсем или адрес не найден. Запустите диагностику выше - она проверит адаптер, роутер и DNS.' }
+    } elseif ($router.Count -and $router[0].Ms -ge 20) {
+        $v = @{ Level = 'bad'; Title = 'Медленно уже до роутера'; Text = ('Роутер отвечает за ' + $router[0].Ms + ' мс - для домашней сети это много. Причина у вас дома: слабый Wi-Fi, помехи или кабель. Подойдите ближе к роутеру или подключитесь кабелем.') }
+    } elseif ($worst -and $worst.Kind -eq 'isp') {
+        $v = @{ Level = 'bad'; Title = 'Задержка появляется у провайдера'; Text = ('Ваш ПК и роутер отвечают быстро. На участке «роутер → провайдер» задержка вырастает на ' + $worst.Delta + ' мс. Попробуйте перезагрузить роутер; если не поможет - звоните провайдеру.') }
+    } elseif ($worst -and $worst.Kind -eq 'net') {
+        $v = @{ Level = 'warn'; Title = 'Задержка растёт дальше в интернете'; Text = ('Дома и у провайдера всё быстро, задержка добавляется на ' + $worst.Delta + ' мс уже на дальних узлах. Это не у вас - так бывает с далёкими серверами.') }
+    } elseif ($worst -and $worst.Kind -eq 'target') {
+        $v = @{ Level = 'warn'; Title = 'Медленно отвечает сам сайт'; Text = ('Весь путь быстрый, а сам ' + $Target + ' отвечает на ' + $worst.Delta + ' мс дольше. Проблема на стороне сайта.') }
+    } elseif (-not $reached) {
+        $v = @{ Level = 'info'; Title = ($Target + ' не ответил на проверку'); Text = 'Многие сайты не отвечают на такие запросы ради защиты - это не обязательно поломка. Участки до него в порядке.' }
+    } else {
+        $v = @{ Level = 'ok'; Title = 'Путь в порядке'; Text = ('До ' + $Target + ' ' + $resp.Count + ' участков, ' + $hops[$lastOk].Ms + ' мс. Задержка растёт плавно.') }
+    }
+    if ($tgtLost -gt 0 -and $v.Level -eq 'ok') { $v.Level = 'warn'; $v.Text += ' Но ' + $tgtLost + ' из 3 ответов от сайта потерялись.' }
+    return @{ Target = $Target; Hops = $hops; Groups = $groups; Verdict = $v; Raw = $Text; Reached = $reached }
+}
+
+function Get-NetMsColor {
+    param([int]$Ms)
+    if ($Ms -lt 0) { return 'Muted' } elseif ($Ms -lt 50) { return 'Ok' } elseif ($Ms -lt 150) { return 'Warn' } else { return 'Bad' }
+}
+
+function Show-NetTrace {
+    param($R)
+    $out = $script:NetUi.TraceOut
+    $out.Children.Clear()
+    $v = $R.Verdict
+    $pal = @{ ok = @('Ok', 'OkDim', 'check'); warn = @('Warn', 'WarnDim', 'warn'); bad = @('Bad', 'BadDim', 'warn'); info = @('Info', 'InfoDim', 'info') }[$v.Level]
+
+    # Вердикт
+    $vd = New-Object System.Windows.Controls.DockPanel
+    $ic = New-Icon -Name $pal[2] -Size 22 -Color $pal[0] -Stroke 2
+    $ic.VerticalAlignment = 'Top'; $ic.Margin = New-Thickness 0, 0, 14, 0
+    [System.Windows.Controls.DockPanel]::SetDock($ic, 'Left'); [void]$vd.Children.Add($ic)
+    $cp = New-Button -Text 'Копировать отчёт' -Icon 'copy' -Kind Small -Tag $R -OnClick {
+        $r = $this.Tag
+        $txt = $r.Verdict.Title + "`r`n" + $r.Verdict.Text + "`r`n`r`n" + ([string]$r.Raw).Trim()
+        try { [System.Windows.Clipboard]::SetText($txt); Write-Log 'Отчёт трассировки скопирован' 'ok' } catch {}
+    }
+    $cp.VerticalAlignment = 'Top'; $cp.Margin = New-Thickness 14, 0, 0, 0
+    [System.Windows.Controls.DockPanel]::SetDock($cp, 'Right'); [void]$vd.Children.Add($cp)
+    [void]$vd.Children.Add((New-Stack -Children @((New-Text -Text $v.Title -Size 15 -Weight 'Bold' -Color $pal[0]), (New-Text -Text $v.Text -Size 13 -Wrap -Margin (0, 3, 0, 0)))))
+    [void]$out.Children.Add((New-Card -Child $vd -Padding (16, 14, 16, 14) -Margin (0, 0, 0, 12) -Background $pal[1] -Border $pal[0]))
+
+    # Схема
+    $gr = New-Object System.Windows.Controls.Grid
+    $col = 0
+    for ($i = 0; $i -lt $R.Groups.Count; $i++) {
+        $g = $R.Groups[$i]
+        if ($i -gt 0) {
+            $cd = New-Object System.Windows.Controls.ColumnDefinition; $cd.Width = New-Object System.Windows.GridLength 1, 'Star'; $cd.MinWidth = 40
+            [void]$gr.ColumnDefinitions.Add($cd)
+            $lc = if ($g.Delta -lt 0) { 'Muted' } elseif ($g.Delta -ge 50) { 'Bad' } elseif ($g.Delta -ge 25) { 'Warn' } else { 'Ok' }
+            $lt = if ($g.Delta -lt 0) { 'нет ответа' } elseif ($i -eq 1) { [string]$g.Delta + ' мс' } else { '+' + $g.Delta + ' мс' }
+            $lab = New-Text -Text $lt -Size 12 -Weight 'SemiBold' -Color $lc -Mono
+            $lab.HorizontalAlignment = 'Center'
+            $bar = New-Object System.Windows.Controls.Border
+            $bar.Height = $(if ($lc -eq 'Bad') { 5 } else { 3 }); $bar.CornerRadius = New-Object System.Windows.CornerRadius 2; $bar.Margin = New-Thickness 4, 4, 4, 0
+            if ($lc -eq 'Muted') { $bar.Background = Get-Brush 'Line' } else { $bar.Background = Get-Brush $lc }
+            $cn = New-Stack -Margin (0, 6, 0, 0) -Children @($lab, $bar)
+            $cn.VerticalAlignment = 'Top'
+            [System.Windows.Controls.Grid]::SetColumn($cn, $col); [void]$gr.Children.Add($cn); $col++
+        }
+        $cd = New-Object System.Windows.Controls.ColumnDefinition; $cd.Width = New-Object System.Windows.GridLength 96
+        [void]$gr.ColumnDefinitions.Add($cd)
+        $nc = switch ($g.Kind) { 'pc' { 'Accent' } 'target' { 'Accent' } 'nope' { 'Muted' } default { if ($g.Delta -ge 50) { 'Bad' } else { Get-NetMsColor $g.Ms } } }
+        $dim = @{ Accent = 'AccentDim'; Ok = 'OkDim'; Warn = 'WarnDim'; Bad = 'BadDim'; Muted = '#262A33' }[$nc]
+        $circ = New-Object System.Windows.Controls.Border
+        $circ.Width = 46; $circ.Height = 46; $circ.CornerRadius = New-Object System.Windows.CornerRadius 23
+        $circ.Background = Get-Brush $dim; $circ.BorderBrush = Get-Brush $nc; $circ.BorderThickness = New-Thickness 2
+        $circ.Child = New-Icon -Name $g.Icon -Size 20 -Color $nc -Stroke 2
+        $circ.Child.HorizontalAlignment = 'Center'
+        $t1 = New-Text -Text $g.Title -Size 12 -Weight 'SemiBold' -Margin (0, 6, 0, 0)
+        $t2 = New-Text -Text $g.Sub -Size 11 -Color 'Muted' -Mono
+        foreach ($x in @($circ, $t1, $t2)) { $x.HorizontalAlignment = 'Center' }
+        $nd = New-Stack -Children @($circ, $t1, $t2)
+        $nd.ToolTip = $g.Title
+        [System.Windows.Controls.Grid]::SetColumn($nd, $col); [void]$gr.Children.Add($nd); $col++
+    }
+    [void]$out.Children.Add((New-Card -Child $gr -Padding (14, 18, 14, 14) -Margin (0, 0, 0, 12) -Background 'Panel'))
+
+    # Все участки
+    $hd = New-Object System.Windows.Controls.DockPanel
+    $hd.Margin = New-Thickness 0, 0, 0, 6
+    $hr = New-Text -Text 'задержка от вашего ПК до узла' -Size 12 -Color 'Muted'
+    [System.Windows.Controls.DockPanel]::SetDock($hr, 'Right'); [void]$hd.Children.Add($hr)
+    [void]$hd.Children.Add((New-Text -Text 'Все участки' -Size 13 -Weight 'SemiBold'))
+    [void]$out.Children.Add($hd)
+    $max = 100
+    foreach ($h in $R.Hops) { if ($h.Ms -gt $max) { $max = $h.Ms } }
+    foreach ($h in $R.Hops) {
+        $c = Get-NetMsColor $h.Ms
+        $row = New-Object System.Windows.Controls.Grid
+        foreach ($w in @(30, -1, 130, 220, 60)) {
+            $cd = New-Object System.Windows.Controls.ColumnDefinition
+            $cd.Width = $(if ($w -lt 0) { New-Object System.Windows.GridLength 1, 'Star' } else { New-Object System.Windows.GridLength $w })
+            [void]$row.ColumnDefinitions.Add($cd)
+        }
+        $name = $h.Label
+        if ($h.Kind -eq 'none') { $name = 'Не отвечает (это нормально, трафик идёт дальше)' }
+        elseif ($h.Kind -eq 'target') { $name = $h.Label + ' · цель' }
+        if ($h.Lost -gt 0 -and $h.Ms -ge 0) { $name += ' · потеряно ' + $h.Lost + ' из 3' }
+        $cells = @(
+            (New-Text -Text ([string]$h.N) -Size 13 -Color 'Muted' -Mono),
+            (New-Text -Text $name -Size 13 -Color $(if ($h.Ms -lt 0) { 'Muted' } else { 'Text' }) -Weight $(if ($h.Kind -eq 'target') { 'SemiBold' } else { 'Normal' })),
+            (New-Text -Text $(if ($h.Ip) { $h.Ip } else { '*' }) -Size 12 -Color 'Muted' -Mono -Margin (8, 0, 8, 0)),
+            $null,
+            (New-Text -Text $(if ($h.Ms -ge 0) { [string]$h.Ms } else { '*' }) -Size 13 -Weight 'SemiBold' -Color $c -Mono)
+        )
+        if ($h.Ms -ge 0) {
+            $m = New-Meter -Height 8
+            Set-Meter -Meter $m -Value ([Math]::Max(0.02, $h.Ms / $max)) -Color $c
+            $cells[3] = $m
+        }
+        $cells[4].HorizontalAlignment = 'Right'
+        for ($k = 0; $k -lt 5; $k++) { if ($cells[$k]) { [System.Windows.Controls.Grid]::SetColumn($cells[$k], $k); $cells[$k].VerticalAlignment = 'Center'; [void]$row.Children.Add($cells[$k]) } }
+        $bd = New-Object System.Windows.Controls.Border
+        $bd.BorderBrush = Get-Brush 'Line'; $bd.BorderThickness = New-Thickness 0, 1, 0, 0
+        $bd.Padding = New-Thickness 0, 9, 0, 9
+        $bd.Child = $row
+        [void]$out.Children.Add($bd)
+    }
 }
