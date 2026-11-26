@@ -1143,7 +1143,23 @@ function Set-NetInfo {
                     $copy = New-Button -Text 'Копировать' -Kind Small -Tag $x.Key -OnClick { try { [System.Windows.Clipboard]::SetText([string]$this.Tag); Write-Log 'Пароль Wi-Fi скопирован' 'ok' } catch {} }
                     $right += $show; $right += $copy
                 }
-                [void]$b.Children.Add((New-Row -Left (New-Icon -Name 'wifi' -Size 18 -Color 'Muted') -Main (New-TitleBlock -Title $x.Name -Sub $(if ($x.Auth) { $x.Auth } else { 'открытая сеть' })) -Right $right -Padding (16, 6, 12, 6)))
+                $forget = New-Button -Text 'Забыть' -Kind SmallDanger -ToolTip 'Удалить эту сеть из Windows: ПК перестанет к ней подключаться' -OnClick {
+                    $t = $this.Tag
+                    $msg = 'Забыть сеть «' + $t.Name + '»?' + "`n`n" + 'Windows удалит её вместе с сохранённым паролем и больше не будет к ней подключаться.'
+                    if ($t.Key) { $msg += "`n`n" + 'Пароль: ' + $t.Key + "`n" + '(запишите, если понадобится снова)' }
+                    if (-not (Show-Confirm -Message $msg -Title 'Забыть сеть Wi-Fi' -Warning)) { return }
+                    $null = & netsh.exe wlan delete profile ('name=' + $t.Name) 2>&1
+                    if ($LASTEXITCODE -eq 0) {
+                        [void]$script:NetUi.InfoBody.Children.Remove($t.Row)
+                        Write-Log ('Сеть Wi-Fi забыта: ' + $t.Name) 'ok'
+                    } else {
+                        Write-Log ('Не удалось забыть сеть Wi-Fi: ' + $t.Name) 'err'
+                    }
+                }
+                $right += $forget
+                $row = New-Row -Left (New-Icon -Name 'wifi' -Size 18 -Color 'Muted') -Main (New-TitleBlock -Title $x.Name -Sub $(if ($x.Auth) { $x.Auth } else { 'открытая сеть' })) -Right $right -Padding (16, 6, 12, 6)
+                $forget.Tag = @{ Name = $x.Name; Key = $x.Key; Row = $row }
+                [void]$b.Children.Add($row)
             }
         }
     }
