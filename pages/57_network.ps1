@@ -541,7 +541,7 @@ function Build-Page_network {
     $script:NetUi = $ui
     $diag = New-Button -Text 'Запустить диагностику' -Icon 'play' -OnClick { Start-NetDiagnostics }
     $ui.DiagBtn = $diag
-    $refresh = New-Button -Text 'Обновить' -Icon 'refresh' -Kind Ghost -ToolTip 'Перечитать DNS и сведения внизу страницы' -OnClick { Update-NetDns; Update-NetInfoTab }
+    $refresh = New-Button -Text 'Обновить' -Icon 'refresh' -Kind Ghost -ToolTip 'Перечитать сведения и DNS внизу страницы' -OnClick { Update-NetDns; Update-NetInfoTab }
     $L = New-PageLayout -Title 'Сеть' -Subtitle 'Скорость, диагностика подключения и исправление неполадок' -HeaderRight @($refresh, $diag)
 
     # Спидтест
@@ -636,7 +636,6 @@ function Build-Page_network {
     $ui.DnsSec = New-Section -Title 'DNS'
     $ui.DnsSec.Right.Children.Add((New-Text -Text 'защита от вредоносных сайтов и рекламы' -Size 12 -Color 'Muted')) | Out-Null
     [void]$ui.DnsSec.Body.Children.Add((New-Placeholder))
-    [void]$L.Body.Children.Add($ui.DnsSec.Root)
 
     # Сведения
     $ui.Info = New-Section -Title 'Сведения'
@@ -652,7 +651,9 @@ function Build-Page_network {
     [void]$ui.Info.Body.Children.Add($tabs)
     $ui.InfoBody = New-Stack
     [void]$ui.Info.Body.Children.Add($ui.InfoBody)
+    # «Сведения» идут выше DNS
     [void]$L.Body.Children.Add($ui.Info.Root)
+    [void]$L.Body.Children.Add($ui.DnsSec.Root)
     return $L.Root
 }
 
