@@ -37,6 +37,8 @@ function Invoke-Winget {
             $t = $l.Trim()
             if (-not $t) { continue }
             if ($t -match '^[\-\\\|/ ]+$' -or $t -match '[█▒]' -or $t -match '^\d+(\.\d+)?\s*(KB|MB|GB|КБ|МБ|ГБ)\s*/') { continue }
+            # Шаблонные строки про лицензию winget печатает для каждого пакета - только шум.
+            if ($t -match '^(Лицензия на это приложение|Корпорация Майкрософт не несет|This application is licensed|Microsoft is not responsible)') { continue }
             Write-Log ('     ' + $t)
         }
     }
@@ -134,17 +136,55 @@ function Install-WingetPackages {
         }
         $r = Invoke-Winget -Arguments $argLine -TimeoutSec 1800
         if ($r.Missing) { Write-Log 'winget не найден' 'err'; break }
-        # 0 = успех; -1978335189 = уже установлено/нет новее; -1978335135 = уже установлено.
-        if ($r.Code -eq 0 -or $r.Code -eq -1978335189 -or $r.Code -eq -1978335135) {
+        if ($Mode -eq 'upgrade' -and -not (Test-JobCancel)) {
+            if ($r.Code -eq -1978335090) {
+                # Новая версия ставится другим типом установщика: winget сам удалит старую и поставит новую.
+                Write-Log '     Другой тип установщика - пробую заменить: удалить старую версию и поставить новую...' 'warn'
+                $r = Invoke-Winget -Arguments ($argLine + ' --uninstall-previous') -TimeoutSec 1800
+            } elseif ($r.Code -eq -1978335212) {
+                # Пакет был в списке обновлений, но точный поиск по Id его не нашёл - пробуем без -e.
+                Write-Log '     Не найден по точному Id - пробую ещё раз без точного совпадения...' 'warn'
+                $r = Invoke-Winget -Arguments ('upgrade --id "' + $id + '" --silent --accept-package-agreements --include-unknown') -TimeoutSec 1800
+            }
+        }
+        # 0 = успех; -1978335189 = нет применимого обновления; -1978335135 = уже установлено.
+        if ($r.Code -eq 0 -or $r.Code -eq -1978335135) {
             $ok++; Write-Log ($verb + ' завершено: ' + $id) 'ok'
             Add-History -Kind 'app' -Name ($verb + ': ' + $id)
+        } elseif ($r.Code -eq -1978335189) {
+            $ok++; Write-Log ($verb + ': ' + $id + ' - подходящего обновления для этой системы нет, пропущено') 'warn'
         } else {
-            $fail += $id; Write-Log ($verb + ' не удалось: ' + $id + ' (код ' + $r.Code + ')') 'err'
-            Add-History -Kind 'app' -Name ($verb + ': ' + $id) -Result 'fail'
+            $fail += $id
+            $why = Get-WingetErrorHint -Code $r.Code -Output ([string]$r.Output)
+            Write-Log ($verb + ' не удалось: ' + $id + ' (код ' + $r.Code + ')' + $(if ($why) { ' - ' + $why } else { '' })) 'err'
+            Add-History -Kind 'app' -Name ($verb + ': ' + $id) -Result 'fail' -Detail $why
         }
     }
     Set-JobProgress 1 ''
     return @{ Ok = $ok; Fail = $fail }
+}
+
+function Get-WingetErrorHint {
+    # Понятная причина ошибки winget для журнала.
+    param([int]$Code, [string]$Output = '')
+    if ($Output -match '\b1603\b' -or $Output -match '\b1618\b') {
+        if ($Output -match '\b1618\b') { return 'сейчас идёт другая установка Windows, повторите позже' }
+        return 'установщик программы завершился с ошибкой; закройте программу (и её значок в трее) и повторите'
+    }
+    switch ($Code) {
+        -1978335215 { return 'файл на сайте изменился, а каталог winget ещё не обновлён; повторите через день-два' }
+        -1978335090 { return 'нужна переустановка: удалите программу и установите заново' }
+        -1978335212 { return 'winget не нашёл установленную копию; обновите программу вручную или переустановите' }
+        -2145844845 { return 'сайт программы отказал в скачивании (403); повторите позже' }
+        -2145844844 { return 'файл на сайте программы не найден (404); каталог winget устарел' }
+        -1978335216 { return 'нет подходящего установщика для этой системы' }
+        -1978334975 { return 'программа сейчас запущена; закройте её и повторите' }
+        -1978334974 { return 'сейчас идёт другая установка; повторите позже' }
+        -1978334967 { return 'нужна перезагрузка, потом повторите' }
+        -1978334972 { return 'не хватает места на диске' }
+    }
+    if ($Output -match '(?i)Forbidden|403') { return 'сайт программы отказал в скачивании; повторите позже' }
+    return ''
 }
 
 function Get-AppCatalog {
