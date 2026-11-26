@@ -96,7 +96,6 @@ function Initialize-TweakList {
             $left = New-Stack -Orientation Horizontal -Children @($chk, $tile)
             $tile.Margin = New-Thickness 12, 0, 0, 0
             $sub = $p.Desc
-            if (-not $p.Applicable) { $sub = 'Только для Windows 11. ' + $sub }
             $main = New-TitleBlock -Title $p.Name -Sub $sub
             $main.Children[1].TextTrimming = 'CharacterEllipsis'
             $main.ToolTip = $p.Desc
@@ -104,6 +103,11 @@ function Initialize-TweakList {
             if ($applied.ContainsKey($p.Id)) { $status.Text = '✓ применено ' + ([datetime]$applied[$p.Id]).ToString('dd.MM') }
             $right = @($status)
             if (-not $p.Trusted) { $right += New-Badge 'Сторонний плагин' 'info' }
+            if ($p.Win11Only) {
+                $w11 = New-Badge 'Windows 11' 'info'
+                $w11.ToolTip = if ($p.Applicable) { 'Твик только для Windows 11' } else { 'Твик только для Windows 11 - на этой системе недоступен' }
+                $right += $w11
+            }
             foreach ($pr in $p.Presets) { if ($script:PresetInfo.Contains($pr)) { $right += New-OutlineChip $script:PresetInfo[$pr].Title } }
             $right += New-RiskBadge $p.Risk
             $undoTip = if ($p.UndoId) { 'Откатить этот твик' } else { 'Разовое действие - откатывать нечего' }
