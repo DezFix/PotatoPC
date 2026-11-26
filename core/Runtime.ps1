@@ -205,7 +205,14 @@ function Invoke-ProcessLive {
     $enc = switch ($Encoding) {
         'utf8'    { New-Object System.Text.UTF8Encoding($false) }
         'unicode' { [System.Text.Encoding]::Unicode }
-        default   { try { [System.Text.Encoding]::GetEncoding([System.Globalization.CultureInfo]::CurrentCulture.TextInfo.OEMCodePage) } catch { [System.Text.Encoding]::Default } }
+        default {
+            # Консольные утилиты пишут в OEM-кодировке СИСТЕМЫ (язык для программ, не поддерживающих Юникод),
+            # а она может не совпадать с региональным форматом пользователя (en-US -> 437 вместо 866).
+            $cp = 0
+            try { $cp = [int](Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\CodePage' -Name OEMCP -ErrorAction Stop).OEMCP } catch {}
+            if ($cp -le 0) { try { $cp = [System.Globalization.CultureInfo]::CurrentCulture.TextInfo.OEMCodePage } catch {} }
+            try { [System.Text.Encoding]::GetEncoding($cp) } catch { [System.Text.Encoding]::Default }
+        }
     }
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $FilePath
