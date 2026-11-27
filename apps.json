@@ -192,6 +192,12 @@
         "Id": "qBittorrent.qBittorrent",
         "Site": "qbittorrent.org",
         "Description": "Торрент-клиент без рекламы."
+      },
+      {
+        "Name": "OneDrive",
+        "Id": "Microsoft.OneDrive",
+        "Site": "onedrive.live.com",
+        "Description": "Облако Microsoft: файлы синхронизируются между компьютерами и телефоном."
       }
     ],
     "Системные Утилиты": [
