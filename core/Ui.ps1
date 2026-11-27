@@ -16,6 +16,7 @@ $script:IconPaths = @{
     box     = 'M3,7 L12,3 L21,7 L12,11 Z M3,7 V17 L12,21 L21,17 V7 M12,11 V21'
     shield  = 'M12,3 L20,6 V12 C20,17 16.5,20 12,21 C7.5,20 4,17 4,12 V6 Z M9,12 L11,14 L15,10'
     undo    = 'M9,14 L4,9 L9,4 M4,9 H15 A5,5 0 0 1 15,19 H12'
+    heart   = 'M12,20 C9,17.5 3,13.5 3,8.5 A4.5,4.5 0 0 1 12,6.5 A4.5,4.5 0 0 1 21,8.5 C21,13.5 15,17.5 12,20 Z'
     flag    = 'M5,21 V4 M5,4 H16 L14,8 L16,12 H5'
     folder  = 'M3,6 H9 L11,8 H21 V19 H3 Z'
     search  = 'M11,4 A7,7 0 1 1 11,18 A7,7 0 1 1 11,4 M20,20 L16,16'
@@ -761,6 +762,31 @@ function Initialize-Nav {
         Start-BgTask -Name 'Точка восстановления' -Script { New-RestorePoint -Description 'PotatoPC: вручную' } | Out-Null
     })
     [void]$foot.Children.Add($rp)
+    [void]$foot.Children.Add((New-SupportBanner))
+}
+
+function New-SupportBanner {
+    # Баннер «Поддержите автора» внизу боковой панели: открывает страницу Ko-fi.
+    $b = New-Object System.Windows.Controls.Border
+    $b.Background = Get-Brush 'AccentDim'
+    $b.BorderBrush = Get-Brush 'Accent'; $b.BorderThickness = New-Thickness 1
+    $b.CornerRadius = New-Object System.Windows.CornerRadius 10
+    $b.Padding = New-Thickness 12, 9, 12, 9
+    $b.Margin = New-Thickness 0, 10, 0, 0
+    $b.Cursor = [System.Windows.Input.Cursors]::Hand
+    $b.ToolTip = $script:SupportUrl
+    $sp = New-Stack -Orientation Horizontal
+    [void]$sp.Children.Add((New-Icon -Name 'heart' -Size 18 -Color 'Accent'))
+    $tx = New-Stack
+    $tx.Margin = New-Thickness 10, 0, 0, 0
+    [void]$tx.Children.Add((New-Text -Text 'Поддержите автора' -Size 13 -Weight 'SemiBold'))
+    [void]$tx.Children.Add((New-Text -Text 'Донат на Ko-fi' -Size 11 -Color 'Muted'))
+    [void]$sp.Children.Add($tx)
+    $b.Child = $sp
+    $b.Add_MouseEnter({ $this.Background = Get-Brush 'Hover' })
+    $b.Add_MouseLeave({ $this.Background = Get-Brush 'AccentDim' })
+    $b.Add_MouseLeftButtonUp({ try { Start-Process $script:SupportUrl } catch { Write-Log ('Не удалось открыть ' + $script:SupportUrl) 'warn' } })
+    return $b
 }
 
 function Show-Page {

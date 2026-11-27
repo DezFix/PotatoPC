@@ -4,6 +4,7 @@
 
 $script:AppVersion = '7.1.0'
 $script:BuildTag   = '2026-11-26-v7.1'
+$script:SupportUrl = 'https://ko-fi.com/dezfix'
 
 # Корень приложения: папка, где лежит menu.ps1.
 if (-not $script:AppRoot) { $script:AppRoot = Split-Path $script:CoreDir -Parent }
