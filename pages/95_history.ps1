@@ -125,3 +125,119 @@ function Update-RestorePoints {
         }
     } | Out-Null
 }
+
+# --- Окно «Точки восстановления» (кнопка внизу боковой панели) ---
+
+function Show-RestoreMenu {
+    param($Anchor)
+    Show-ActionMenu -Anchor $Anchor -Items @(
+        @{ Text = 'Создать точку сейчас'; OnClick = { Start-BgTask -Name 'Точка восстановления' -Script { New-RestorePoint -Description 'PotatoPC: вручную' } -OnDone { if ($script:HiUi) { Update-RestorePoints } } | Out-Null } }
+        @{ Text = 'Все точки и откат Windows…'; OnClick = { Show-RestorePointsDialog } }
+        @{ Separator = $true }
+        @{ Text = 'Откаты твиков PotatoPC'; OnClick = { Show-Page -Id 'history' } }
+    )
+}
+
+function Get-RestorePointKind {
+    param([int]$Type)
+    switch ($Type) { 0 { 'установка программы' } 1 { 'удаление программы' } 10 { 'установка драйвера' } 12 { 'изменение настроек' } 13 { 'отменённая операция' } default { 'системная' } }
+}
+
+function Show-RestorePointsDialog {
+    $w = New-Object System.Windows.Window
+    $w.Owner = $script:Window; $w.WindowStartupLocation = 'CenterOwner'
+    $w.Width = 560 * $script:UiScale; $w.SizeToContent = 'Height'; $w.ResizeMode = 'NoResize'
+    $w.Title = 'Точки восстановления'; $w.Background = Get-Brush 'Bg'; $w.Foreground = Get-Brush 'Text'
+    $w.FontFamily = $script:Window.FontFamily
+    foreach ($k in $script:Window.Resources.MergedDictionaries) { [void]$w.Resources.MergedDictionaries.Add($k) }
+    foreach ($key in $script:Window.Resources.Keys) { $w.Resources[$key] = $script:Window.Resources[$key] }
+    $sp = New-Stack -Margin (22, 18, 22, 18)
+    [void]$sp.Children.Add((New-Text -Text 'Точки восстановления Windows' -Size 18 -Weight 'Bold' -Margin (0, 0, 0, 6)))
+    [void]$sp.Children.Add((New-Text -Text 'Откат возвращает системные файлы, драйверы, реестр и программы к состоянию на дату точки. Документы, фото и загрузки не трогаются. Компьютер перезагрузится.' -Size 12 -Color 'Muted' -Wrap -Margin (0, 0, 0, 12)))
+    $card = New-Object System.Windows.Controls.Border
+    $card.Background = Get-Brush 'Card'; $card.BorderBrush = Get-Brush 'Line'; $card.BorderThickness = New-Thickness 1
+    $card.CornerRadius = New-Object System.Windows.CornerRadius 10
+    $list = New-Stack
+    $sv = New-Object System.Windows.Controls.ScrollViewer
+    $sv.VerticalScrollBarVisibility = 'Auto'; $sv.HorizontalScrollBarVisibility = 'Disabled'
+    $sv.MaxHeight = [Math]::Max(300, [System.Windows.SystemParameters]::WorkArea.Height / $script:UiScale - 300)
+    $sv.Content = $list
+    $card.Child = $sv
+    [void]$sp.Children.Add($card)
+    [void]$list.Children.Add((New-Text -Text 'Загружаю список точек…' -Size 13 -Color 'Muted' -Margin (16, 14, 16, 14)))
+    $create = New-Button -Text 'Создать точку' -Icon 'flag' -OnClick {
+        $this.IsEnabled = $false
+        Start-BgTask -Name 'Точка восстановления' -Script { New-RestorePoint -Description 'PotatoPC: вручную' } -OnDone { Update-RestoreDialogList; if ($script:HiUi) { Update-RestorePoints } } | Out-Null
+    }
+    $rstrui = New-Button -Text 'Восстановление Windows' -Kind Ghost -OnClick { Start-Process (Join-Path $env:WINDIR 'System32\rstrui.exe') }
+    $rstrui.Margin = New-Thickness 10, 0, 0, 0
+    $close = New-Button -Text 'Закрыть' -OnClick { $script:RpDlg.Window.Close() }
+    $bar = New-Object System.Windows.Controls.DockPanel
+    $bar.LastChildFill = $false
+    $bar.Margin = New-Thickness 0, 14, 0, 0
+    [System.Windows.Controls.DockPanel]::SetDock($close, 'Right')
+    [void]$bar.Children.Add($close)
+    [void]$bar.Children.Add($create)
+    [void]$bar.Children.Add($rstrui)
+    [void]$sp.Children.Add($bar)
+    $script:RpDlg = @{ Window = $w; List = $list; Create = $create }
+    Add-UiScale $sp
+    $w.Content = $sp
+    try { Enable-DarkTitleBar -Target $w } catch {}
+    $w.Add_ContentRendered({ Update-RestoreDialogList })
+    [void]$w.ShowDialog()
+    $script:RpDlg = $null
+}
+
+function Add-RestoreDialogRows {
+    # UI-поток: заполняет список окна. $R = @{ Points; Disabled }.
+    param($R)
+    $d = $script:RpDlg
+    if (-not $d) { return }
+    $d.Create.IsEnabled = $true
+    $d.List.Children.Clear()
+    if (-not $R -or @($R.Points).Count -eq 0) {
+        $msg = if ($R -and $R.Disabled) { 'Защита системы запрещена политикой - точки восстановления не создаются.' } else { 'Точек восстановления нет. Нажмите «Создать точку». Если не получится - защита системы выключена, включить её можно на странице «История и откаты».' }
+        $row = New-Row -Left (New-Icon -Name 'warn' -Size 18 -Color 'Warn') -Main (New-Text -Text $msg -Size 13 -Wrap)
+        $row.BorderThickness = New-Thickness 0
+        [void]$d.List.Children.Add($row)
+        return
+    }
+    $first = $true
+    foreach ($p in $R.Points) {
+        $mine = $p.Desc -like 'PotatoPC*'
+        $sub = $p.Time.ToString('dd.MM.yyyy HH:mm') + ' · ' + (Get-RestorePointKind $p.Type) + $(if ($first) { ' · самая новая' } else { '' })
+        $b = New-Button -Text 'Откатить' -Kind Small -Tag $p -OnClick { Invoke-RestoreToPoint -Point $this.Tag }
+        $row = New-Row -Left (New-Icon -Name 'flag' -Size 16 -Color $(if ($mine) { 'Accent' } else { 'Muted' })) -Main (New-TitleBlock -Title $p.Desc -Sub $sub) -Right @($b) -Padding (16, 8, 16, 8)
+        if ($first) { $row.BorderThickness = New-Thickness 0 }
+        [void]$d.List.Children.Add($row)
+        $first = $false
+    }
+}
+
+function Update-RestoreDialogList {
+    if (-not $script:RpDlg) { return }
+    Start-BgTask -Name 'Точки восстановления' -Silent -Script {
+        $pts = @()
+        try { $pts = @(Get-ComputerRestorePoint -ErrorAction Stop | Sort-Object SequenceNumber -Descending | ForEach-Object { @{ Seq = [int]$_.SequenceNumber; Desc = [string]$_.Description; Type = [int]$_.RestorePointType; Time = $_.ConvertToDateTime($_.CreationTime) } }) } catch {}
+        $disabled = $false
+        try { $v = Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore' -Name DisableSR -ErrorAction Stop; $disabled = ($v.DisableSR -eq 1) } catch {}
+        return @{ Points = $pts; Disabled = $disabled }
+    } -OnDone { param($r) Add-RestoreDialogRows -R $r } | Out-Null
+}
+
+function Invoke-RestoreToPoint {
+    param($Point)
+    $when = $Point.Time.ToString('dd.MM.yyyy HH:mm')
+    $msg = 'Откатить Windows к точке «' + $Point.Desc + '» от ' + $when + "?`n`n" +
+           "Компьютер СРАЗУ перезагрузится - сохраните открытые документы.`n" +
+           'Программы и драйверы, установленные после ' + $when + ", пропадут, а удалённые после этой даты вернутся. Документы, фото и загрузки не трогаются.`n`n" +
+           'Если результат не понравится, откат можно отменить: перед ним Windows сама создаёт новую точку.'
+    if (-not (Show-Confirm -Message $msg -Title 'Откат Windows' -Warning)) { return }
+    Add-History -Kind 'restore' -Name ('Откат Windows к точке: ' + $Point.Desc + ' (' + $when + ')')
+    Write-Log ('Откат Windows к точке «' + $Point.Desc + '» - компьютер перезагрузится') 'warn'
+    Start-BgTask -Name 'Откат Windows' -Vars @{ Seq = $Point.Seq } -Script {
+        try { Restore-Computer -RestorePoint $Seq -Confirm:$false -ErrorAction Stop; return $true }
+        catch { Write-Log ('Откат не запустился: ' + $_.Exception.Message + '. Попробуйте кнопку «Восстановление Windows».') 'err'; return $false }
+    } | Out-Null
+}

@@ -757,10 +757,8 @@ function Initialize-Nav {
     $t = New-Object System.Windows.Controls.TextBlock; $t.Text = 'Точка восстановления'; $t.Margin = New-Thickness 12, 0, 0, 0; $t.VerticalAlignment = 'Center'
     [void]$sp.Children.Add($t)
     $rp.Content = $sp
-    $rp.ToolTip = 'Создать точку восстановления Windows сейчас'
-    $rp.Add_Click({
-        Start-BgTask -Name 'Точка восстановления' -Script { New-RestorePoint -Description 'PotatoPC: вручную' } | Out-Null
-    })
+    $rp.ToolTip = 'Создать точку, посмотреть все точки или откатить Windows'
+    $rp.Add_Click({ Show-RestoreMenu -Anchor $this })
     [void]$foot.Children.Add($rp)
     [void]$foot.Children.Add((New-SupportBanner))
 }
