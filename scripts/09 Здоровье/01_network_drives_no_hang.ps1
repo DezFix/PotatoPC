@@ -2,6 +2,7 @@
 # DESC: Недоступный сетевой диск (другая сеть, выключенный NAS) больше не тормозит вход и Проводник: Windows подключит его при первом обращении, а не ищет при старте
 # TAGS: 1
 # ICON: network
+# PRESET: potato,office,game
 # CHECK: Test-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\NetworkProvider' 'RestoreConnection' 0
 
 #Requires -RunAsAdministrator

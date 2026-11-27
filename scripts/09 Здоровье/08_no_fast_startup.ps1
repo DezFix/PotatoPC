@@ -2,6 +2,7 @@
 # DESC: «Завершение работы» в Windows 10/11 на деле не выключает ядро: зависшие драйверы и сбои тянутся неделями, а помогает только «Перезагрузка». После твика выключение - настоящее, включение дольше на пару секунд
 # TAGS: 1
 # ICON: power
+# PRESET: office,game
 # CHECK: Test-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' 0
 
 #Requires -RunAsAdministrator

@@ -2,6 +2,7 @@
 # DESC: Закрывает старую дыру: вирус «счёт.pdf.exe» по умолчанию выглядит как «счёт.pdf». С расширениями подмена видна сразу
 # TAGS: 1
 # ICON: eye
+# PRESET: potato,office,game
 # CHECK: Test-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'HideFileExt' 0
 
 #Requires -RunAsAdministrator

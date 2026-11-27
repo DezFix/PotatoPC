@@ -2,6 +2,7 @@
 # DESC: «Быстрый доступ» тянет недавние файлы - в том числе с вынутых флешек и недоступных сетевых папок - и подвисает при открытии. «Этот компьютер» открывается мгновенно
 # TAGS: 1
 # ICON: disk
+# PRESET: potato,game
 # CHECK: Test-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'LaunchTo' 1
 
 #Requires -RunAsAdministrator

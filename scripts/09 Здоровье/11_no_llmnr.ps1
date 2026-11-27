@@ -2,6 +2,7 @@
 # DESC: Устаревший протокол поиска имён: в кафе и гостиницах через него выманивают пароль Windows (атака Responder). Дома и в офисе работает обычный DNS - ничего не сломается
 # TAGS: 1
 # ICON: lock
+# PRESET: potato,office,game
 # CHECK: Test-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient' 'EnableMulticast' 0
 
 #Requires -RunAsAdministrator

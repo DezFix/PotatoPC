@@ -2,6 +2,7 @@
 # DESC: Выключает угадывание типа папки (фото, музыка, документы) - из-за него большие папки и флешки открываются по полминуты
 # TAGS: 1
 # ICON: folder
+# PRESET: potato,office,game
 # CHECK: Test-Reg 'HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags\AllFolders\Shell' 'FolderType' 'NotSpecified'
 
 #Requires -RunAsAdministrator

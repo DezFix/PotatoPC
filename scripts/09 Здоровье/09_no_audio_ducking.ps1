@@ -2,6 +2,7 @@
 # DESC: Windows убавляет музыку и игры на 80%, когда решает, что идёт звонок (Discord, Skype, Teams), - и часто забывает вернуть громкость. Отключаем
 # TAGS: 1
 # ICON: gauge
+# PRESET: office,game
 # CHECK: Test-Reg 'HKCU:\Software\Microsoft\Multimedia\Audio' 'UserDuckingPreference' 3
 
 #Requires -RunAsAdministrator
