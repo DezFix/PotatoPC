@@ -242,16 +242,35 @@ function Build-Page_service {
 
     # Данные PotatoPC
     $ds = New-Section -Title 'Данные PotatoPC на этом компьютере'
-    $mode = if ($PortableMode) { 'Портативный режим: журнал, история и отчёты лежат рядом с программой - ' + $DataRoot } else { 'Журнал, история и отчёты: ' + $DataRoot + '. Резервные копии твиков: ' + $BackupFolder }
-    [void]$ds.Body.Children.Add((New-Text -Text $mode -Size 13 -Color 'Muted' -Wrap -Margin (16, 0, 16, 10)))
-    $w = New-Object System.Windows.Controls.WrapPanel
-    $w.Margin = New-Thickness 16, 0, 16, 14
-    $b1 = New-Button -Text 'Открыть папку данных' -Kind Small -OnClick { Open-Path $DataRoot }
-    $b2 = New-Button -Text $(if ($PortableMode) { 'Выключить портативный режим' } else { 'Портативный режим (для флешки)' }) -Kind Small -OnClick { Switch-PortableMode }
-    $b3 = New-Button -Text 'Удалить следы PotatoPC' -Kind SmallDanger -OnClick { Remove-PotatoTraces }
-    foreach ($b in @($b1, $b2, $b3)) { $b.Margin = New-Thickness 0, 0, 10, 8; [void]$w.Children.Add($b) }
-    [void]$ds.Body.Children.Add($w)
+    $ui.DataSub = @{}
+    $mkOpen = { param($p) $b = New-Button -Text 'Открыть' -Kind Small -Tag $p -OnClick { if (Test-Path -LiteralPath $this.Tag) { Open-Path $this.Tag } else { Show-Info ('Папки пока нет: ' + $this.Tag) } }; return $b }
+    $rows = @(
+        @{ Key = 'data'; Icon = 'history'; Title = $(if ($PortableMode) { 'Журнал, история, отчёты (на флешке)' } else { 'Журнал, история, отчёты' }); Path = $DataRoot; Right = @((& $mkOpen $DataRoot)) }
+        @{ Key = 'backups'; Icon = 'undo'; Title = 'Резервные копии твиков'; Path = $BackupFolder; Right = @((& $mkOpen $BackupFolder)) }
+        @{ Key = 'temp'; Icon = 'trash'; Title = 'Временные файлы'; Path = $WorkFolder; Right = @((& $mkOpen $WorkFolder), (New-Button -Text 'Очистить' -Kind Small -OnClick { Clear-PotatoTemp })) }
+        @{ Key = 'app'; Icon = 'box'; Title = 'Папка программы (этот запуск)'; Path = $AppRoot; Right = @((& $mkOpen $AppRoot)) }
+    )
+    foreach ($r in $rows) {
+        $tb = New-TitleBlock -Title $r.Title -Sub $r.Path
+        $tb.Children[1].TextWrapping = 'Wrap'
+        $ui.DataSub[$r.Key] = $tb.Children[1]
+        if ($r.Right.Count -gt 1) { $r.Right[0].Margin = New-Thickness 0, 0, 8, 0 }
+        [void]$ds.Body.Children.Add((New-Row -Left (New-IconTile -Icon $r.Icon) -Main $tb -Right $r.Right))
+    }
+    $kill = New-Button -Text 'Уничтожить все следы PotatoPC' -Icon 'trash' -Kind SmallDanger -OnClick { Remove-PotatoTraces }
+    $kill.HorizontalAlignment = 'Left'; $kill.Margin = New-Thickness 16, 10, 16, 14
+    [void]$ds.Body.Children.Add($kill)
     [void]$L.Body.Children.Add($ds.Root)
+
+    # Портативная версия
+    $ps = New-Section -Title 'Портативная версия для флешки'
+    $pt = 'Соберёт папку PotatoPC с файлом «Запустить PotatoPC.cmd». Запускается без интернета - для ПК, где сеть не работает и её надо починить. Журнал и история хранятся на флешке, а не на чужом компьютере.'
+    [void]$ps.Body.Children.Add((New-Text -Text $pt -Size 13 -Wrap -Margin (16, 0, 16, 6)))
+    [void]$ps.Body.Children.Add((New-Text -Text 'Без интернета работает: твики и откаты, очистка, автозагрузка, починка Windows, пользователи, реестр, защита. Не работает: установка программ, драйверы, тест скорости.' -Size 12 -Color 'Muted' -Wrap -Margin (16, 0, 16, 10)))
+    $mkp = New-Button -Text 'Создать на флешке…' -Icon 'save' -Kind Small -OnClick { New-PortableCopy }
+    $mkp.HorizontalAlignment = 'Left'; $mkp.Margin = New-Thickness 16, 0, 16, 14
+    [void]$ps.Body.Children.Add($mkp)
+    [void]$L.Body.Children.Add($ps.Root)
     $script:SvUi = $ui
     return $L.Root
 }
@@ -272,6 +291,7 @@ function Show-Page_service {
     if ($s.Last -and $s.Last.Year -gt 2000) { $t += ' Последний запуск: ' + $s.Last.ToString('dd.MM.yyyy HH:mm') + $(if ($s.Result -eq 0) { ' (успешно)' } else { ' (код ' + $s.Result + ')' }) + '.' }
     if ($s.On -and $s.Next) { $t += ' Следующий: ' + $s.Next.ToString('dd.MM.yyyy HH:mm') + '.' }
     $ui.MaintState.Text = $t
+    Update-PotatoDataSizes
 }
 
 function Start-Repair {
@@ -298,30 +318,197 @@ function Switch-Maintenance {
     Start-BgTask -Name 'Автообслуживание' -Vars @{ Cfg = $cfg } -Script { Register-Maintenance -Config $Cfg; Write-Log 'Автообслуживание включено' 'ok' } -OnDone { Show-Page_service } | Out-Null
 }
 
-function Switch-PortableMode {
-    $flag = Join-Path $AppRoot 'portable.txt'
-    try {
-        if ($PortableMode) { Remove-Item -LiteralPath $flag -Force -ErrorAction Stop; Show-Info 'Портативный режим выключен. Перезапустите PotatoPC.' }
-        else {
-            Set-Content -LiteralPath $flag -Value 'Этот файл включает портативный режим PotatoPC: данные хранятся в папке data рядом с программой.' -Encoding UTF8 -ErrorAction Stop
-            Show-Info 'Портативный режим включён. Перезапустите PotatoPC - журнал, история и отчёты будут храниться в папке data рядом с программой.'
+# --- Данные PotatoPC: папки, временные файлы, полное удаление ---
+
+function Get-FolderBytes {
+    param([string]$Path)
+    if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return 0 }
+    $i = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if ($i -and -not $i.PSIsContainer) { return [double]$i.Length }
+    $sum = 0.0
+    foreach ($f in @(Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue)) { $sum += $f.Length }
+    return $sum
+}
+
+function Test-ContainsAppRoot {
+    # Папка - это папка программы или содержит её (её нельзя удалять, пока программа открыта).
+    param([string]$Path)
+    $a = ([string]$AppRoot).TrimEnd('\'); $p = $Path.TrimEnd('\')
+    return ($a.Equals($p, [System.StringComparison]::OrdinalIgnoreCase) -or $a.StartsWith($p + '\', [System.StringComparison]::OrdinalIgnoreCase))
+}
+
+function Get-PotatoTempItems {
+    # %TEMP%\PotatoPC и копии, которые оставляет каждый запуск по ссылке (PotatoPC-run-*).
+    # Папку текущего запуска без -IncludeCurrent не возвращаем - она занята.
+    param([switch]$IncludeCurrent)
+    $out = @()
+    if (Test-Path -LiteralPath $WorkFolder) { $out += $WorkFolder }
+    foreach ($d in @(Get-ChildItem -LiteralPath $env:TEMP -Directory -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'PotatoPC-run-*' -or $_.Name -like 'PotatoPC-link-*' -or $_.Name -like 'PotatoPC-cache-*' })) {
+        if (-not $IncludeCurrent -and (Test-ContainsAppRoot $d.FullName)) { continue }
+        $out += $d.FullName
+    }
+    return , $out
+}
+
+function Update-PotatoDataSizes {
+    $ui = $script:SvUi
+    if (-not $ui -or -not $ui.DataSub) { return }
+    Start-BgTask -Name 'Размер данных PotatoPC' -Silent -Script {
+        $tmp = Get-PotatoTempItems
+        $tb = 0.0; foreach ($t in $tmp) { $tb += Get-FolderBytes $t }
+        $data = Get-FolderBytes $DataRoot
+        if (-not $PortableMode) { $data -= Get-FolderBytes $BackupFolder }
+        return @{ data = $data; backups = (Get-FolderBytes $BackupFolder); temp = $tb; runs = @($tmp | Where-Object { $_ -ne $WorkFolder }).Count; app = (Get-FolderBytes $AppRoot) }
+    } -OnDone {
+        param($Result, $Err)
+        $ui = $script:SvUi
+        if (-not $Result -or -not $ui) { return }
+        $sz = { param($b) if ($b -gt 0) { Format-Size $b } else { 'пусто' } }
+        $ui.DataSub['data'].Text = $DataRoot + ' · ' + (& $sz $Result.data)
+        $ui.DataSub['backups'].Text = $BackupFolder + ' · ' + (& $sz $Result.backups)
+        $ui.DataSub['temp'].Text = $WorkFolder + $(if ($Result.runs) { ' и старые копии запуска по ссылке: ' + $Result.runs } else { '' }) + ' · ' + (& $sz $Result.temp)
+        $ui.DataSub['app'].Text = $AppRoot + ' · ' + (& $sz $Result.app)
+    } | Out-Null
+}
+
+function Clear-PotatoTemp {
+    Start-BgTask -Name 'Временные файлы PotatoPC' -Script {
+        $n = 0; $busy = 0
+        foreach ($t in (Get-PotatoTempItems)) {
+            if ($t -eq $WorkFolder) {
+                foreach ($c in @(Get-ChildItem -LiteralPath $t -Force -ErrorAction SilentlyContinue)) { try { Remove-Item -LiteralPath $c.FullName -Recurse -Force -ErrorAction Stop; $n++ } catch { $busy++ } }
+            } else {
+                try { Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction Stop; $n++ } catch { $busy++ }
+            }
         }
-    } catch { Show-Info ('Не получилось: ' + $_.Exception.Message + "`nВозможно, папка программы защищена от записи.") -Icon 'Warning' }
+        Write-Log ('Временные файлы PotatoPC: удалено ' + $n + $(if ($busy) { ', занято и пропущено: ' + $busy } else { '' })) 'ok'
+    } -OnDone { Update-PotatoDataSizes } | Out-Null
 }
 
 function Remove-PotatoTraces {
-    $msg = "Удалить с этого компьютера:`n  • журнал, историю и отчёты`n  • временные файлы PotatoPC`n  • задачу автообслуживания`n`nСама программа (папка " + $AppRoot + ') не удаляется.'
-    if (-not (Show-Confirm -Message $msg -Title 'Удалить следы' -Warning)) { return }
-    $withBackups = Show-Confirm -Message ("Удалить и резервные копии (" + $BackupFolder + ")?`n`nБез них откат некоторых твиков (файл подкачки, UAC, гость, PUA) вернёт заводские настройки, а не ваши прежние.") -Title 'Резервные копии' -Warning
-    Start-BgTask -Name 'Удаление следов' -Vars @{ Wb = $withBackups } -Script {
+    $pd = Join-Path $env:ProgramData 'PotatoPC'
+    $ps = Get-ProfileState
+    $keepProf = (@($ps.Moves).Count -gt 0) -or (Test-Path -LiteralPath (Get-ProfileMoveFolder))
+    $tmpRoot = $env:TEMP.TrimEnd('\') + '\'
+    $inTemp = ([string]$AppRoot).StartsWith($tmpRoot, [System.StringComparison]::OrdinalIgnoreCase)
+    $msg = "Удалить с этого компьютера всё, что оставил PotatoPC:`n  • журнал, историю, отчёты и настройки`n  • кэш и временные файлы, старые копии запуска по ссылке`n  • задачу автообслуживания"
+    if ($inTemp) { $msg += "`n  • саму программу (" + $AppRoot + ') - после её закрытия' }
+    if ($PortableMode) { $msg += "`n`nДанные на флешке (" + $DataRoot + ') не трогаются.' }
+    $msg += "`n`nПрименённые твики и установленные программы останутся как есть."
+    if ($keepProf) { $msg += "`n`nЗаписи о переносе профилей на другой диск (profiles.json) сохранятся: без них перенос и возврат файлов после переустановки Windows не сработают." }
+    if (-not (Show-Confirm -Message $msg -Title 'Уничтожить следы' -Warning)) { return }
+    $withBackups = Show-Confirm -Message ("Удалить и резервные копии твиков (" + $BackupFolder + ")?`n`nБез них откат некоторых твиков (файл подкачки, UAC, гость, PUA) вернёт заводские настройки, а не ваши прежние.") -Title 'Резервные копии' -Warning
+    Start-BgTask -Name 'Удаление следов' -Vars @{ Wb = $withBackups; KeepProf = $keepProf; Pd = $pd } -Script {
         Unregister-Maintenance
-        $targets = @($WorkFolder, (Join-Path $env:LOCALAPPDATA 'PotatoPC'), (Join-Path $env:ProgramData 'PotatoPC\maintenance'), (Join-Path $env:ProgramData 'PotatoPC\cache'))
-        if (-not $PortableMode) { $targets += @($LogFolder, $ReportFolder, $HistoryPath, $SettingsPath, $UIStatePath) }
-        if ($Wb) { $targets += $BackupFolder }
+        $targets = @(Get-PotatoTempItems -IncludeCurrent)
+        $targets += (Join-Path $env:LOCALAPPDATA 'PotatoPC')
+        if ($PortableMode) { $targets += $BackupFolder }
+        foreach ($c in @(Get-ChildItem -LiteralPath $Pd -Force -ErrorAction SilentlyContinue)) {
+            if ($KeepProf -and ($c.Name -eq 'profiles.json' -or $c.Name -eq 'profile-move')) { continue }
+            $targets += $c.FullName
+        }
+        if (-not $Wb) { $targets = @($targets | Where-Object { $_ -ne $BackupFolder }) }
+        $later = @()
         foreach ($t in $targets) {
             if (-not $t -or -not (Test-Path -LiteralPath $t)) { continue }
-            try { Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction Stop; Write-Log ('Удалено: ' + $t) } catch { Write-Log ('Не удалено (занято): ' + $t) 'warn' }
+            if (Test-ContainsAppRoot $t) { $later += $t; continue }
+            try { Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction Stop; Write-Log ('Удалено: ' + $t) } catch { $later += $t }
         }
-        Write-Log 'Следы PotatoPC удалены. Журнал этого запуска удалится после закрытия программы.' 'ok'
+        # Журнал и настройки окна пишутся до самого закрытия, папка программы занята -
+        # их удаляет отдельный скрытый процесс, когда PotatoPC закроется.
+        if (-not $PortableMode) { $later += @($LogFolder, $HistoryPath, $SettingsPath, $UIStatePath) }
+        $later = @($later | Where-Object { $_ } | Select-Object -Unique)
+        $q = { param($s) "'" + ($s -replace "'", "''") + "'" }
+        $list = ($later | ForEach-Object { & $q $_ }) -join ','
+        $cmd = 'Wait-Process -Id ' + $PID + ' -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; ' +
+               'foreach ($p in @(' + $list + ')) { for ($i = 0; $i -lt 5 -and (Test-Path -LiteralPath $p); $i++) { Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $p) { Start-Sleep -Seconds 2 } } }; ' +
+               '$r = ' + (& $q $Pd) + '; if ((Test-Path -LiteralPath $r) -and -not (Get-ChildItem -LiteralPath $r -Force -ErrorAction SilentlyContinue)) { Remove-Item -LiteralPath $r -Force -ErrorAction SilentlyContinue }'
+        $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd))
+        Start-Process -FilePath (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand ' + $enc) -WindowStyle Hidden
+        Write-Log ('Следы PotatoPC удалены. После закрытия программы удалится остальное: ' + $later.Count + ' шт.') 'ok'
+        return $true
+    } -OnDone {
+        param($Result, $Err)
+        if ($Result -and (Show-Confirm -Message 'Почти всё удалено. Журнал этого запуска и папка программы удалятся, когда PotatoPC закроется. Закрыть сейчас?' -Title 'Уничтожить следы')) { $script:Window.Close() }
+    } | Out-Null
+}
+
+# --- Портативная версия для флешки ---
+
+function Export-PortableCopy {
+    # Копирует программу в $Dest (файлы из SHA256SUMS + все скрипты, включая плагины
+    # пользователя), включает портативный режим и кладёт файл запуска.
+    # Папка data на флешке (журнал, история) при обновлении сохраняется.
+    param([Parameter(Mandatory)][string]$Dest)
+    $src = ([string]$AppRoot).TrimEnd('\')
+    $rel = @()
+    $man = Join-Path $src 'SHA256SUMS'
+    if (Test-Path -LiteralPath $man) {
+        $rel += 'SHA256SUMS'
+        foreach ($line in [System.IO.File]::ReadAllLines($man)) { if ($line -match '^[0-9A-Fa-f]{64}  (.+)$') { $rel += $Matches[1].Replace('/', '\') } }
+    } else {
+        foreach ($f in @('menu.ps1', 'apps.json', 'LICENSE', 'README.md')) { $rel += $f }
+        foreach ($d in @('core', 'pages', 'assets', 'cleaner')) { foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $src $d) -Recurse -File -Force -ErrorAction SilentlyContinue)) { $rel += $f.FullName.Substring($src.Length + 1) } }
+    }
+    foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $src 'scripts') -Recurse -File -Force -ErrorAction SilentlyContinue)) { $rel += $f.FullName.Substring($src.Length + 1) }
+    $rel = @($rel | Select-Object -Unique)
+
+    if (-not (Test-Path -LiteralPath $Dest)) { New-Item -ItemType Directory -Path $Dest -Force -ErrorAction Stop | Out-Null }
+    # Старая копия программы убирается целиком, чтобы не осталось файлов, удалённых в новой версии.
+    foreach ($d in @('core', 'pages', 'scripts', 'assets', 'cleaner', 'docs')) {
+        $p = Join-Path $Dest $d
+        if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction Stop }
+    }
+    $n = 0; $miss = @()
+    foreach ($r in $rel) {
+        $from = Join-Path $src $r
+        if (-not (Test-Path -LiteralPath $from)) { $miss += $r; continue }
+        $to = Join-Path $Dest $r
+        $dir = Split-Path $to -Parent
+        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force -ErrorAction Stop | Out-Null }
+        Copy-Item -LiteralPath $from -Destination $to -Force -ErrorAction Stop
+        try { Unblock-File -LiteralPath $to -ErrorAction SilentlyContinue } catch {}
+        $n++
+        if (Test-JobCancel) { return $null }
+    }
+    if ($miss.Count) { Write-Log ('Нет в папке программы, пропущено: ' + (($miss | Select-Object -First 5) -join ', ')) 'warn' }
+    [System.IO.File]::WriteAllText((Join-Path $Dest 'portable.txt'), "Этот файл включает портативный режим PotatoPC: журнал, история и отчёты хранятся в папке data рядом с программой.`r`n", (New-Object System.Text.UTF8Encoding($true)))
+    $cmd = "@echo off`r`n" +
+           "rem PotatoPC portable: runs offline, data is kept in the data folder next to this file.`r`n" +
+           "start `"`" `"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`" -STA -NoProfile -ExecutionPolicy Bypass -File `"%~dp0menu.ps1`"`r`n"
+    [System.IO.File]::WriteAllText((Join-Path $Dest 'Запустить PotatoPC.cmd'), $cmd, (New-Object System.Text.ASCIIEncoding))
+    Write-Log ('Портативная версия собрана: ' + $Dest + ' (файлов: ' + $n + ')') 'ok'
+    Add-History -Kind 'service' -Name ('Портативная версия: ' + $Dest)
+    return $Dest
+}
+
+function New-PortableCopy {
+    Add-Type -AssemblyName System.Windows.Forms
+    $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dlg.Description = 'Куда сохранить портативный PotatoPC? Выберите флешку или папку - внутри появится папка PotatoPC.'
+    $dlg.ShowNewFolderButton = $true
+    try { $removable = @([System.IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Removable' -and $_.IsReady }); if ($removable.Count) { $dlg.SelectedPath = $removable[0].RootDirectory.FullName } } catch {}
+    if ($dlg.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK -or -not $dlg.SelectedPath) { return }
+    $base = $dlg.SelectedPath
+    $dest = if ((Split-Path $base -Leaf) -eq 'PotatoPC' -and (Test-Path -LiteralPath (Join-Path $base 'menu.ps1'))) { $base } else { Join-Path $base 'PotatoPC' }
+    $a = ([string]$AppRoot).TrimEnd('\'); $d = $dest.TrimEnd('\')
+    if ($a.Equals($d, [System.StringComparison]::OrdinalIgnoreCase) -or $d.StartsWith($a + '\', [System.StringComparison]::OrdinalIgnoreCase) -or $a.StartsWith($d + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        Show-Info 'Это папка, из которой сейчас запущен PotatoPC. Выберите другое место.' -Icon 'Warning'; return
+    }
+    if (Test-Path -LiteralPath $dest) {
+        if (Test-Path -LiteralPath (Join-Path $dest 'menu.ps1')) {
+            if (-not (Show-Confirm -Message ('В ' + $dest + " уже есть PotatoPC. Обновить его до этой версии?`n`nЖурнал и история на флешке (папка data) сохранятся."))) { return }
+        } elseif (@(Get-ChildItem -LiteralPath $dest -Force -ErrorAction SilentlyContinue).Count) {
+            if (-not (Show-Confirm -Message ('Папка ' + $dest + ' уже есть и в ней что-то лежит. Положить PotatoPC туда?') -Warning)) { return }
+        }
+    }
+    try {
+        $drv = New-Object System.IO.DriveInfo ([System.IO.Path]::GetPathRoot($dest))
+        if ($drv.IsReady -and $drv.AvailableFreeSpace -lt 20MB) { Show-Info ('На ' + $drv.Name + ' меньше 20 МБ свободного места.') -Icon 'Warning'; return }
+    } catch {}
+    Start-BgTask -Name 'Портативная версия' -Vars @{ Dest = $dest } -Script { Export-PortableCopy -Dest $Dest } -OnDone {
+        param($Result, $Err)
+        if ($Err) { Show-Info ('Не получилось собрать портативную версию: ' + $Err) -Icon 'Warning'; return }
+        if ($Result -and (Show-Confirm -Message ("Готово: " + $Result + "`n`nНа другом ПК откройте эту папку и запустите «Запустить PotatoPC.cmd». Интернет не нужен.`n`nОткрыть папку?"))) { Open-Path $Result }
     } | Out-Null
 }
