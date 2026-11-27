@@ -141,7 +141,11 @@ function Invoke-ProgramUninstall {
     Write-Log ('Удаляю: ' + $P.Name + $(if (-not $Silent -or (-not $P.Msi -and -not $P.Quiet)) { ' - следуйте окну деинсталлятора' } else { ' (тихо)' }))
     $code = -1
     try {
-        $proc = Start-Process -FilePath $exe -ArgumentList $arg -PassThru -ErrorAction Stop
+        # Пустой -ArgumentList Start-Process не принимает, а у многих программ
+        # (Inno Setup unins000.exe и др.) команда удаления вообще без аргументов.
+        $sp = @{ FilePath = $exe; PassThru = $true; ErrorAction = 'Stop' }
+        if (-not [string]::IsNullOrWhiteSpace($arg)) { $sp.ArgumentList = $arg }
+        $proc = Start-Process @sp
         try { if ($Job) { $Job.ChildPid = $proc.Id } } catch {}
         while (-not $proc.HasExited) {
             if (Test-JobCancel) { break }
@@ -239,6 +243,8 @@ function Remove-ProgramLeftovers {
     $bk = Join-Path $BackupFolder ('uninstall-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
     $ok = 0
     foreach ($it in @($Items)) {
+        # Вложенная папка уже ушла вместе с родительской
+        if (-not (Test-Path -LiteralPath $it.Path)) { $ok++; continue }
         try {
             switch ($it.Type) {
                 'registry' {
@@ -424,23 +430,27 @@ function Start-Uninstall {
     Start-BgTask -Name 'Удаление программ' -Vars @{ Sel = $sel; Silent = [bool]$ui.SilentChk.IsChecked; Scan = [bool]$ui.LeftChk.IsChecked } -Script {
         [void](New-RestorePoint -Description 'PotatoPC: удаление программ')
         $left = @()
+        $done = 0; $failed = @()
         $i = 0
         foreach ($p in $Sel) {
             if (Test-JobCancel) { break }
             $i++
             Set-JobProgress (($i - 1) / [Math]::Max(1, $Sel.Count)) $p.Name
             if ($p.Broken) { $r = @{ Gone = $true } } else { $r = Invoke-ProgramUninstall -P $p -Silent $Silent }
-            if ($Scan -and $p.Kind -eq 'win32' -and ($r.Gone -or $p.Broken)) {
+            if ($r.Gone) { $done++ } else { $failed += $p.Name }
+            # Для «потерянных» ищем всегда: иначе «Убрать» ничего бы не сделала
+            if ($p.Kind -eq 'win32' -and ($p.Broken -or ($Scan -and $r.Gone))) {
                 foreach ($x in @(Find-ProgramLeftovers -P $p)) { $x.App = $p.Name; $left += $x }
             }
         }
-        return @{ Left = $left }
+        return @{ Left = $left; Done = $done; Failed = $failed; Scan = $Scan }
     } -OnDone {
         param($r)
         $ui = $script:UnUi
         $ui.Running = $false
+        if ($r -and @($r.Failed).Count) { Write-Log ('Не удалено: ' + (@($r.Failed) -join ', ')) 'warn' }
         if ($r -and @($r.Left).Count) { Set-Leftovers -Items @($r.Left) }
-        elseif ($r) { Write-Log 'Остатков не найдено' 'ok' }
+        elseif ($r -and $r.Done -gt 0 -and $r.Scan) { Write-Log 'Остатков не найдено' 'ok' }
         $ui.Loaded = $false
         Update-UninstallPage
         if ($script:PgUi) { $script:PgUi.InstLoaded = $false; $script:PgUi.UpdLoaded = $false }
