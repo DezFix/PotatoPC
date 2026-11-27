@@ -213,7 +213,7 @@ function Build-Page_service {
 
     # Данные PotatoPC
     $ds = New-Section -Title 'Данные PotatoPC на этом компьютере'
-    $mode = if ($PortableMode) { 'Портативный режим: журнал, история и отчёты лежат рядом с программой - ' + $DataRoot } else { 'Журнал, история, замеры и отчёты: ' + $DataRoot + '. Резервные копии твиков: ' + $BackupFolder }
+    $mode = if ($PortableMode) { 'Портативный режим: журнал, история и отчёты лежат рядом с программой - ' + $DataRoot } else { 'Журнал, история и отчёты: ' + $DataRoot + '. Резервные копии твиков: ' + $BackupFolder }
     [void]$ds.Body.Children.Add((New-Text -Text $mode -Size 13 -Color 'Muted' -Wrap -Margin (16, 0, 16, 10)))
     $w = New-Object System.Windows.Controls.WrapPanel
     $w.Margin = New-Thickness 16, 0, 16, 14
@@ -281,13 +281,13 @@ function Switch-PortableMode {
 }
 
 function Remove-PotatoTraces {
-    $msg = "Удалить с этого компьютера:`n  • журнал, историю, замеры и отчёты`n  • временные файлы PotatoPC`n  • задачу автообслуживания`n`nСама программа (папка " + $AppRoot + ') не удаляется.'
+    $msg = "Удалить с этого компьютера:`n  • журнал, историю и отчёты`n  • временные файлы PotatoPC`n  • задачу автообслуживания`n`nСама программа (папка " + $AppRoot + ') не удаляется.'
     if (-not (Show-Confirm -Message $msg -Title 'Удалить следы' -Warning)) { return }
     $withBackups = Show-Confirm -Message ("Удалить и резервные копии (" + $BackupFolder + ")?`n`nБез них откат некоторых твиков (файл подкачки, UAC, гость, PUA) вернёт заводские настройки, а не ваши прежние.") -Title 'Резервные копии' -Warning
     Start-BgTask -Name 'Удаление следов' -Vars @{ Wb = $withBackups } -Script {
         Unregister-Maintenance
         $targets = @($WorkFolder, (Join-Path $env:LOCALAPPDATA 'PotatoPC'), (Join-Path $env:ProgramData 'PotatoPC\maintenance'), (Join-Path $env:ProgramData 'PotatoPC\cache'))
-        if (-not $PortableMode) { $targets += @($LogFolder, $SnapshotFolder, $ReportFolder, $HistoryPath, $SettingsPath, $UIStatePath) }
+        if (-not $PortableMode) { $targets += @($LogFolder, $ReportFolder, $HistoryPath, $SettingsPath, $UIStatePath) }
         if ($Wb) { $targets += $BackupFolder }
         foreach ($t in $targets) {
             if (-not $t -or -not (Test-Path -LiteralPath $t)) { continue }

@@ -1,4 +1,4 @@
-﻿# PotatoPC v7 - сведения о системе, проверки, оценка, замеры «до/после».
+﻿# PotatoPC v7 - сведения о системе, проверки, оценка.
 # Все функции здесь рассчитаны на фоновый поток (CIM/реестр/диск).
 
 function Get-SystemDriveInfo {
@@ -466,39 +466,4 @@ function Get-RecommendedPreset {
     if ($Summary.RamTotal -le 4.5GB -or $Summary.Disk.Media -eq 'HDD' -or $Summary.Cores -le 2) { return 'potato' }
     if (@($Summary.Gpus | Where-Object { $_.Discrete }).Count -gt 0 -and $Summary.RamTotal -ge 7.5GB) { return 'game' }
     return 'office'
-}
-
-# --- Замеры «до/после» ---
-
-function Get-MetricSnapshot {
-    param([string]$Label = 'manual', $StartupItems = $null)
-    $s = [ordered]@{ Time = (Get-Date).ToString('s'); Label = $Label; BootSec = (Get-BootTimeSec); RamUsed = 0.0; RamTotal = 0.0; Processes = 0; Startup = 0; FreeSys = 0.0; Uptime = 0.0 }
-    try {
-        $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
-        $s.RamTotal = [double]$os.TotalVisibleMemorySize * 1KB
-        $s.RamUsed = ([double]$os.TotalVisibleMemorySize - [double]$os.FreePhysicalMemory) * 1KB
-        $s.Uptime = ((Get-Date) - $os.LastBootUpTime).TotalSeconds
-    } catch {}
-    try { $s.Processes = @(Get-Process -ErrorAction Stop).Count } catch {}
-    if ($null -eq $StartupItems) { $StartupItems = Get-StartupItems }
-    $s.Startup = @($StartupItems | Where-Object { $_.Enabled }).Count
-    try { $s.FreeSys = [double](Get-CimInstance Win32_LogicalDisk -Filter ("DeviceID='" + $env:SystemDrive + "'") -ErrorAction Stop).FreeSpace } catch {}
-    return $s
-}
-
-function Save-MetricSnapshot {
-    param($Snapshot)
-    try {
-        $file = Join-Path $SnapshotFolder ('snap-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + $Snapshot.Label + '.json')
-        ($Snapshot | ConvertTo-Json -Depth 3) | Set-Content -LiteralPath $file -Encoding UTF8 -ErrorAction Stop
-    } catch {}
-}
-
-function Get-BaselineSnapshot {
-    # Последний замер «до оптимизации».
-    try {
-        $f = Get-ChildItem -LiteralPath $SnapshotFolder -Filter 'snap-*-before.json' -ErrorAction Stop | Sort-Object Name -Descending | Select-Object -First 1
-        if ($f) { return (Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop) }
-    } catch {}
-    return $null
 }

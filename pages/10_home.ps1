@@ -73,12 +73,6 @@ function Build-Page_home {
     $g.Margin = New-Thickness 0, 0, 0, 16
     [void]$L.Body.Children.Add($g)
 
-    # До / после
-    $snapBtn = New-Button -Text 'Сделать замер' -Kind Ghost -OnClick { Start-HomeSnapshot }
-    $ui.Compare = New-Section -Title 'До и после оптимизации' -Right @($snapBtn)
-    [void]$ui.Compare.Body.Children.Add((New-Placeholder 'Замеров пока нет. «Оптимизировать» сделает замер «до» автоматически, а после перезагрузки здесь появится сравнение.'))
-    [void]$L.Body.Children.Add($ui.Compare.Root)
-
     # Пресеты
     [void]$L.Body.Children.Add((New-Text -Text 'Пресеты' -Size 16 -Weight 'SemiBold' -Margin (0, 4, 0, 12)))
     $ui.PresetCards = @{}
@@ -127,12 +121,10 @@ function Update-HomeData {
         $st = Get-StartupItems
         $checks = Get-HealthChecks -Summary $sum -StartupItems $st
         $score = Get-HealthScore -Checks $checks
-        $snap = Get-MetricSnapshot -Label 'now' -StartupItems $st
-        $base = Get-BaselineSnapshot
         $plugins = @(Get-Plugins -Force | Where-Object { -not $_.IsUndo -and $_.Applicable })
         $counts = @{}
         foreach ($k in @('potato', 'office', 'game')) { $counts[$k] = @($plugins | Where-Object { $_.Presets -contains $k }).Count }
-        return @{ Sum = $sum; Checks = $checks; Score = $score; Snap = $snap; Base = $base; Preset = (Get-RecommendedPreset $sum); Counts = $counts }
+        return @{ Sum = $sum; Checks = $checks; Score = $score; Preset = (Get-RecommendedPreset $sum); Counts = $counts }
     } -OnDone {
         param($r, $err)
         $script:HomeUi.Busy = $false
@@ -200,43 +192,6 @@ function Set-HomeData {
         $pc.Button.BorderBrush = if ($rec) { Get-Brush 'Accent' } else { Get-Brush 'Line' }
         $pc.Button.Background = if ($rec) { Get-Brush 'AccentDim' } else { Get-Brush 'Card' }
     }
-    Set-HomeCompare -Base $r.Base -Now $r.Snap
-}
-
-function Set-HomeCompare {
-    param($Base, $Now)
-    $body = $script:HomeUi.Compare.Body
-    if (-not $Base) { return }
-    $body.Children.Clear()
-    $when = try { ([datetime]$Base.Time).ToString('dd.MM.yyyy HH:mm') } catch { '' }
-    $rows = @(
-        @{ N = 'Время загрузки Windows'; B = $Base.BootSec; A = $Now.BootSec; F = { param($v) if ($v -lt 0) { '—' } else { Format-Duration $v } }; Less = $true },
-        @{ N = 'Занято памяти'; B = $Base.RamUsed; A = $Now.RamUsed; F = { param($v) Format-Size $v }; Less = $true },
-        @{ N = 'Процессов запущено'; B = $Base.Processes; A = $Now.Processes; F = { param($v) [string]$v }; Less = $true },
-        @{ N = 'Программ в автозагрузке'; B = $Base.Startup; A = $Now.Startup; F = { param($v) [string]$v }; Less = $true },
-        @{ N = ('Свободно на ' + $env:SystemDrive); B = $Base.FreeSys; A = $Now.FreeSys; F = { param($v) Format-Size $v }; Less = $false }
-    )
-    $hdr = New-Row -Main (New-Text -Text ('Метрика  ·  «до» от ' + $when) -Size 12 -Color 'Muted') -Right @((New-Text -Text 'До' -Size 12 -Color 'Muted'), (New-Text -Text 'Сейчас' -Size 12 -Color 'Muted')) -Padding (16, 6, 16, 6)
-    [void]$body.Children.Add($hdr)
-    foreach ($x in $rows) {
-        $b = [double]$x.B; $a = [double]$x.A
-        $better = if ($x.Less) { $a -lt $b } else { $a -gt $b }
-        $col = if ($a -eq $b -or $b -le 0 -or $a -lt 0) { 'Text' } elseif ($better) { 'Ok' } else { 'Warn' }
-        $bt = New-Text -Text (& $x.F $b) -Size 13 -Color 'Muted'; $bt.Width = 110; $bt.TextAlignment = 'Right'
-        $at = New-Text -Text (& $x.F $a) -Size 13 -Weight 'SemiBold' -Color $col; $at.Width = 110; $at.TextAlignment = 'Right'
-        [void]$body.Children.Add((New-Row -Main (New-Text -Text $x.N -Size 13) -Right @($bt, $at) -Padding (16, 6, 16, 6)))
-    }
-    $note = New-Text -Text 'Время загрузки обновляется после перезагрузки. «Занято памяти» честно сравнивать сразу после включения ПК.' -Size 12 -Color 'Muted' -Wrap -Margin (16, 8, 16, 12)
-    [void]$body.Children.Add($note)
-}
-
-function Start-HomeSnapshot {
-    Start-BgTask -Name 'Замер системы' -Script {
-        $s = Get-MetricSnapshot -Label 'before'
-        Save-MetricSnapshot $s
-        Write-Log 'Замер сохранён как точка «до». После изменений сравнение появится на Главной.' 'ok'
-        return $s
-    } -OnDone { param($r) if ($r) { Update-HomeData -Force } } | Out-Null
 }
 
 function Get-HomeOptimizePlan {
@@ -250,7 +205,7 @@ function Show-HomeOptimizePlan {
     $plan = Get-HomeOptimizePlan
     $pi = $script:PresetInfo[$plan.Preset]
     $lines = @($plan.Plugins | ForEach-Object { '  • ' + $_.Name + $(if ($_.Risk -ge 2) { '  (осторожно)' } else { '' }) })
-    $msg = "Пресет «" + $pi.Title + "»:`n" + ($lines -join "`n") + "`n`nПлюс очистка мусора: временные файлы, кэш обновлений, отчёты об ошибках, кэши браузеров.`n`nПеред изменениями: замер «до» и точка восстановления. Откатить любой раздел можно на странице «История»."
+    $msg = "Пресет «" + $pi.Title + "»:`n" + ($lines -join "`n") + "`n`nПлюс очистка мусора: временные файлы, кэш обновлений, отчёты об ошибках, кэши браузеров.`n`nПеред изменениями создаётся точка восстановления. Откатить любой раздел можно на странице «История»."
     if ($Ask) { return (Show-Confirm -Message ($msg + "`n`nНачать?") -Title 'Оптимизация') }
     Show-Info -Message $msg -Title 'Что изменится'
     return $true
@@ -261,9 +216,6 @@ function Start-HomeOptimize {
     $plan = Get-HomeOptimizePlan
     $script:HomeUi.OptBtn.IsEnabled = $false
     Start-BgTask -Name 'Оптимизация' -Vars @{ Plan = $plan } -Script {
-        Write-Log 'Замер «до»...'
-        $snap = Get-MetricSnapshot -Label 'before'
-        Save-MetricSnapshot $snap
         $r = Invoke-PluginBatch -Plugins $Plan.Plugins -RestorePoint $true -Title 'Оптимизация'
         if (-not (Test-JobCancel)) {
             $items = @(Get-CleanCatalog | Where-Object { $_.Safe })
@@ -277,7 +229,7 @@ function Start-HomeOptimize {
         $script:PluginStatesStamp = $null
         Update-HomeData -Force
         if ($r) {
-            Show-Info -Message ('Готово. Твиков применено: ' + $r.Ok + $(if ($r.Fail -gt 0) { ', с ошибкой: ' + $r.Fail + ' (подробности в журнале)' } else { '' }) + ".`n`nПерезагрузите компьютер, чтобы изменения вступили в силу. После перезагрузки на Главной появится сравнение «до/после».") -Title 'Оптимизация'
+            Show-Info -Message ('Готово. Твиков применено: ' + $r.Ok + $(if ($r.Fail -gt 0) { ', с ошибкой: ' + $r.Fail + ' (подробности в журнале)' } else { '' }) + ".`n`nПерезагрузите компьютер, чтобы изменения вступили в силу.") -Title 'Оптимизация'
         }
     } | Out-Null
 }

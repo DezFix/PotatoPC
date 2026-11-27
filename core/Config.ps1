@@ -17,7 +17,7 @@ $script:AppsJsonPath   = Join-Path $script:AppRoot 'apps.json'
 $script:ManifestPath   = Join-Path $script:AppRoot 'SHA256SUMS'
 
 # Портативный режим: файл portable.txt рядом с menu.ps1 -> все данные
-# (журнал, история, замеры, отчёты) хранятся в .\data и на ПК ничего не остаётся,
+# (журнал, история, отчёты) хранятся в .\data и на ПК ничего не остаётся,
 # кроме резервных копий, которые пишут сами скрипты-плагины (ProgramData\PotatoPC\backups).
 $script:PortableMode = Test-Path -LiteralPath (Join-Path $script:AppRoot 'portable.txt')
 if ($script:PortableMode) {
@@ -31,14 +31,19 @@ $script:BackupFolder   = Join-Path $env:ProgramData 'PotatoPC\backups'
 $script:LogFolder      = Join-Path $script:DataRoot 'logs'
 $script:LogPath        = Join-Path $script:LogFolder ('potatopc-' + (Get-Date -Format 'yyyyMMdd') + '.log')
 $script:HistoryPath    = Join-Path $script:DataRoot 'history.jsonl'
-$script:SnapshotFolder = Join-Path $script:DataRoot 'snapshots'
 $script:ReportFolder   = Join-Path $script:DataRoot 'reports'
 $script:SettingsPath   = Join-Path $script:DataRoot 'settings.json'
 $script:UIStatePath    = Join-Path $script:DataRoot 'ui.json'
 
-foreach ($d in @($script:DataRoot, $script:WorkFolder, $script:LogFolder, $script:SnapshotFolder, $script:ReportFolder)) {
+foreach ($d in @($script:DataRoot, $script:WorkFolder, $script:LogFolder, $script:ReportFolder)) {
     try { if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force -ErrorAction Stop | Out-Null } } catch {}
 }
+
+# Замеры «до/после» убраны с Главной - удаляем их старую папку.
+try {
+    $oldSnaps = Join-Path $script:DataRoot 'snapshots'
+    if (Test-Path -LiteralPath $oldSnaps) { Remove-Item -LiteralPath $oldSnaps -Recurse -Force -ErrorAction SilentlyContinue }
+} catch {}
 
 # v6 качал сканер YARA (tools\yara64.exe, potato.yar) и правила (protect-rules).
 # v7 их не использует - убираем остатки. Трогаем только эти файлы, а папку
@@ -77,7 +82,7 @@ $script:WindowsMajorVersion = $script:WinInfo.Major
 $script:ConfigVarNames = @(
     'AppVersion','BuildTag','AppRoot','LocalRepoRoot','CoreDir','ScriptsFolder','PagesFolder','AssetsFolder',
     'CleanRulesPath','CleanGuardPath','AppsJsonPath','ManifestPath','PortableMode','DataRoot','WorkFolder',
-    'BackupFolder','LogFolder','LogPath','HistoryPath','SnapshotFolder','ReportFolder','SettingsPath',
+    'BackupFolder','LogFolder','LogPath','HistoryPath','ReportFolder','SettingsPath',
     'WinInfo','WindowsMajorVersion'
 )
 
