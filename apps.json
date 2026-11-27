@@ -414,54 +414,5 @@
         "Description": "Стресс-тесты процессора, видеокарты и блока питания."
       }
     ]
-  },
-  "Kits": [
-    {
-      "Name": "Набор «Новый ПК»",
-      "Desc": "Браузер, архиватор, плеер, PDF, просмотр картинок, удалённая помощь",
-      "Ids": [
-        "7zip.7zip",
-        "SumatraPDF.SumatraPDF",
-        "Mozilla.Firefox",
-        "VideoLAN.VLC",
-        "IrfanSkiljan.IrfanView",
-        "AnyDesk.AnyDesk"
-      ]
-    },
-    {
-      "Name": "Офис",
-      "Desc": "Документы, PDF, почта, мессенджер, удалённый доступ",
-      "Ids": [
-        "ONLYOFFICE.DesktopEditors",
-        "SumatraPDF.SumatraPDF",
-        "Google.Chrome",
-        "Telegram.TelegramDesktop",
-        "AnyDesk.AnyDesk",
-        "7zip.7zip"
-      ]
-    },
-    {
-      "Name": "Мастер",
-      "Desc": "Диагностика железа, дисков и загрузочные флешки",
-      "Ids": [
-        "CPUID.CPU-Z",
-        "REALiX.HWiNFO",
-        "CrystalDewWorld.CrystalDiskInfo",
-        "CrystalDewWorld.CrystalDiskMark",
-        "Ventoy.Ventoy",
-        "AntibodySoftware.WizTree",
-        "Klocman.BulkCrapUninstaller"
-      ]
-    },
-    {
-      "Name": "Игры",
-      "Desc": "Лаунчеры и Discord",
-      "Ids": [
-        "Valve.Steam",
-        "Discord.Discord",
-        "EpicGames.EpicGamesLauncher",
-        "GOG.Galaxy"
-      ]
-    }
-  ]
+  }
 }

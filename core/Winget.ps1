@@ -188,17 +188,15 @@ function Get-WingetErrorHint {
 }
 
 function Get-AppCatalog {
-    # apps.json: { Categories: { "Имя": [ {Name, Id, Description} ] }, Kits: [ {Name, Desc, Ids} ] }
-    # Старый формат (ManualCategories / Presets) тоже понимаем.
-    $cat = @{ Categories = [ordered]@{}; Kits = @() }
+    # apps.json: { Categories: { "Имя": [ {Name, Id, Description, Site} ] } }
+    # Старый формат (ManualCategories) тоже понимаем. Наборы (Kits) убраны - вместо них «Мастерская Potato».
+    $cat = @{ Categories = [ordered]@{} }
     try {
         $j = Get-Content -LiteralPath $AppsJsonPath -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         $cats = if ($j.Categories) { $j.Categories } else { $j.ManualCategories }
         foreach ($p in $cats.PSObject.Properties) {
             $cat.Categories[$p.Name] = @($p.Value | ForEach-Object { @{ Name = [string]$_.Name; Id = [string]$_.Id; Desc = [string]$_.Description; Site = [string]$_.Site } })
         }
-        if ($j.Kits) { $cat.Kits = @($j.Kits | ForEach-Object { @{ Name = [string]$_.Name; Desc = [string]$_.Desc; Ids = @($_.Ids) } }) }
-        elseif ($j.Presets) { foreach ($p in $j.Presets.PSObject.Properties) { $cat.Kits += @{ Name = $p.Name; Desc = ''; Ids = @($p.Value) } } }
     } catch {}
     return $cat
 }

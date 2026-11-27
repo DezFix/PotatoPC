@@ -118,7 +118,7 @@ if ($PSCommandPath -and (Test-Path -LiteralPath $PSCommandPath)) {
 # --- 3. Load the core ---
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml
 $script:CoreDir = Join-Path $script:AppRoot 'core'
-$coreFiles = @('Config.ps1', 'Runtime.ps1', 'Plugins.ps1', 'System.ps1', 'Winget.ps1', 'Profiles.ps1', 'Ui.ps1')
+$coreFiles = @('Config.ps1', 'Runtime.ps1', 'Plugins.ps1', 'System.ps1', 'Winget.ps1', 'Workshop.ps1', 'Profiles.ps1', 'Ui.ps1')
 foreach ($cf in $coreFiles) {
     $p = Join-Path $script:CoreDir $cf
     if (-not (Test-Path -LiteralPath $p)) {

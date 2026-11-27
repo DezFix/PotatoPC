@@ -12,6 +12,7 @@ BeforeAll {
     . (Join-Path $CoreDir 'Runtime.ps1')
     . (Join-Path $CoreDir 'Plugins.ps1')
     . (Join-Path $CoreDir 'Winget.ps1')
+    . (Join-Path $CoreDir 'Workshop.ps1')
     . (Join-Path $CoreDir 'Profiles.ps1')
     $script:AllPs1 = @(Get-ChildItem -LiteralPath $Root -Recurse -Filter '*.ps1' -File | Where-Object { $_.FullName -notmatch '[\\/](_archive_v6|\.git)[\\/]' })
     $script:Plugins = @(Get-Plugins -Force)

@@ -53,25 +53,9 @@ function Build-Page_programs {
     $ui.InstallPane = New-Stack
     $cat = Get-AppCatalog
     $ui.Catalog = $cat
-    if ($cat.Kits.Count -gt 0) {
-        [void]$ui.InstallPane.Children.Add((New-Text -Text 'Наборы' -Size 16 -Weight 'SemiBold' -Margin (0, 0, 0, 12)))
-        $kits = @()
-        foreach ($k in $cat.Kits) {
-            $b = New-Object System.Windows.Controls.Button
-            $b.Style = $script:Window.FindResource('BtnSecondary')
-            $b.HorizontalContentAlignment = 'Stretch'; $b.Padding = New-Thickness 16, 12, 16, 12
-            $b.Tag = $k
-            $sp = New-Stack
-            [void]$sp.Children.Add((New-Text -Text $k.Name -Size 15 -Weight 'Bold'))
-            $d = New-Text -Text $k.Desc -Size 12 -Color 'Muted' -Wrap -Margin (0, 4, 0, 4); $d.FontWeight = 'Normal'
-            [void]$sp.Children.Add($d)
-            [void]$sp.Children.Add((New-Text -Text ([string]@($k.Ids).Count + ' программ') -Size 12 -Color 'Accent' -Weight 'SemiBold'))
-            $b.Content = $sp
-            $b.Add_Click({ foreach ($id in @($this.Tag.Ids)) { if ($script:PgUi.Checks.ContainsKey($id) -and $script:PgUi.Checks[$id].Check.IsEnabled) { $script:PgUi.Checks[$id].Check.IsChecked = $true } }; Update-ProgramSelection })
-            $kits += $b
-        }
-        [void]$ui.InstallPane.Children.Add((New-Grid -Columns 3 -Items $kits))
-    }
+    $ui.Workshop = @{}
+    $ui.WorkshopPanel = New-WorkshopSection
+    [void]$ui.InstallPane.Children.Add($ui.WorkshopPanel)
     $ui.CatPanels = @()
     foreach ($cname in $cat.Categories.Keys) {
         $hdr = New-Text -Text $cname.ToUpper() -Size 12 -Color 'Muted' -Weight 'SemiBold' -Margin (0, 4, 0, 10)
@@ -155,6 +139,245 @@ function Show-Page_programs {
     param($Arg)
     if (-not $script:PgUi.InstLoaded) { Update-ProgramInstalled }
     if (-not $script:PgUi.IconsStarted) { Start-ProgramIcons }
+    Update-WorkshopState
+}
+
+# --- «Мастерская Potato»: свои установщики (core\Workshop.ps1) ---
+
+function New-WorkshopSection {
+    $ui = $script:PgUi
+    $hdr = New-Object System.Windows.Controls.TextBlock
+    $hdr.FontSize = 16; $hdr.FontWeight = 'Bold'; $hdr.Foreground = Get-Brush 'Text'; $hdr.VerticalAlignment = 'Bottom'
+    $hdr.Inlines.Add((New-Object System.Windows.Documents.Run 'Мастерская '))
+    $acc = New-Object System.Windows.Documents.Run 'Potato'; $acc.Foreground = Get-Brush 'Accent'
+    $hdr.Inlines.Add($acc)
+    $sub = New-Text -Text 'наши установщики - для того, что winget не умеет ставить правильно' -Size 12 -Color 'Muted' -Margin (10, 0, 0, 2)
+    $sub.VerticalAlignment = 'Bottom'
+    $top = New-Stack -Orientation Horizontal -Margin (0, 0, 0, 10) -Children @($hdr, $sub)
+
+    # Сетка 3 колонки: карточка занимает две, в конце - место под будущие установщики.
+    $g = New-Object System.Windows.Controls.Grid
+    foreach ($i in 1..3) { [void]$g.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition)) }
+    $row = 0; $col = 0
+    $cells = @()
+    foreach ($it in (Get-WorkshopItems)) {
+        if ($col + 2 -gt 3) { $row++; $col = 0 }
+        $cells += @{ El = (New-WorkshopCard -Item $it); Row = $row; Col = $col; Span = 2 }
+        $col += 2
+    }
+    if ($col -ge 3) { $row++; $col = 0 }
+    $ph = New-Object System.Windows.Controls.Grid
+    $ph.MinHeight = 76
+    $rect = New-Object System.Windows.Shapes.Rectangle
+    $rect.Stroke = Get-Brush 'Line'; $rect.StrokeThickness = 1; $rect.RadiusX = 12; $rect.RadiusY = 12
+    $rect.StrokeDashArray = New-Object System.Windows.Media.DoubleCollection (, [double[]]@(4, 3))
+    $pt = New-Text -Text 'Здесь будут другие наши установщики' -Size 12 -Color 'Muted' -Wrap
+    $pt.HorizontalAlignment = 'Center'; $pt.TextAlignment = 'Center'; $pt.Margin = New-Thickness 12
+    [void]$ph.Children.Add($rect); [void]$ph.Children.Add($pt)
+    $cells += @{ El = $ph; Row = $row; Col = $col; Span = (3 - $col) }
+    foreach ($i in 0..$row) { [void]$g.RowDefinitions.Add((New-Object System.Windows.Controls.RowDefinition)) }
+    foreach ($c in $cells) {
+        [System.Windows.Controls.Grid]::SetRow($c.El, $c.Row)
+        [System.Windows.Controls.Grid]::SetColumn($c.El, $c.Col)
+        [System.Windows.Controls.Grid]::SetColumnSpan($c.El, $c.Span)
+        $c.El.Margin = New-Thickness 0, 0, $(if ($c.Col + $c.Span -lt 3) { 10 } else { 0 }), 10
+        [void]$g.Children.Add($c.El)
+    }
+    return (New-Stack -Margin (0, 0, 0, 14) -Children @($top, $g))
+}
+
+function New-WorkshopCard {
+    param($Item)
+    $ui = $script:PgUi
+    $ic = New-AppIcon -Name $Item.Name -Size 44
+    $ic.Margin = New-Thickness 0, 0, 16, 0
+    [System.Windows.Controls.DockPanel]::SetDock($ic, 'Left')
+    Register-ProgramIcon -Icon $ic -Id $Item.Id -Name $Item.Name
+    $state = New-Text -Text $Item.Size -Size 12 -Color 'Muted' -Margin (0, 0, 16, 0)
+    $btn = New-Button -Text 'Настроить и установить' -Kind Primary -Tag $Item.Id -OnClick { Start-WorkshopItem -Id ([string]$this.Tag) }
+    $rp = New-Stack -Orientation Horizontal -Children @($state, $btn)
+    $rp.VerticalAlignment = 'Center'
+    [System.Windows.Controls.DockPanel]::SetDock($rp, 'Right')
+    $title = New-Stack -Orientation Horizontal -Children @((New-Text -Text $Item.Name -Size 16 -Weight 'SemiBold'))
+    if ($Item.Badge) { $bd = New-Badge $Item.Badge 'info'; $bd.Margin = New-Thickness 10, 0, 0, 0; [void]$title.Children.Add($bd) }
+    $main = New-Stack -Children @($title, (New-Text -Text $Item.Desc -Size 12 -Color 'Muted' -Wrap -Margin (0, 4, 0, 0)))
+    $main.VerticalAlignment = 'Center'
+    $dp = New-Object System.Windows.Controls.DockPanel
+    [void]$dp.Children.Add($ic); [void]$dp.Children.Add($rp); [void]$dp.Children.Add($main)
+    $card = New-Card -Child $dp -Padding (16, 14, 16, 14) -Background 'Card' -Border '#5A4A1A'
+    $ui.Workshop[$Item.Id] = @{ Card = $card; State = $state; Btn = $btn; Item = $Item; Busy = $false }
+    return $card
+}
+
+function Start-WorkshopItem {
+    param([string]$Id)
+    switch ($Id) {
+        'potato.office' { Show-OfficeSetup }
+    }
+}
+
+function Update-WorkshopState {
+    # Что из «Мастерской» уже стоит (реестр - быстро, но в фоне, чтобы не тормозить вкладку).
+    Start-BgTask -Name 'Мастерская: что установлено' -Silent -Script { return @{ Office = (Get-OfficeState) } } -OnDone {
+        param($r)
+        $ui = $script:PgUi
+        if (-not $r -or -not $ui -or -not $ui.Workshop.ContainsKey('potato.office')) { return }
+        $w = $ui.Workshop['potato.office']
+        if ($w.Busy) { return }
+        $st = $r.Office
+        if ($st -and $st.C2R) {
+            $w.State.Text = 'Установлено: ' + ((@($st.Products) | ForEach-Object { Get-OfficeProductTitle $_ }) -join ', ')
+            $w.State.Foreground = Get-Brush 'Ok'
+        } else {
+            $w.State.Text = $w.Item.Size
+            $w.State.Foreground = Get-Brush 'Muted'
+        }
+    } | Out-Null
+}
+
+function Show-OfficeSetup {
+    $ui = $script:PgUi
+    if ($ui.Workshop['potato.office'].Busy) { return }
+    $is64 = [Environment]::Is64BitOperatingSystem
+    $script:OfcDlg = @{ Edition = 'std2024'; Bits = $(if ($is64) { '64' } else { '32' }); Is64 = $is64; St = (Get-OfficeState); Cards = @{}; Langs = @(); Apps = @{}; Key = $null; BitBtns = @{}; Opt = $null }
+    $ok = Show-FormDialog -Title 'Установка Microsoft Office' -Width 740 -OkText 'Установить Office' -Build {
+        param($f)
+        $d = $script:OfcDlg
+        [void]$f.Children.Add((New-Text -Text 'Скачивается с серверов Microsoft (officecdn.microsoft.com). После установки временные файлы удаляются.' -Size 12 -Color 'Muted' -Wrap -Margin (0, 0, 0, 4)))
+
+        [void]$f.Children.Add((New-Text -Text 'РЕДАКЦИЯ' -Size 12 -Color 'Muted' -Weight 'SemiBold' -Margin (0, 14, 0, 8)))
+        $eds = @()
+        $all = Get-OfficeEditions
+        foreach ($k in $all.Keys) {
+            $e = $all[$k]
+            $r = New-Object System.Windows.Controls.RadioButton
+            $r.Style = $script:Window.FindResource('Radio')
+            $r.GroupName = 'ofced'; $r.Tag = $k; $r.IsChecked = ($k -eq $d.Edition)
+            $r.Content = New-Stack -Children @((New-Text -Text $e.Title -Size 14 -Weight 'SemiBold'), (New-Text -Text $e.Sub -Size 12 -Color 'Muted' -Wrap -Margin (0, 3, 0, 0)))
+            $r.Add_Checked({ $script:OfcDlg.Edition = [string]$this.Tag; Update-OfficeDialog })
+            # Стиль Radio сам рисует карточку и подсвечивает выбранную.
+            $d.Cards[$k] = $r
+            $eds += $r
+        }
+        [void]$f.Children.Add((New-Grid -Columns 3 -Items $eds -Gap 10))
+
+        [void]$f.Children.Add((New-Text -Text 'ЯЗЫКИ' -Size 12 -Color 'Muted' -Weight 'SemiBold' -Margin (0, 6, 0, 8)))
+        $os = Get-OsOfficeLanguage
+        $names = Get-OfficeLanguages
+        $order = @(); if ($os) { $order += $os }; foreach ($c in $names.Keys) { if ($order -notcontains $c) { $order += $c } }
+        $ls = New-Stack -Orientation Horizontal
+        foreach ($c in $order) {
+            $on = ($c -eq $os) -or ($c -eq 'en-us') -or (-not $os -and $c -eq 'ru-ru')
+            $cb = New-CheckBox -Text ($names[$c] + $(if ($c -eq $os) { ' · как в Windows' } else { '' })) -Checked $on -Tag $c
+            $cb.Margin = New-Thickness 0, 0, 22, 0
+            $d.Langs += $cb
+            [void]$ls.Children.Add($cb)
+        }
+        [void]$f.Children.Add($ls)
+        [void]$f.Children.Add((New-Text -Text 'Первый отмеченный язык будет языком интерфейса, остальные - для проверки орфографии.' -Size 12 -Color 'Muted' -Wrap -Margin (0, 8, 0, 0)))
+
+        [void]$f.Children.Add((New-Text -Text 'ПРИЛОЖЕНИЯ' -Size 12 -Color 'Muted' -Weight 'SemiBold' -Margin (0, 16, 0, 8)))
+        $apps = @()
+        $an = Get-OfficeApps
+        foreach ($a in $an.Keys) {
+            $cb = New-CheckBox -Text $an[$a] -Checked ($a -in @('Word', 'Excel', 'PowerPoint', 'Outlook')) -Tag $a
+            $d.Apps[$a] = $cb
+            $apps += (New-Card -Child $cb -Padding (12, 8, 12, 8) -Background 'Panel')
+        }
+        [void]$f.Children.Add((New-Grid -Columns 3 -Items $apps -Gap 8))
+
+        $kg = New-Object System.Windows.Controls.Grid
+        [void]$kg.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = 'Auto'; [void]$kg.ColumnDefinitions.Add($c2)
+        $d.Key = New-TextInput -Placeholder 'XXXXX-XXXXX-XXXXX-XXXXX-XXXXX'
+        $d.KeyField = New-Field -Label 'Ключ продукта · необязательно' -Control $d.Key -Margin (0, 0, 16, 0)
+        [void]$kg.Children.Add($d.KeyField)
+        $bs = New-Stack -Orientation Horizontal
+        foreach ($b in @('64', '32')) {
+            $bb = New-Button -Text ($b + ' бит') -Kind Chip -Tag $b -OnClick { $script:OfcDlg.Bits = [string]$this.Tag; Update-OfficeDialog }
+            $bb.Margin = New-Thickness 0, 0, 6, 0
+            if ($b -eq '64' -and -not $d.Is64) { $bb.IsEnabled = $false }
+            $d.BitBtns[$b] = $bb
+            [void]$bs.Children.Add($bb)
+        }
+        $bf = New-Field -Label 'Разрядность' -Control $bs -Margin (0, 0, 0, 0)
+        $bf.VerticalAlignment = 'Bottom'
+        [System.Windows.Controls.Grid]::SetColumn($bf, 1)
+        [void]$kg.Children.Add($bf)
+        $kg.Margin = New-Thickness 0, 8, 0, 0
+        [void]$f.Children.Add($kg)
+        $d.KeyHint = New-Text -Text '' -Size 12 -Color 'Muted' -Wrap -Margin (0, 8, 0, 12)
+        [void]$f.Children.Add($d.KeyHint)
+
+        $d.Warn = New-Hint -Text '' -Kind 'warn' -Margin (0, 0, 0, 8)
+        $d.Info = New-Hint -Text '' -Kind 'info' -Margin (0, 0, 0, 8)
+        [void]$f.Children.Add($d.Warn); [void]$f.Children.Add($d.Info)
+        [void]$f.Children.Add((New-Text -Text '≈ 3 ГБ скачивания · 15-30 минут' -Size 12 -Color 'Muted' -Margin (0, 4, 0, 4)))
+        Update-OfficeDialog
+    } -OnOk {
+        param($f)
+        $d = $script:OfcDlg
+        $langs = @($d.Langs | Where-Object { $_.IsChecked } | ForEach-Object { [string]$_.Tag })
+        if ($langs.Count -eq 0) { return 'Выберите хотя бы один язык.' }
+        $apps = @($d.Apps.Keys | Where-Object { $d.Apps[$_].IsChecked -and $d.Apps[$_].IsEnabled })
+        if ($apps.Count -eq 0) { return 'Выберите хотя бы одно приложение.' }
+        $ed = (Get-OfficeEditions)[$d.Edition]
+        $key = ''
+        if ($ed.Key) {
+            $key = ([string]$d.Key.Text).Trim().ToUpperInvariant() -replace '\s', ''
+            if ($key -and -not (Test-OfficeKey $key)) { return 'Ключ должен выглядеть так: XXXXX-XXXXX-XXXXX-XXXXX-XXXXX.' }
+        }
+        $d.Opt = @{ Edition = $d.Edition; Langs = $langs; Apps = $apps; Key = $key; Bits = $d.Bits }
+        return $true
+    }
+    if ($ok -and $script:OfcDlg.Opt) { Start-OfficeInstall -Opt $script:OfcDlg.Opt }
+}
+
+function Update-OfficeDialog {
+    $d = $script:OfcDlg
+    if (-not $d -or -not $d.KeyHint) { return }
+    $ed = (Get-OfficeEditions)[$d.Edition]
+    foreach ($b in $d.BitBtns.Keys) { Set-ChipActive -Button $d.BitBtns[$b] -Active ($b -eq $d.Bits) }
+    $acc = $d.Apps['Access']
+    $acc.IsEnabled = [bool]$ed.Access
+    if (-not $ed.Access) { $acc.IsChecked = $false }
+    $acc.ToolTip = if ($ed.Access) { $null } else { 'Access есть только в Pro Plus и Microsoft 365' }
+    $d.KeyField.IsEnabled = [bool]$ed.Key
+    $d.KeyField.Opacity = if ($ed.Key) { 1.0 } else { 0.45 }
+    $d.KeyHint.Text = if ($ed.Key) { 'Без ключа Office установится и попросит активацию при первом запуске.' } else { 'Microsoft 365 активируется входом в аккаунт Microsoft с подпиской - ключ не нужен.' }
+    $st = $d.St
+    $warn = @(); $info = ''
+    if (@($st.Msi).Count) { $warn += ('Найден ' + (@($st.Msi) -join ', ') + '.') }
+    if ($st.C2R) {
+        $t = (@($st.Products) | ForEach-Object { Get-OfficeProductTitle $_ }) -join ', '
+        if (@($st.Products) -contains $ed.Product) { $info = 'Уже установлен ' + $t + '. Установка изменит языки и состав приложений.' }
+        else { $warn += ('Установлен ' + $t + '.') }
+    }
+    $d.Warn.Visibility = if ($warn.Count) { 'Visible' } else { 'Collapsed' }
+    if ($warn.Count) { $d.Warn.Child.Children[1].Text = (($warn -join ' ') + ' Перед установкой он будет удалён - две версии Office вместе не работают. Документы и настройки не пострадают.') }
+    $d.Info.Visibility = if ($info) { 'Visible' } else { 'Collapsed' }
+    if ($info) { $d.Info.Child.Children[1].Text = $info }
+}
+
+function Start-OfficeInstall {
+    param([hashtable]$Opt)
+    $w = $script:PgUi.Workshop['potato.office']
+    $w.Busy = $true
+    $w.Btn.IsEnabled = $false
+    Set-ButtonText -Button $w.Btn -Text 'Устанавливается…'
+    $w.State.Text = 'Скачивание и установка, 15-30 минут'
+    $w.State.Foreground = Get-Brush 'Accent'
+    Start-BgTask -Name 'Установка Microsoft Office' -Vars @{ Opt = $Opt } -Script { Install-OfficeOdt -Opt $Opt } -OnDone {
+        param($r)
+        $w = $script:PgUi.Workshop['potato.office']
+        $w.Busy = $false
+        $w.Btn.IsEnabled = $true
+        Set-ButtonText -Button $w.Btn -Text 'Настроить и установить'
+        Update-WorkshopState
+        if ($script:UnUi) { $script:UnUi.Loaded = $false }
+        if ($r -and $r.Ok) { Show-Info ($r.Title + ' установлен.') }
+        elseif ($r -and $r.Why -ne 'отменено') { Show-Info -Message ("Office не установился:`n" + $r.Why + "`n`nПодробности в журнале.") -Icon 'Warning' }
+    } | Out-Null
 }
 
 function Start-ProgramIcons {
@@ -164,6 +387,7 @@ function Start-ProgramIcons {
     $ui.IconsStarted = $true
     $apps = @()
     foreach ($cn in $ui.Catalog.Categories.Keys) { foreach ($a in $ui.Catalog.Categories[$cn]) { $apps += @{ Id = $a.Id; Site = $a.Site } } }
+    foreach ($a in (Get-WorkshopItems)) { $apps += @{ Id = $a.Id; Site = $a.Site } }
     Start-BgTask -Name 'Значки программ' -Silent -Vars @{ Apps = $apps } -Script {
         $byName = @{}; $byId = @{}
         try { $byName = Get-ProgramIconIndex } catch {}
@@ -245,6 +469,8 @@ function Update-ProgramUpdates {
         $ui.UpdChecks = @{}
         Clear-ProgramIconTargets -Kind 'upd'
         if (-not $r -or $r.Missing) { $ui.Missing.Visibility = 'Visible'; $ui.UpdLoaded = $false; return }
+        # Office обновляется сам (Click-to-Run) - winget по нему только путается в версиях.
+        $r.List = @($r.List | Where-Object { $_.Id -notlike 'Microsoft.Office*' })
         if ($r.List.Count -eq 0) { [void]$ui.UpdPane.Body.Children.Add((New-Placeholder 'Все программы, которые знает winget, обновлены.')) }
         foreach ($u in $r.List) {
             $chk = New-CheckBox -Checked $true -Tag $u.Id -OnChange { Update-ProgramSelection }
