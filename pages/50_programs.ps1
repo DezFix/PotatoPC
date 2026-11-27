@@ -137,7 +137,9 @@ function Set-ProgramTab {
 
 function Show-Page_programs {
     param($Arg)
-    if (-not $script:PgUi.InstLoaded) { Update-ProgramInstalled }
+    # Программу могли удалить и мимо PotatoPC (Параметры Windows) - список старше минуты перечитываем.
+    $ui = $script:PgUi
+    if (-not $ui.InstLoaded -or -not $ui.InstAt -or ((Get-Date) - $ui.InstAt).TotalSeconds -gt 60) { Update-ProgramInstalled }
     if (-not $script:PgUi.IconsStarted) { Start-ProgramIcons }
     Update-WorkshopState
 }
@@ -423,6 +425,7 @@ function Set-ProgramIcon {
 function Update-ProgramInstalled {
     $ui = $script:PgUi
     $ui.InstLoaded = $true
+    $ui.InstAt = Get-Date
     $ui.InstPane.Body.Children.Clear()
     [void]$ui.InstPane.Body.Children.Add((New-Placeholder 'Спрашиваю winget…'))
     Start-BgTask -Name 'Список программ' -Script { $r = Get-WingetInstalled; if ($null -eq $r) { return @{ Missing = $true } }; return @{ List = @($r) } } -OnDone {
@@ -436,6 +439,10 @@ function Update-ProgramInstalled {
         foreach ($k in $ui.Checks.Keys) {
             $c = $ui.Checks[$k]
             if ($ui.Installed.ContainsKey($k)) { $c.State.Text = 'Установлено'; $c.Check.IsChecked = $false; $c.Check.IsEnabled = $false; $c.Check.Visibility = 'Collapsed' }
+            elseif ($c.State.Text -eq 'Установлено') {
+                # Программу удалили (здесь, на «Удалении программ» или в Windows) - карточку снова можно отметить.
+                $c.State.Text = ''; $c.Check.IsEnabled = $true; $c.Check.Visibility = 'Visible'
+            }
         }
         $names = @{}
         foreach ($cn in $ui.Catalog.Categories.Keys) { foreach ($a in $ui.Catalog.Categories[$cn]) { $names[$a.Id] = $a.Name } }
