@@ -133,8 +133,6 @@ function Show-RestoreMenu {
     Show-ActionMenu -Anchor $Anchor -Items @(
         @{ Text = 'Создать точку сейчас'; OnClick = { Start-BgTask -Name 'Точка восстановления' -Script { New-RestorePoint -Description 'PotatoPC: вручную' } -OnDone { if ($script:HiUi) { Update-RestorePoints } } | Out-Null } }
         @{ Text = 'Все точки и откат Windows…'; OnClick = { Show-RestorePointsDialog } }
-        @{ Separator = $true }
-        @{ Text = 'Откаты твиков PotatoPC'; OnClick = { Show-Page -Id 'history' } }
     )
 }
 

@@ -673,6 +673,7 @@ function Set-UiScale {
     $w.MinWidth = [Math]::Min($script:UiMinW * $Scale, $wa.Width)
     $w.MinHeight = [Math]::Min($script:UiMinH * $Scale, $wa.Height)
     $w.FindName('ScaleText').Text = ([string][int][Math]::Round($Scale * 100)) + '%'
+    if ($w.IsLoaded) { Request-NavFit }
     if ($KeepSize -or $w.WindowState -ne 'Normal') { return }
     # Окно меняет размер вместе с масштабом, центр остаётся на месте и окно не уходит за экран.
     $loaded = $w.IsLoaded
@@ -761,6 +762,35 @@ function Initialize-Nav {
     $rp.Add_Click({ Show-RestoreMenu -Anchor $this })
     [void]$foot.Children.Add($rp)
     [void]$foot.Children.Add((New-SupportBanner))
+    $script:Window.Add_Loaded({ Request-NavFit })
+    $script:Window.Add_StateChanged({ Request-NavFit })
+}
+
+function Request-NavFit {
+    # После раскладки окна: подогнать высоту под меню слева.
+    try { [void]$script:Window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [action]{ Resize-WindowToNav }) } catch {}
+}
+
+function Resize-WindowToNav {
+    # Окно растёт ровно настолько, чтобы все пункты меню слева помещались без
+    # прокрутки (но не выше рабочей области экрана), и не уменьшается ниже этого.
+    $w = $script:Window
+    if (-not $w -or -not $w.IsLoaded -or $w.WindowState -ne 'Normal') { return }
+    $nav = $w.FindName('NavPanel')
+    $sv = $nav.Parent
+    if (-not ($sv -is [System.Windows.Controls.ScrollViewer]) -or $sv.ViewportHeight -le 0) { return }
+    $wa = [System.Windows.SystemParameters]::WorkArea
+    $s = $script:UiScale
+    $over = $nav.ActualHeight - $sv.ViewportHeight
+    if ($over -gt 0.5) {
+        $nh = [Math]::Min($w.ActualHeight + [Math]::Ceiling($over * $s), $wa.Height)
+        $w.Height = $nh
+        if ($w.Top + $nh -gt $wa.Bottom) { $w.Top = [Math]::Max($wa.Top, $wa.Bottom - $nh) }
+        $w.UpdateLayout()
+    }
+    $slack = [Math]::Max(0, $sv.ViewportHeight - $nav.ActualHeight) * $s
+    $fitH = [Math]::Ceiling($w.ActualHeight - $slack)
+    $w.MinHeight = [Math]::Min([Math]::Max($script:UiMinH * $s, $fitH), $wa.Height)
 }
 
 function New-SupportBanner {
