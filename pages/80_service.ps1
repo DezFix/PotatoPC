@@ -14,6 +14,8 @@ function Get-RepairTools {
         @{ Id = 'wu'; Title = 'Починить Центр обновления'; Desc = 'Останавливает службы обновления и пересоздаёт их кэш (SoftwareDistribution, catroot2)'; Icon = 'refresh' }
         @{ Id = 'icons'; Title = 'Пересоздать кэш значков'; Desc = 'Когда у ярлыков пустые или чужие значки. Проводник перезапустится'; Icon = 'folder' }
         @{ Id = 'store'; Title = 'Сбросить кэш Microsoft Store'; Desc = 'Когда Магазин не открывается или не скачивает'; Icon = 'box' }
+        @{ Id = 'time'; Title = 'Синхронизировать часы'; Desc = 'Когда время уплывает или сайты пишут «сертификат недействителен»: перезапускает службу времени и сверяет часы с сервером'; Icon = 'clock' }
+        @{ Id = 'print'; Title = 'Очистить зависшую очередь печати'; Desc = 'Когда документ застрял и принтер ничего не печатает: перезапускает диспетчер печати и удаляет зависшие задания'; Icon = 'file' }
     )
 }
 
@@ -71,6 +73,33 @@ function Invoke-RepairTool {
             Write-Log 'Кэш значков пересоздан' 'ok'
         }
         'store' { Start-Process (Join-Path $sys 'wsreset.exe'); Write-Log 'Кэш Магазина сбрасывается - откроется окно Microsoft Store' 'ok' }
+        'time' {
+            $w32 = Join-Path $sys 'w32tm.exe'
+            try {
+                $svc = Get-Service -Name w32time -ErrorAction Stop
+                if ($svc.StartType -eq 'Disabled') { Set-Service -Name w32time -StartupType Manual; Write-Log 'Служба времени была отключена - включена (вручную)' 'warn' }
+                Restart-Service -Name w32time -Force -ErrorAction SilentlyContinue
+                if ((Get-Service -Name w32time).Status -ne 'Running') { Start-Service -Name w32time -ErrorAction Stop }
+                [void](Invoke-ProcessLive -FilePath $w32 -Arguments '/config /update' -TimeoutSec 60 -Encoding oem)
+                $r = Invoke-ProcessLive -FilePath $w32 -Arguments '/resync /force' -TimeoutSec 120 -Encoding oem
+                if ($r.Code -ne 0) {
+                    Write-Log 'Первая попытка не удалась - сверяю с time.windows.com' 'warn'
+                    [void](Invoke-ProcessLive -FilePath $w32 -Arguments '/config /manualpeerlist:time.windows.com,0x9 /syncfromflags:manual /update' -TimeoutSec 60 -Encoding oem)
+                    $r = Invoke-ProcessLive -FilePath $w32 -Arguments '/resync /force' -TimeoutSec 120 -Encoding oem
+                }
+                if ($r.Code -eq 0) { Write-Log ('Часы сверены. Сейчас: ' + (Get-Date -Format 'dd.MM.yyyy HH:mm:ss')) 'ok' }
+                else { Write-Log 'Не удалось сверить часы - проверьте интернет' 'warn'; $ok = $false }
+            } catch { Write-Log ('Служба времени: ' + $_.Exception.Message) 'warn'; $ok = $false }
+        }
+        'print' {
+            try {
+                Stop-Service -Name Spooler -Force -ErrorAction Stop
+                $n = 0
+                foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $sys 'spool\PRINTERS') -File -Force -ErrorAction SilentlyContinue)) { try { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop; $n++ } catch {} }
+                Start-Service -Name Spooler -ErrorAction Stop
+                Write-Log ('Очередь печати очищена (заданий удалено: ' + $n + '), диспетчер печати перезапущен') 'ok'
+            } catch { Write-Log ('Диспетчер печати: ' + $_.Exception.Message) 'warn'; $ok = $false }
+        }
     }
     Add-History -Kind 'service' -Name ('Обслуживание: ' + $Id) -Result $(if ($ok) { 'ok' } else { 'fail' })
     return $ok
